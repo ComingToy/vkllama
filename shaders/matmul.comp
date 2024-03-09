@@ -1,0 +1,35 @@
+#version 450 core
+
+layout (local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
+
+layout(push_constant) uniform constants
+{
+	int M;
+	int N;
+    int K;
+} pushed_constants;
+
+layout(set=0, binding=0) readonly buffer V1 {float values[];} v1;
+layout(set=0, binding=1) readonly buffer V2 {float values[];} v2;
+layout(set=0, binding=2) writeonly buffer V3 {float values[];} v3;
+
+void main(void)
+{
+    int M = pushed_constants.M;
+    int N = pushed_constants.N;
+    int K = pushed_constants.K;
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    if (x >= N || y >= M) return;
+
+    float r = .0;
+    for (int k = 0; k < K; ++k)
+    {
+        float m = v1.values[y * K + k];
+        float n = v2.values[k * N + x];
+        r += m * n;
+    }
+
+    v3.values[y * N + x] = r;
+}

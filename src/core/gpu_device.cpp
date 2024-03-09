@@ -1,13 +1,40 @@
-#include "GPUDevice.h"
+#include "gpu_device.h"
+#include "allocator.h"
 #include <algorithm>
+#include <memory>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
 GPUDevice::GPUDevice(int dev)
   : dev_(dev)
 {
-    create_instance_();
-    init_device_();
+}
+
+VkResult
+GPUDevice::init()
+{
+
+    auto ret = create_instance_();
+    if (ret != VK_SUCCESS)
+        return ret;
+    ret = init_device_();
+    if (ret != VK_SUCCESS)
+        return ret;
+    allocator_ = new Allocator(this);
+    return VK_SUCCESS;
+}
+
+GPUDevice::~GPUDevice()
+{
+    delete allocator_;
+    vkDestroyDevice(device_, nullptr);
+    vkDestroyInstance(instance_, nullptr);
+}
+
+Allocator&
+GPUDevice::allocator()
+{
+    return *allocator_;
 }
 
 VkDevice&
@@ -16,16 +43,37 @@ GPUDevice::device()
     return device_;
 }
 
+uint32_t
+GPUDevice::find_mem(uint32_t typeBits, VkMemoryPropertyFlags properties) const
+{
+    for (size_t i = 0; i < sizeof(typeBits) * 8; ++i) {
+        auto const& memProperties =
+          physicalDevMemProperties_.memoryTypes[i].propertyFlags;
+        if ((typeBits & (1 << i)) &&
+            ((memProperties & properties) == properties)) {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 VkResult
 GPUDevice::create_instance_()
 {
+
+    uint32_t version = 0;
+    auto ret = vkEnumerateInstanceVersion(&version);
+    if (ret != VK_SUCCESS) {
+        return ret;
+    }
     static VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO,
                                          nullptr,
                                          "vkllama.cpp",
                                          1,
                                          "vkllama.cpp",
                                          1,
-                                         VK_MAKE_VERSION(1, 2, 189) };
+                                         version };
     const char* enabledLayers[] = {
 #ifndef NDEBUG
         "VK_LAYER_KHRONOS_validation"
@@ -47,13 +95,13 @@ GPUDevice::create_instance_()
         0,
 #endif
         &appInfo,
-        1,
+        sizeof(enabledLayers) / sizeof(const char*),
         enabledLayers,
         sizeof(exts) / sizeof(const char*),
         exts
     };
 
-    auto ret = vkCreateInstance(&instanceCreateInfo, nullptr, &instance_);
+    ret = vkCreateInstance(&instanceCreateInfo, nullptr, &instance_);
     if (ret != VK_SUCCESS) {
         return ret;
     }
@@ -79,12 +127,13 @@ GPUDevice::init_device_()
     }
 
     std::vector<VkPhysicalDevice> vkdev;
+    vkdev.resize(ndev);
     ret = vkEnumeratePhysicalDevices(instance_, &ndev, vkdev.data());
     if (ret != VK_SUCCESS) {
         return ret;
     }
 
-    if (vkdev.size() < dev_) {
+    if (vkdev.size() < (size_t)dev_) {
         return VK_ERROR_DEVICE_LOST;
     }
 
@@ -109,15 +158,18 @@ GPUDevice::init_device_()
         physicalDevQueueProperties_.resize(n);
         vkGetPhysicalDeviceQueueFamilyProperties(
           physicalDev_, &n, physicalDevQueueProperties_.data());
+
+        // get physical device properties
+        vkGetPhysicalDeviceProperties(physicalDev_, &physicalDevProperties_);
     }
 
+    std::vector<std::vector<float>> priorities;
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 
     {
-        std::vector<std::vector<float>> priorities;
-        for (auto i = 0; i < physicalDevQueueProperties_.size(); ++i) {
+        for (size_t i = 0; i < physicalDevQueueProperties_.size(); ++i) {
             const auto& feat = physicalDevQueueProperties_[i];
-            priorities.emplace_back(feat.queueCount, 1.0f / feat.queueCount);
+            priorities.emplace_back(feat.queueCount, 0.5);
             VkDeviceQueueCreateInfo createInfo = {
                 VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
                 nullptr,
@@ -142,4 +194,25 @@ GPUDevice::init_device_()
                                          &physicalFeats_ };
 
     return vkCreateDevice(physicalDev_, &devCreateInfo, nullptr, &device_);
+}
+
+uint32_t
+GPUDevice::require_queue(VkQueueFlags flags) const
+{
+    uint32_t type = 0;
+    for (size_t i = 0; i < physicalDevQueueProperties_.size(); ++i) {
+        auto const& property = physicalDevQueueProperties_[i];
+        if ((property.queueFlags & flags) == flags) {
+            type = i;
+            break;
+        }
+    }
+
+    return type;
+}
+
+VkPhysicalDeviceLimits const&
+GPUDevice::limits() const
+{
+    return physicalDevProperties_.limits;
 }
