@@ -46,6 +46,7 @@ class Allocator
                        __MemBlock& block);
     VkResult allocate_from_pool_(const uint32_t type,
                                  const VkDeviceSize size,
+								 const VkDeviceSize align,
                                  __MemBlock& result);
 
     std::map<VkBuffer, VkDeviceMemory> allocated_;

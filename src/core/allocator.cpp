@@ -75,13 +75,14 @@ Allocator::free(const MemBlock block)
 VkResult
 Allocator::allocate_from_pool_(const uint32_t type,
                                const VkDeviceSize req,
+							   const VkDeviceSize align,
                                __MemBlock& result)
 {
     if (mem_pool_.find(type) == mem_pool_.cend()) {
         return VK_ERROR_OUT_OF_POOL_MEMORY;
     }
 
-    auto size = (req + 63) / 64 * 64;
+    auto size = (req + align - 1) / align * align;
     auto& blocks = mem_pool_[type];
     for (auto pos = blocks.begin(); pos != blocks.end(); ++pos) {
         auto& block = *pos;
@@ -109,7 +110,7 @@ Allocator::allocate_(VkMemoryRequirements const& req,
 {
     uint32_t type = dev_->find_mem(req.memoryTypeBits, flags);
 
-    auto ret = allocate_from_pool_(type, req.size, result);
+    auto ret = allocate_from_pool_(type, req.size, req.alignment, result);
     if (ret == VK_SUCCESS || ret != VK_ERROR_OUT_OF_POOL_MEMORY) {
         return ret;
     }
@@ -139,5 +140,5 @@ Allocator::allocate_(VkMemoryRequirements const& req,
         mem_pool_[type].push_back(new_block);
     }
 
-    return allocate_from_pool_(type, req.size, result);
+    return allocate_from_pool_(type, req.size, req.alignment, result);
 }

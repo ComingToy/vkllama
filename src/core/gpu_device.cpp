@@ -182,6 +182,12 @@ GPUDevice::init_device_()
         }
     }
 
+	const char* devExts[] = {
+#if __APPLE__
+		"VK_KHR_portability_subset"
+#endif
+	};
+
     VkDeviceCreateInfo devCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                          nullptr,
                                          0,
@@ -189,8 +195,8 @@ GPUDevice::init_device_()
                                          queueCreateInfos.data(),
                                          0,
                                          nullptr,
-                                         0,
-                                         nullptr,
+                                         sizeof(devExts)/sizeof(const char*),
+                                         devExts,
                                          &physicalFeats_ };
 
     return vkCreateDevice(physicalDev_, &devCreateInfo, nullptr, &device_);
