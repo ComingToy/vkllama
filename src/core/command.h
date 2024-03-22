@@ -26,6 +26,7 @@ class Command
     ~Command()
     {
 		defer_task_.clear();
+		vkFreeCommandBuffers(dev_->device(), commandPool_, 1, &commandBuffer_);
         vkDestroyCommandPool(dev_->device(), commandPool_, nullptr);
         vkDestroyFence(dev_->device(), fence_, nullptr);
     }

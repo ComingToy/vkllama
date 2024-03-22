@@ -28,7 +28,7 @@ vec_mul_add(const float* v1,
     }
 }
 
-constexpr size_t vec_size = 655360 / sizeof(float);
+constexpr size_t vec_size = 20000 / sizeof(float);
 
 int
 main(const int argc, const char* argv[])
@@ -62,9 +62,10 @@ main(const int argc, const char* argv[])
         b2.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
         b2.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-        Pipeline::ShaderInfo shaderInfo = { 0, 2, 2, 1024, 1, 1 };
+        Pipeline::ShaderInfo shaderInfo = { 0, 2, 3, 1024, 1, 1 };
         Pipeline::ConstantType alpha = { .f = 20.55f };
         Pipeline::ConstantType beta = { .f = 15.55f };
+		Pipeline::ConstantType N = {.u32 = (uint32_t)vec_size};
 
         Pipeline pipeline(&gpu,
                           __vec_mul_add_comp_spv_code.pcode,
@@ -73,7 +74,7 @@ main(const int argc, const char* argv[])
                           shaderInfo);
         pipeline.init();
 
-        if (pipeline.set_group(vec_size, 1, 1) != VK_SUCCESS) {
+        if (pipeline.set_group((vec_size + 1023)/1024, 1, 1) != VK_SUCCESS) {
             fprintf(stderr, "set group failed.\n");
             return -1;
         }
@@ -85,13 +86,16 @@ main(const int argc, const char* argv[])
 
         {
             Command command(&gpu);
-            command.init();
+           	command.init();
             for (int i = 0; i < 1000; ++i) {
                 command.begin();
-                command.record_pipeline(pipeline, { b1, b2 }, { alpha, beta });
+                command.record_pipeline(pipeline, { b1, b2 }, { alpha, beta, N });
                 command.end();
-                command.submit_and_wait();
-            }
+                auto ret = command.submit_and_wait();
+				if (ret != VK_SUCCESS){
+					return -1;
+				}
+			}
         }
 
         {
