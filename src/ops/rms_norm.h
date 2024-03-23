@@ -8,6 +8,6 @@ class RMSNorm : public Op
 {
   public:
     RMSNorm(GPUDevice* dev, Command* command);
-    VkResult operator()(VkTensor a, VkTensor& b);
+    VkResult operator()(VkTensor a, VkTensor b, VkTensor& c);
 };
 #endif

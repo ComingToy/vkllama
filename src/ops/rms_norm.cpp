@@ -8,7 +8,7 @@ RMSNorm::RMSNorm(GPUDevice* dev, Command* command)
 {
     Pipeline::ConstantType power = { .f = 2.0f };
     Pipeline::ConstantType eps = { .f = 1e-3 };
-    Pipeline::ShaderInfo info = { 2, 2, 3, 1, 32, 32 };
+    Pipeline::ShaderInfo info = { 2, 3, 3, 1, 32, 32 };
     pipeline_.reset(new Pipeline(dev_,
                                  __get_rms_norm_comp_spv_code(),
                                  __get_rms_norm_comp_spv_size(),
@@ -17,21 +17,21 @@ RMSNorm::RMSNorm(GPUDevice* dev, Command* command)
 }
 
 VkResult
-RMSNorm::operator()(VkTensor a, VkTensor& b)
+RMSNorm::operator()(VkTensor x, VkTensor w, VkTensor& output)
 {
-    b = VkTensor(a.channels(), a.height(), a.width(), dev_, false);
-    auto ret = b.create();
+    output = VkTensor(x.channels(), x.height(), x.width(), dev_, false);
+    auto ret = output.create();
     if (ret != VK_SUCCESS) {
         return ret;
     }
 
-    b.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
-    b.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    output.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
+    output.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    Pipeline::ConstantType C = { .u32 = (uint32_t)a.channels() };
-    Pipeline::ConstantType H = { .u32 = (uint32_t)a.height() };
-    Pipeline::ConstantType W = { .u32 = (uint32_t)a.width() };
+    Pipeline::ConstantType C = { .u32 = (uint32_t)x.channels() };
+    Pipeline::ConstantType H = { .u32 = (uint32_t)x.height() };
+    Pipeline::ConstantType W = { .u32 = (uint32_t)x.width() };
 
     pipeline_->set_group(1, (H.u32 + 31) / 32, (C.u32 + 31) / 32);
-    return command_->record_pipeline(*pipeline_, { a, b }, { C, H, W });
+    return command_->record_pipeline(*pipeline_, { x, w, output }, { C, H, W });
 }

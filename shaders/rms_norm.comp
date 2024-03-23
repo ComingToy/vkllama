@@ -12,12 +12,17 @@ layout(push_constant) uniform constants
     uint W;
 };
 
-layout(set = 0, binding = 0) readonly buffer InTensor
+layout(set = 0, binding = 0) readonly buffer InTensor0
 {
     float input_tensor[];
 };
 
-layout(set = 0, binding = 1) writeonly buffer OutTensor
+layout(set = 0, binding = 1) readonly buffer InTensor1
+{
+	float input_weights[];
+};
+
+layout(set = 0, binding = 2) writeonly buffer OutTensor
 {
     float output_tensor[];
 };
@@ -42,7 +47,8 @@ main(void)
 
     for (uint ow = 0; ow < W; ++ow) {
         float v = input_tensor[c * H * W + h * W + ow];
-        output_tensor[c * H * W + h * W + ow] = v * alpha;
+		float w = input_weights[ow];
+        output_tensor[c * H * W + h * W + ow] = v * w * alpha;
     }
 }
 
