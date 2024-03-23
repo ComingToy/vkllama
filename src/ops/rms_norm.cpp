@@ -17,6 +17,18 @@ RMSNorm::RMSNorm(GPUDevice* dev, Command* command)
 }
 
 VkResult
+RMSNorm::init()
+{
+    return pipeline_->init();
+}
+
+uint64_t
+RMSNorm::time()
+{
+    return pipeline_->time();
+}
+
+VkResult
 RMSNorm::operator()(VkTensor x, VkTensor w, VkTensor& output)
 {
     output = VkTensor(x.channels(), x.height(), x.width(), dev_, false);

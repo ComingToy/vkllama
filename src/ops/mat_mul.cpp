@@ -18,6 +18,18 @@ MatMul::MatMul(GPUDevice* dev, Command* command)
 }
 
 VkResult
+MatMul::init()
+{
+    return pipeline_->init();
+}
+
+uint64_t
+MatMul::time()
+{
+    return pipeline_->time();
+}
+
+VkResult
 MatMul::operator()(VkTensor a, VkTensor b, VkTensor& c)
 {
     c = VkTensor(

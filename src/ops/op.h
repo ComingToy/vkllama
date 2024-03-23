@@ -11,13 +11,12 @@ class Op
 {
   public:
     Op(GPUDevice* dev, Command* command);
-    virtual VkResult init();
-    uint64_t time();
+    virtual VkResult init() = 0;
+    virtual uint64_t time() = 0;
 
   protected:
     GPUDevice* dev_;
     Command* command_;
-    std::unique_ptr<Pipeline> pipeline_;
 };
 
 #endif
