@@ -1,35 +1,58 @@
 import sys
 from os import path
+import jinja2
 
+header_tmpl = """
+#ifndef {{ header_guard }}
+#define {{ header_guard }}
+#include <cstddef>
+#include <stdint.h>
+{% for spv_name in spv_names %}
+extern const uint8_t* get_{{ spv_name }}_code();
+extern size_t get_{{ spv_name }}_size();
+{% endfor %}
+#endif
+"""
 
-def generate_array(src, name, fout):
-    fout.write(b'const unsigned char __%s[] = {' % name.encode('utf-8'))
+source_tmpl = """
+#include <cstddef>
+#include <stdint.h>
+{% for spv_name, binary in frags %}
+static uint8_t __{{ spv_name }}_code[] = { {{ binary }} };
+const uint8_t* __get_{{ spv_name }}_code() { return __{{ spv_name }}_code; }
+size_t __get_{{ spv_name }}_size() { return sizeof(__{{ spv_name }}_code); }
+{% endfor %}
+"""
+
+def generate_array(src, name):
+    bins = b''
     with open(src, 'rb') as fin:
         for b in fin.read():
-            fout.write(b'0x%02X,' % b)
-    fout.write(b'};\n')
-    def_code = 'struct __spv_code __%s_code = {.pcode = __%s, .size = sizeof(__%s)};\n' % (name, name, name)
-    fout.write(def_code.encode('utf-8'))
-
+            bins += (b'0x%02X, ' % b)
+    return bins
 
 if __name__ == "__main__":
     names = []
     cpp_name = sys.argv[1]
     header_name = sys.argv[2]
     header = path.basename(header_name)
-    header_gurad = f'__{header}__'.upper().replace('.', '_')
+    header_guard = f'__{header}__'.upper().replace('.', '_')
 
-    with open(cpp_name, 'wb+') as fout:
-        fout.write(f'#include "{header}"\n'.encode('utf-8'))
-        for f in sys.argv[3:]:
-            name = path.basename(f).replace('.', '_')
-            names.append(name)
-            print(f'write {f} to array {name} in file {cpp_name}')
-            generate_array(f, name, fout)
+    spv_names = []
+    for spv in sys.argv[3:]:
+        name = path.basename(spv).replace('.', '_')
+        spv_names.append(name)
 
-    with open(header_name, 'wb+') as fout:
-        fout.write(f'#ifndef {header_gurad}\n#define {header_gurad}\n'.encode('utf-8'))
-        fout.write("#include <cstddef>\nstruct __spv_code{const unsigned char* pcode; const size_t size;};\n".encode('utf-8'))
-        for name in names:
-            fout.write(f'extern struct __spv_code __{name}_code;\n'.encode('utf-8'))
-        fout.write(b'#endif')
+    tmpl = jinja2.Template(header_tmpl)
+    header_code = tmpl.render(header_guard=header_guard, spv_names=spv_names)
+    with open(header_name, 'w+', encoding='utf-8') as fout:
+        fout.write(header_code)
+
+    frags = []
+    for src, name in zip(sys.argv[3:], spv_names):
+        frags.append((name, generate_array(src, name)))
+
+    tmpl = jinja2.Template(source_tmpl)
+    cpp_code = tmpl.render(frags=frags).replace("b'", '').replace("'", '')
+    with open(cpp_name, 'w+', encoding='utf-8') as fout:
+        fout.write(cpp_code)

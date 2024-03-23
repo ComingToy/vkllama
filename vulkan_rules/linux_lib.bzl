@@ -21,6 +21,8 @@ cc_library(
     hdrs = glob([
         "vulkan_sdk_linux/include/vulkan/*.h",
         "vulkan_sdk_linux/include/vulkan/*.hpp",
+        "vulkan_sdk_macos/include/vk_video/*.hpp",
+        "vulkan_sdk_macos/include/vk_video/*.h",
         ]),
     includes = ['vulkan_sdk_linux/include'],
     visibility = ["//visibility:public"]

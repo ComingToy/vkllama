@@ -1,5 +1,5 @@
 #include "mat_mul.h"
-#include "shaders/vkllama_shaders.h"
+#include "shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
@@ -11,8 +11,8 @@ MatMul::MatMul(GPUDevice* dev, Command* command)
     Pipeline::ShaderInfo info = { 0, 3, 3, 16, 16, 1 };
 
     pipeline_.reset(new Pipeline(dev_,
-                                 __matmul_shared_mem_comp_spv_code.pcode,
-                                 __matmul_shared_mem_comp_spv_code.size,
+                                 get_matmul_shared_mem_comp_spv_code(),
+                                 get_matmul_shared_mem_comp_spv_size(),
                                  {},
                                  info));
 }

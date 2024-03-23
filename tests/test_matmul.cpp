@@ -1,4 +1,4 @@
-#include "shaders/vkllama_shaders.h"
+#include "shaders/vkllama_comp_shaders.h"
 #include "src/core/allocator.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
@@ -67,8 +67,8 @@ main(const int argc, const char* argv[])
         Pipeline::ConstantType k = { .i = K };
 
         Pipeline pipeline(&gpu,
-                          __matmul_comp_spv_code.pcode,
-                          __matmul_comp_spv_code.size,
+                          get_matmul_comp_spv_code(),
+                          get_matmul_comp_spv_size(),
                           {},
                           shaderInfo);
 

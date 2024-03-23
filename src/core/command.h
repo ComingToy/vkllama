@@ -109,7 +109,7 @@ class Command
                                  &barrier,
                                  0,
                                  nullptr);
-            defer_task_.push_back([this, &from, to, bytes]() {
+            defer_task_.push_back([&from, to, bytes]() {
                 auto ret = from.invalid();
                 if (ret != VK_SUCCESS) {
                     return ret;
@@ -183,7 +183,7 @@ class Command
         }
 
         // defer to sumbit and wait then do read from this staging buffer
-        defer_task_.push_back([this, staging, to, n, aligned_bytes]() mutable {
+        defer_task_.push_back([staging, to, n]() mutable {
             auto ret = staging.flush();
             if (ret != VK_SUCCESS)
                 return ret;
@@ -351,7 +351,7 @@ class Command
         to.set_access_flags(VK_ACCESS_TRANSFER_WRITE_BIT);
         to.set_pipeline_stage(VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-        defer_task_.push_back([this, staging]() { return VK_SUCCESS; });
+        defer_task_.push_back([staging]() { return VK_SUCCESS; });
         return ret;
     }
 
