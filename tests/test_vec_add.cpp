@@ -1,8 +1,8 @@
-#include "src/core/allocator.h"
+#include "core/allocator.h"
 #include "shaders/vkllama_comp_shaders.h"
-#include "src/core/command.h"
-#include "src/core/gpu_device.h"
-#include "src/core/pipeline.h"
+#include "core/command.h"
+#include "core/gpu_device.h"
+#include "core/pipeline.h"
 #include <cstdio>
 #include "Eigen/Eigen"
 #include <iostream>

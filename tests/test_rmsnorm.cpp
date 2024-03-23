@@ -1,7 +1,7 @@
 #include "Eigen/Eigen"
-#include "src/core/command.h"
-#include "src/core/gpu_device.h"
-#include "src/ops/rms_norm.h"
+#include "core/command.h"
+#include "core/gpu_device.h"
+#include "ops/rms_norm.h"
 #include <cstdio>
 
 float x[3 * 1024 * 1024];
