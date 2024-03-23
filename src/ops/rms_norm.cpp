@@ -1,5 +1,5 @@
 #include "rms_norm.h"
-#include "shaders/vkllama_shaders.h"
+#include "shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/pipeline.h"
 
@@ -10,8 +10,8 @@ RMSNorm::RMSNorm(GPUDevice* dev, Command* command)
     Pipeline::ConstantType eps = { .f = 1e-3 };
     Pipeline::ShaderInfo info = { 2, 2, 3, 1, 32, 32 };
     pipeline_.reset(new Pipeline(dev_,
-                                 __reduce_mean_comp_spv_code.pcode,
-                                 __reduce_mean_comp_spv_code.size,
+                                 __get_rms_norm_comp_spv_code(),
+                                 __get_rms_norm_comp_spv_size(),
                                  { power, eps },
                                  info));
 }

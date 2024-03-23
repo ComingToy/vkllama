@@ -19,9 +19,9 @@ cc_binary(
     copts = ["-std=c++17"],
 )
 
-#cc_binary(
-#    name = "test_rmsnorm",
-#    srcs = ["test_rmsnorm.cpp"],
-#    deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
-#    copts = ["-std=c++17"],
-#)
+cc_binary(
+    name = "test_rmsnorm",
+    srcs = ["test_rmsnorm.cpp"],
+    deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
+    copts = ["-std=c++17"],
+)

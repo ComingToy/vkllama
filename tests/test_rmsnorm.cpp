@@ -2,8 +2,7 @@
 #include "src/core/gpu_device.h"
 #include "src/ops/rms_norm.h"
 #include <cstdio>
-#include <Eigen/src/Core/Map.h>
-#include <Eigen/src/Core/Matrix.h>
+#include "Eigen/Eigen"
 
 float x[3 * 1024 * 1024];
 float output[3 * 1024 * 1024];
