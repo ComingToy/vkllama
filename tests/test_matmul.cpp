@@ -67,8 +67,8 @@ main(const int argc, const char* argv[])
         Pipeline::ConstantType k = { .i = K };
 
         Pipeline pipeline(&gpu,
-                          get_matmul_comp_spv_code(),
-                          get_matmul_comp_spv_size(),
+                          __get_matmul_comp_spv_code(),
+                          __get_matmul_comp_spv_size(),
                           {},
                           shaderInfo);
 

@@ -8,8 +8,8 @@ header_tmpl = """
 #include <cstddef>
 #include <stdint.h>
 {% for spv_name in spv_names %}
-extern const uint8_t* get_{{ spv_name }}_code();
-extern size_t get_{{ spv_name }}_size();
+extern const uint8_t* __get_{{ spv_name }}_code();
+extern size_t __get_{{ spv_name }}_size();
 {% endfor %}
 #endif
 """

@@ -68,8 +68,8 @@ main(const int argc, const char* argv[])
 		Pipeline::ConstantType N = {.u32 = (uint32_t)vec_size};
 
         Pipeline pipeline(&gpu,
-                          get_vec_mul_add_comp_spv_code(),
-                          get_vec_mul_add_comp_spv_size(),
+                          __get_vec_mul_add_comp_spv_code(),
+                          __get_vec_mul_add_comp_spv_size(),
                           {},
                           shaderInfo);
         pipeline.init();
