@@ -14,7 +14,8 @@ class VkTensor
         FP32
     } DType;
 
-	VkTensor();
+    static VkTensor like(VkTensor const&);
+    VkTensor();
     VkTensor(const int c,
              const int h,
              const int w,
@@ -23,7 +24,7 @@ class VkTensor
 
     VkTensor& operator=(VkTensor const&);
     VkTensor(const VkTensor& rhs);
-    VkTensor(VkTensor&& rhs) = delete;
+    VkTensor(VkTensor&& rhs);
 
     ~VkTensor();
 

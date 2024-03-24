@@ -51,6 +51,20 @@ VkTensor::VkTensor(const VkTensor& rhs)
     }
 }
 
+VkTensor::VkTensor(VkTensor&& rhs)
+  : c_(rhs.channels())
+  , h_(rhs.height())
+  , w_(rhs.width())
+  , bytes_(rhs.bytes())
+  , dev_(rhs.dev_)
+  , visable_(rhs.visable_)
+  , data_(rhs.data_)
+  , mem_(rhs.mem_)
+  , status_(rhs.status_)
+{
+    rhs.status_ = nullptr;
+}
+
 VkTensor&
 VkTensor::operator=(VkTensor const& rhs)
 {
@@ -227,4 +241,15 @@ VkTensor::~VkTensor()
 
         delete status_;
     }
+}
+
+VkTensor
+VkTensor::like(const VkTensor& tensor)
+{
+    VkTensor tmp(tensor.channels(),
+                 tensor.height(),
+                 tensor.width(),
+                 tensor.dev_,
+                 tensor.visable());
+    return tmp;
 }
