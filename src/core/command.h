@@ -25,8 +25,8 @@ class Command
 
     ~Command()
     {
-		defer_task_.clear();
-		vkFreeCommandBuffers(dev_->device(), commandPool_, 1, &commandBuffer_);
+        defer_task_.clear();
+        vkFreeCommandBuffers(dev_->device(), commandPool_, 1, &commandBuffer_);
         vkDestroyCommandPool(dev_->device(), commandPool_, nullptr);
         vkDestroyFence(dev_->device(), fence_, nullptr);
     }
@@ -203,6 +203,9 @@ class Command
         auto& descriptset = pipeline.vkdescriptorset();
 
         for (auto& tensor : bindings) {
+            if (tensor.access_flags() == 0 || tensor.pipeline_stage() == 0) {
+                continue;
+            }
             VkBufferMemoryBarrier barrier = {
                 VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
                 nullptr,
