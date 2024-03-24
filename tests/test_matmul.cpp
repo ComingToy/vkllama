@@ -1,11 +1,12 @@
-#include "shaders/vkllama_comp_shaders.h"
+#include "Eigen/Eigen"
 #include "core/allocator.h"
 #include "core/command.h"
 #include "core/gpu_device.h"
 #include "core/pipeline.h"
+#include "shaders/vkllama_comp_shaders.h"
 #include <chrono>
 #include <cstdio>
-#include "Eigen/Eigen"
+#include <gtest/gtest.h>
 #include <iostream>
 #include <math.h>
 
@@ -35,28 +36,21 @@ Eigen::Map<
   Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
   C(val3, M, N);
 
-int
-main(const int argc, const char* argv[])
+TEST(matmul, test_matmul)
 {
     random_vec(val1, M * K);
     random_vec(val2, K * M);
     random_vec(val3, M * N);
 
     GPUDevice gpu;
-	if (gpu.init() != VK_SUCCESS)
-	{
-		fprintf(stderr, "failed at init gpu\n");
-		return -1;
-	}
+    ASSERT_EQ(gpu.init(), VK_SUCCESS) << "failed at init gpu";
 
     {
         VkTensor b1(1, M, K, &gpu, true);
         VkTensor b2(1, K, N, &gpu, true);
         VkTensor b3(1, M, N, &gpu, true);
-        if (b1.create() != VK_SUCCESS || b2.create() != VK_SUCCESS ||
-            b3.create() != VK_SUCCESS) {
-            return -1;
-        }
+        ASSERT_TRUE(b1.create() == VK_SUCCESS && b2.create() == VK_SUCCESS &&
+                    b3.create() == VK_SUCCESS) << "failed at creating bindings";
 
         b3.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
         b3.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -72,21 +66,10 @@ main(const int argc, const char* argv[])
                           {},
                           shaderInfo);
 
-        if (pipeline.init() != VK_SUCCESS) {
-            fprintf(stderr, "init pipeline failed.\n");
-            return -1;
-        }
+        ASSERT_TRUE(pipeline.init() == VK_SUCCESS) << "failed at init pipeline";
 
-        if (pipeline.set_group((N + 15) / 16, (M + 15) / 16, 1) != VK_SUCCESS) {
-            fprintf(stderr, "set group failed.\n");
-            return -1;
-        }
-
-        fprintf(stderr,
-                "pipeline group_x = %d, gorup_y = %d, group_z = %d\n",
-                pipeline.group_x(),
-                pipeline.group_y(),
-                pipeline.group_z());
+        ASSERT_TRUE(pipeline.set_group((N + 15) / 16, (M + 15) / 16, 1) ==
+                    VK_SUCCESS) << "failed at setting work group";
 
         {
             CommandScope command(&gpu);
@@ -97,10 +80,8 @@ main(const int argc, const char* argv[])
             command.download(b3, val3, M * N);
         }
 
-        std::cerr << "time cost: " << pipeline.time() << std::endl;
         auto c = A * B;
         auto mse = (C - c).array().pow(2.f).mean();
-        std::cerr << "mse: " << mse << std::endl;
+        ASSERT_LT(mse, 1e-4) << "failed at testing result";
     }
-    return 0;
 }
