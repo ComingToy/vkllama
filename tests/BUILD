@@ -1,3 +1,16 @@
+cc_library(
+	name = "test_common",
+	srcs = [],
+	hdrs = ["test_common.h"],
+    copts = ["-std=c++17"],
+	deps = [
+		"@eigen3//:eigen",
+		"@gtest//:gtest",
+		"@gtest//:gtest_main",
+		"@//src:vkllama",
+	],
+)
+
 cc_binary(
     name = "test_vec_add",
     srcs = ["test_vec_add.cpp"],
@@ -29,5 +42,14 @@ cc_test(
 		"@eigen3//:eigen",
 		"@gtest//:gtest",
 		"@gtest//:gtest_main",
+	],
+)
+
+cc_test(
+	name = "test_feedforward",
+	srcs = ["test_feedforward.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
 	],
 )
