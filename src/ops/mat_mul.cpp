@@ -5,15 +5,16 @@
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 
-MatMul::MatMul(GPUDevice* dev, Command* command)
+MatMul::MatMul(GPUDevice* dev, Command* command, const int act)
   : Op(dev, command)
 {
-    Pipeline::ShaderInfo info = { 0, 3, 3, 16, 16, 1 };
+    Pipeline::ShaderInfo info = { 1, 3, 3, 16, 16, 1 };
 
+    Pipeline::ConstantType act_type = { .i = act };
     pipeline_.reset(new Pipeline(dev_,
                                  __get_matmul_shared_mem_comp_spv_code(),
                                  __get_matmul_shared_mem_comp_spv_size(),
-                                 {},
+                                 { act_type },
                                  info));
 }
 

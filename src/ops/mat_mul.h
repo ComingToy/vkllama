@@ -7,7 +7,7 @@
 class MatMul : public Op
 {
   public:
-    MatMul(GPUDevice* dev, Command* command);
+    MatMul(GPUDevice* dev, Command* command, const int act = 0);
     VkResult operator()(VkTensor a, VkTensor b, VkTensor& c);
     VkResult init() override;
     uint64_t time() override;

@@ -1,6 +1,7 @@
 #version 450 core
 layout (local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
 
+layout(constant_id=0) const int act = 0;
 layout(set=0, binding=0) readonly buffer V1 {float values[];} v1;
 layout(set=0, binding=1) readonly buffer V2 {float values[];} v2;
 layout(set=0, binding=2) writeonly buffer V3 {float values[];} v3;
@@ -78,19 +79,23 @@ void main(void)
     uint n = bx * 32 + tid_x * 2;
     
     if (m < M && n < N){
-        v3.values[m*N + n] = results[0][0];
+		float x = results[0][0];
+        v3.values[m*N + n] = act == 1 ? x / (1 + exp(-x)) : x;
     }
 
     if (m + 1 < M && n < N){
-        v3.values[(m+1)*N + n] = results[1][0];
+		float x = results[1][0];
+        v3.values[(m+1)*N + n] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 
     if (n + 1 < N && m < M)
     {
-        v3.values[m*N + n + 1] = results[0][1];
+		float x = results[0][1];
+        v3.values[m*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 
     if (m + 1 < M && n + 1 < N){
-        v3.values[(m+1)*N + n + 1] = results[1][1];
+		float x = results[1][1];
+        v3.values[(m+1)*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 }
