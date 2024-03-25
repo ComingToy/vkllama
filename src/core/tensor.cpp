@@ -6,9 +6,9 @@
 #include <vulkan/vulkan_core.h>
 
 VkTensor::VkTensor()
-  : c_(1)
-  , h_(1)
-  , w_(1)
+  : c_(0)
+  , h_(0)
+  , w_(0)
   , bytes_(sizeof(float))
   , dev_(nullptr)
   , visable_(false)
@@ -191,6 +191,11 @@ size_t
 VkTensor::width() const
 {
     return w_;
+}
+
+size_t VkTensor::size() const
+{
+	return c_ * h_ * w_;
 }
 
 VkBuffer&

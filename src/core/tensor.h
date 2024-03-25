@@ -8,7 +8,7 @@
 class GPUDevice;
 class VkTensor
 {
-  public:
+public:
     typedef enum
     {
         FP32
@@ -31,6 +31,7 @@ class VkTensor
     size_t channels() const;
     size_t height() const;
     size_t width() const;
+    size_t size() const;
     VkAccessFlags access_flags() const;
     VkPipelineStageFlags pipeline_stage() const;
     void set_access_flags(VkAccessFlags access_flags);
@@ -46,7 +47,7 @@ class VkTensor
 
     void* host();
 
-  private:
+private:
     int c_;
     int h_;
     int w_;
