@@ -17,7 +17,7 @@ def _impl(ctx):
     file_content = """
 cc_library(
     name = "vulkan_cc_library",
-    srcs = ["vulkan_sdk_macos/lib/libvulkan.dylib"],  # replace lib_path
+    srcs = ["vulkan_sdk_macos/lib/libvulkan.1.dylib"],  # replace lib_path
     hdrs = glob([
         "vulkan_sdk_macos/include/vulkan/*.h",
         "vulkan_sdk_macos/include/vulkan/*.hpp",
