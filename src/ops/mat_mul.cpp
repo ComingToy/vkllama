@@ -6,15 +6,15 @@
 #include "src/core/tensor.h"
 
 MatMul::MatMul(GPUDevice* dev, Command* command, const int act)
-  : Op(dev, command)
+    : Op(dev, command)
 {
-    Pipeline::ShaderInfo info = { 1, 3, 3, 16, 16, 1 };
+    Pipeline::ShaderInfo info = {1, 3, 3, 16, 16, 1};
 
-    Pipeline::ConstantType act_type = { .i = act };
+    Pipeline::ConstantType act_type = {.i = act};
     pipeline_.reset(new Pipeline(dev_,
                                  __get_matmul_shared_mem_comp_spv_code(),
                                  __get_matmul_shared_mem_comp_spv_size(),
-                                 { act_type },
+                                 {act_type},
                                  info));
 }
 
@@ -33,23 +33,29 @@ MatMul::time()
 VkResult
 MatMul::operator()(VkTensor a, VkTensor b, VkTensor& c)
 {
+    if (b.channels() != 1)
+    {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
     c = VkTensor(
-      std::max(a.channels(), b.channels()), a.height(), b.width(), dev_, false);
+        std::max(a.channels(), b.channels()), a.height(), b.width(), dev_, false);
 
     auto ret = c.create();
-    if (ret != VK_SUCCESS) {
+    if (ret != VK_SUCCESS)
+    {
         return ret;
     }
 
     c.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
     c.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    Pipeline::ConstantType M = { .i = (int)a.height() };
-    Pipeline::ConstantType N = { .i = (int)b.width() };
-    Pipeline::ConstantType K = { .i = (int)b.height() };
+    Pipeline::ConstantType M = {.i = (int)a.height()};
+    Pipeline::ConstantType N = {.i = (int)b.width()};
+    Pipeline::ConstantType K = {.i = (int)b.height()};
 
     uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = 1;
     pipeline_->set_group(groupx, groupy, groupz);
 
-    return command_->record_pipeline(*pipeline_, { a, b, c }, { M, N, K });
+    return command_->record_pipeline(*pipeline_, {a, b, c}, {M, N, K});
 }
