@@ -1,4 +1,3 @@
-#include "shaders/vkllama_comp_shaders.h"
 #include "core/allocator.h"
 #include "core/command.h"
 #include "core/gpu_device.h"
@@ -10,76 +9,43 @@
 #include <iostream>
 #include <math.h>
 #include <vector>
+#include "test_common.h"
+#include "gtest/gtest.h"
 
-void
-random_vec(float* v, const int n)
+namespace {
+struct TestMatMulParams
 {
-    for (int i = 0; i < n; ++i) {
-        v[i] = static_cast<float>(random() % 100) / 50.0f;
-    }
-}
+    const int C;
+    const int M;
+    const int N;
+    const int K;
+    const int broadcast_type;
+};
 
-void
-clear_vec(float* v, const int n)
+class TestMatMulParams : public ::testing::TestWithParam<TestMatMulParams>
 {
-    for (int i = 0; i < n; ++i) {
-        v[i] = .0f;
-    }
-}
-
-void
-vec_mul_add(const float* v1,
-            const float alpha,
-            const float beta,
-            float* v2,
-            size_t const n)
-{
-    for (size_t i = 0; i < n; ++i) {
-        v2[i] = v1[i] * alpha + beta;
-    }
-}
-
-bool
-is_vec_eq(const float* v1, const float* v2, size_t const n)
-{
-    for (size_t i = 0; i < n; ++i) {
-        if (fabs(v1[i] - v2[i]) > 1e-6) {
-            fprintf(
-              stderr, "(v1[%zu] = %f) != (v2[%zu] = %f)\n", i, v1[i], i, v2[i]);
-            return false;
-        }
-    }
-
-    return true;
-}
-
-constexpr int M = 1027;
-constexpr int N = 1027;
-constexpr int K = 519;
-// write v1, v2
-float val1[M * K] = {};
-float val2[K * N] = {};
-float val3[M * N] = {};
+};
+} // namespace
 
 Eigen::Map<
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
-  A(val1, M, K);
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
+    A(val1, M, K);
 Eigen::Map<
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
-  B(val2, K, N);
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
+    B(val2, K, N);
 Eigen::Map<
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
-  C(val3, M, N);
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
+    C(val3, M, N);
 
-int
-main(const int argc, const char* argv[])
+int main(const int argc, const char* argv[])
 {
     random_vec(val1, M * K);
     random_vec(val2, K * M);
     random_vec(val3, M * N);
 
     GPUDevice gpu;
-    if (gpu.init() != VK_SUCCESS) {
+    if (gpu.init() != VK_SUCCESS)
+    {
         fprintf(stderr, "init gpu failed.\n");
         return -1;
     }
@@ -89,13 +55,15 @@ main(const int argc, const char* argv[])
         VkTensor b2(1, K, N, &gpu, true);
         VkTensor b3;
 
-        if (b1.create() != VK_SUCCESS || b2.create() != VK_SUCCESS) {
+        if (b1.create() != VK_SUCCESS || b2.create() != VK_SUCCESS)
+        {
             return -1;
         }
 
         Command command(&gpu);
         auto ret = command.init();
-        if (ret != VK_SUCCESS) {
+        if (ret != VK_SUCCESS)
+        {
             fprintf(stderr, "failed at init command\n");
             return -1;
         }
@@ -105,13 +73,15 @@ main(const int argc, const char* argv[])
         command.upload(val2, K * N, b2);
 
         MatMul matmul(&gpu, &command);
-        if (matmul.init() != VK_SUCCESS) {
+        if (matmul.init() != VK_SUCCESS)
+        {
             fprintf(stderr, "failed at init op\n");
             return -1;
         }
         ret = matmul(b1, b2, b3);
 
-        if (ret != VK_SUCCESS) {
+        if (ret != VK_SUCCESS)
+        {
             fprintf(stderr, "failed at matmul operator\n");
             return -1;
         }
