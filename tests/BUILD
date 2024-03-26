@@ -19,13 +19,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "test_smem_matmul",
-    srcs = ["test_smem_matmul.cpp"],
-    deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
-    copts = ["-std=c++17"],
-)
-
-cc_binary(
     name = "test_rmsnorm",
     srcs = ["test_rmsnorm.cpp"],
     deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
@@ -48,6 +41,15 @@ cc_test(
 cc_test(
 	name = "test_feedforward",
 	srcs = ["test_feedforward.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_smem_matmul",
+	srcs = ["test_smem_matmul.cpp"],
     copts = ["-std=c++17"],
 	deps = [
 		":test_common",

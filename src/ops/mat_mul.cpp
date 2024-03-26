@@ -5,8 +5,8 @@
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 
-MatMul::MatMul(GPUDevice* dev, Command* command, const int act)
-    : Op(dev, command)
+MatMul::MatMul(GPUDevice* dev, Command* command, const int act, const int broadcast_type)
+    : Op(dev, command), broadcast_type_(broadcast_type)
 {
     Pipeline::ShaderInfo info = {1, 3, 3, 16, 16, 1};
 

@@ -1,5 +1,4 @@
 #include "Eigen/Eigen"
-#include "core/allocator.h"
 #include "core/command.h"
 #include "core/gpu_device.h"
 #include "core/pipeline.h"
