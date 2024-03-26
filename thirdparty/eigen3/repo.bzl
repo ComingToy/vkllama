@@ -39,6 +39,11 @@ EIGEN_FILES = [
     "Eigen/src/UmfPackSupport/**",
     "Eigen/src/misc/**",
     "Eigen/src/plugins/**",
+    "unsupported/Eigen/**",
+    "unsupported/Eigen/CXX11/**",
+    "unsupported/Eigen/CXX11/src/util/**",
+    "unsupported/Eigen/src/*/**",
+    "unsupported/Eigen/src/*/*/*/**",
 ]
 
 EIGEN_MPL2_HEADER_FILES = glob(

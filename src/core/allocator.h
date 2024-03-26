@@ -6,7 +6,7 @@
 
 class Allocator
 {
-  public:
+public:
     Allocator() = delete;
     friend GPUDevice;
 
@@ -15,6 +15,7 @@ class Allocator
         VkDeviceMemory mem;
         VkDeviceSize offset;
         VkDeviceSize size;
+        VkDeviceSize align;
         void* host;
         uint32_t type;
     };
@@ -24,7 +25,7 @@ class Allocator
                       bool visable = false);
     void free(const MemBlock block);
 
-  private:
+private:
     Allocator(GPUDevice* dev);
     ~Allocator();
     GPUDevice* dev_;
@@ -34,6 +35,7 @@ class Allocator
         VkDeviceMemory mem;
         VkDeviceSize size;
         VkDeviceSize offset;
+        VkDeviceSize align;
         VkMemoryPropertyFlags flags;
         uint32_t type;
         __MemBlock* parent;
@@ -46,12 +48,12 @@ class Allocator
                        __MemBlock& block);
     VkResult allocate_from_pool_(const uint32_t type,
                                  const VkDeviceSize size,
-								 const VkDeviceSize align,
+                                 const VkDeviceSize align,
                                  __MemBlock& result);
 
     std::map<VkBuffer, VkDeviceMemory> allocated_;
     // <type, memblock>
-    std::map<uint32_t, std::list<__MemBlock>> mem_pool_;
+    std::map<uint32_t, std::list<__MemBlock> > mem_pool_;
     static constexpr VkDeviceSize BLOCK_ALIGN = 1024 * 1024 * 10;
 };
 
