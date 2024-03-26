@@ -15,8 +15,8 @@ layout(push_constant) uniform constants
 } pushed_constants;
 
 // block size = [16, 16] = 256
-shared float tileA[4][32][8];
-shared float tileB[4][8][32];
+shared float tileA[32][8];
+shared float tileB[8][32];
 
 void main(void)
 {
@@ -28,14 +28,10 @@ void main(void)
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
     uint z = gl_GlobalInvocationID.z;
-
-    if (z >= C){
-        return;
-    }
+    if (z >= C) return;
 
     uint tid_y = gl_LocalInvocationID.y;
     uint tid_x = gl_LocalInvocationID.x;
-    uint tid_z = gl_LocalInvocationID.z;
 
     uint tid = tid_y * 16 + tid_x;
     uint by = gl_WorkGroupID.y;
@@ -63,26 +59,26 @@ void main(void)
     {
         if (a_y < M && i*8 + tid_a_x < K){
             uint a_src_idx = a_channel_base + a_y*K + i*8 + tid_a_x;
-            tileA[tid_z][tid_a_y][tid_a_x] = v1.values[a_src_idx];
+            tileA[tid_a_y][tid_a_x] = v1.values[a_src_idx];
         }else{
-            tileA[tid_z][tid_a_y][tid_a_x] = .0;
+            tileA[tid_a_y][tid_a_x] = .0;
         }
 
         if (b_x < N && i*8 + tid_b_y < K){
             uint b_src_idx = b_channel_base + (i*8 + tid_b_y)*N + b_x;
-            tileB[tid_z][tid_b_y][tid_b_x] = v2.values[b_src_idx];
+            tileB[tid_b_y][tid_b_x] = v2.values[b_src_idx];
         }else{
-            tileB[tid_z][tid_b_y][tid_b_x] = .0;
+            tileB[tid_b_y][tid_b_x] = .0;
         }
 
         barrier();
         
         for (int k = 0; k < 8; ++k)
         {
-            results[0][0] += tileA[tid_z][tid_y*2 + 0][k] * tileB[tid_z][k][tid_x*2 + 0];
-            results[0][1] += tileA[tid_z][tid_y*2 + 0][k] * tileB[tid_z][k][tid_x*2 + 1];
-            results[1][0] += tileA[tid_z][tid_y*2 + 1][k] * tileB[tid_z][k][tid_x*2 + 0];
-            results[1][1] += tileA[tid_z][tid_y*2 + 1][k] * tileB[tid_z][k][tid_x*2 + 1];
+            results[0][0] += tileA[tid_y*2 + 0][k] * tileB[k][tid_x*2 + 0];
+            results[0][1] += tileA[tid_y*2 + 0][k] * tileB[k][tid_x*2 + 1];
+            results[1][0] += tileA[tid_y*2 + 1][k] * tileB[k][tid_x*2 + 0];
+            results[1][1] += tileA[tid_y*2 + 1][k] * tileB[k][tid_x*2 + 1];
         }
 
         barrier();
