@@ -20,6 +20,7 @@ shared float tileB[4][8][32];
 
 void main(void)
 {
+    int C = pushed_constants.C;
     int M = pushed_constants.M;
     int N = pushed_constants.N;
     int K = pushed_constants.K;
@@ -27,6 +28,10 @@ void main(void)
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
     uint z = gl_GlobalInvocationID.z;
+
+    if (z >= C){
+        return;
+    }
 
     uint tid_y = gl_LocalInvocationID.y;
     uint tid_x = gl_LocalInvocationID.x;
@@ -53,11 +58,7 @@ void main(void)
 
     uint a_channel_base = z * M * K;
     uint b_channel_base = z * K * N;
-
-    if (z >= C){
-        return;
-    }
-
+    
     for (int i = 0; i < (K + 7)/8; ++i)
     {
         if (a_y < M && i*8 + tid_a_x < K){
@@ -68,20 +69,20 @@ void main(void)
         }
 
         if (b_x < N && i*8 + tid_b_y < K){
-            uint b_src_idx = (i*8 + tid_b_y)*N + b_x;
-            tileB[tid_b_y][tid_b_x] = v2.values[b_src_idx];
+            uint b_src_idx = b_channel_base + (i*8 + tid_b_y)*N + b_x;
+            tileB[tid_z][tid_b_y][tid_b_x] = v2.values[b_src_idx];
         }else{
-            tileB[tid_b_y][tid_b_x] = .0;
+            tileB[tid_z][tid_b_y][tid_b_x] = .0;
         }
 
         barrier();
         
         for (int k = 0; k < 8; ++k)
         {
-            results[0][0] += tileA[tid_y*2 + 0][k] * tileB[k][tid_x*2 + 0];
-            results[0][1] += tileA[tid_y*2 + 0][k] * tileB[k][tid_x*2 + 1];
-            results[1][0] += tileA[tid_y*2 + 1][k] * tileB[k][tid_x*2 + 0];
-            results[1][1] += tileA[tid_y*2 + 1][k] * tileB[k][tid_x*2 + 1];
+            results[0][0] += tileA[tid_z][tid_y*2 + 0][k] * tileB[tid_z][k][tid_x*2 + 0];
+            results[0][1] += tileA[tid_z][tid_y*2 + 0][k] * tileB[tid_z][k][tid_x*2 + 1];
+            results[1][0] += tileA[tid_z][tid_y*2 + 1][k] * tileB[tid_z][k][tid_x*2 + 0];
+            results[1][1] += tileA[tid_z][tid_y*2 + 1][k] * tileB[tid_z][k][tid_x*2 + 1];
         }
 
         barrier();
@@ -89,25 +90,26 @@ void main(void)
 
     uint m = by * 32 + tid_y * 2;
     uint n = bx * 32 + tid_x * 2;
+    uint c_channel_base = z * M * N;
     
     if (m < M && n < N){
 		float x = results[0][0];
-        v3.values[m*N + n] = act == 1 ? x / (1 + exp(-x)) : x;
+        v3.values[c_channel_base + m*N + n] = act == 1 ? x / (1 + exp(-x)) : x;
     }
 
     if (m + 1 < M && n < N){
 		float x = results[1][0];
-        v3.values[(m+1)*N + n] = act == 1 ? x/(1 + exp(-x)) : x;
+        v3.values[c_channel_base + (m+1)*N + n] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 
     if (n + 1 < N && m < M)
     {
 		float x = results[0][1];
-        v3.values[m*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
+        v3.values[c_channel_base + m*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 
     if (m + 1 < M && n + 1 < N){
 		float x = results[1][1];
-        v3.values[(m+1)*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
+        v3.values[c_channel_base + (m+1)*N + n + 1] = act == 1 ? x/(1 + exp(-x)) : x;
     }
 }

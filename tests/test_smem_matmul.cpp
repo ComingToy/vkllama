@@ -69,11 +69,11 @@ TEST_P(TestMatmul, test_matmul_broadcast)
         ASSERT_TRUE(false) << "unsupported broadcast_type " << broadcast_type;
     }
 
+    ASSERT_EQ(command_->begin(), VK_SUCCESS) << "failed at init command";
     auto input0 = random_tensor(gpu_, command_, in0_channel, params.M, params.K);
     auto input1 = random_tensor(gpu_, command_, in1_channel, params.K, params.N);
 
     ASSERT_TRUE(input0 && input1) << "failed at create tensors";
-    ASSERT_EQ(command_->begin(), VK_SUCCESS) << "failed at init command";
 
     MatMul matmul_op(gpu_, command_, 0, params.broadcast_type);
 
@@ -84,14 +84,15 @@ TEST_P(TestMatmul, test_matmul_broadcast)
 
     std::vector<float> buf(output.size());
     ASSERT_EQ(command_->download(output, buf.data(), buf.size()), VK_SUCCESS) << "failed at downloading output";
+    ASSERT_EQ(command_->end(), VK_SUCCESS) << "failed at endding commands";
     ASSERT_EQ(command_->submit_and_wait(), VK_SUCCESS) << "failed at submiting commands";
 
     // eigen matmul
     using TensorMap = Eigen::TensorMap<Eigen::Tensor<float, 3, Eigen::RowMajor> >;
-    auto in0_tensor = TensorMap(input0->second.data(), input0->first.channels(), input0->first.height(), input0->first.width());
-    auto in1_tensor = TensorMap(input1->second.data(), input1->first.channels(), input1->first.height(), input1->first.width());
+    auto in0_tensor = TensorMap(input0->second.data(), (Eigen::Index)input0->first.channels(), (Eigen::Index)input0->first.height(), (Eigen::Index)input0->first.width());
+    auto in1_tensor = TensorMap(input1->second.data(), (Eigen::Index)input1->first.channels(), (Eigen::Index)input1->first.height(), (Eigen::Index)input1->first.width());
 
-    Eigen::Tensor<float, 3, Eigen::RowMajor> eigen_output(output.channels(), output.height(), output.width());
+    Eigen::Tensor<float, 3, Eigen::RowMajor> eigen_output((Eigen::Index)output.channels(), (Eigen::Index)output.height(), (Eigen::Index)output.width());
     Eigen::array<Eigen::IndexPair<int>, 1> dims = {Eigen::IndexPair<int>(1, 0)};
     if (broadcast_type == 0)
     {
@@ -114,6 +115,20 @@ TEST_P(TestMatmul, test_matmul_broadcast)
             eigen_output.chip<0>(i) = in0_tensor.chip<0>(0).contract(in1_tensor.chip<0>(i), dims);
         }
     }
+
+    auto output_mapped = TensorMap(buf.data(), (Eigen::Index)output.channels(), (Eigen::Index)output.height(), (Eigen::Index)output.width());
+    Eigen::Tensor<float, 0, Eigen::RowMajor> mse = (eigen_output - output_mapped).pow(2.0f).mean();
+    ASSERT_LT(*mse.data(), 1e-4f);
 }
+
+std::vector<TestMatMulParams> params = {
+    {1, 64, 64, 64, 0},
+    {1, 64, 32, 16, 0},
+    {5, 64, 32, 16, 0},
+    {16, 64, 32, 16, 0},
+};
+
+INSTANTIATE_TEST_SUITE_P(TestMatmulBroadcast, TestMatmul,
+                         testing::ValuesIn(params));
 } // namespace
 

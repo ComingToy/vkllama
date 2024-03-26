@@ -9,6 +9,7 @@ glsl_shader(
         "matmul_shared_mem.comp",
         "rms_norm.comp",
         "element_wise.comp",
+        "matmul_broadcast0.comp"
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]
