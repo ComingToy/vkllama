@@ -4,21 +4,24 @@
 #include <vulkan/vulkan_core.h>
 
 Allocator::Allocator(GPUDevice* dev)
-  : dev_(dev)
+    : dev_(dev)
 {
 }
 
 Allocator::~Allocator()
 {
     std::map<VkDeviceMemory, VkMemoryPropertyFlags> mems;
-    for (auto kv : mem_pool_) {
-        for (auto const& b : kv.second) {
+    for (auto kv : mem_pool_)
+    {
+        for (auto const& b : kv.second)
+        {
             mems[b.mem] = b.flags;
         }
     }
 
     std::for_each(mems.begin(), mems.end(), [this](auto& item) {
-        if (item.second & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        if (item.second & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+        {
             vkUnmapMemory(dev_->device(), item.first);
         }
         vkFreeMemory(dev_->device(), item.first, nullptr);
@@ -33,8 +36,7 @@ Allocator::allocate(VkMemoryRequirements const& req,
     __MemBlock _block;
 
     auto ret = allocate_(req,
-                         visable ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                         visable ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
                                  : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                          _block);
 
@@ -46,22 +48,26 @@ Allocator::allocate(VkMemoryRequirements const& req,
     block->type = _block.type;
     block->size = _block.size;
     block->host = _block.host;
+    block->align = _block.align;
     return VK_SUCCESS;
 }
 
-void
-Allocator::free(const MemBlock block)
+void Allocator::free(const MemBlock block)
 {
     for (auto pos = mem_pool_[block.type].begin();
          pos != mem_pool_[block.type].end();
-         ++pos) {
-        if (pos->mem == block.mem && pos->offset == block.offset) {
-            if (!pos->parent || pos->parent->allocated) {
+         ++pos)
+    {
+        if (pos->mem == block.mem && pos->offset == block.offset)
+        {
+            if (!pos->parent || pos->parent->allocated)
+            {
                 pos->allocated = false;
                 return;
             }
 
-            if (pos->parent) {
+            if (pos->parent)
+            {
                 pos->parent->offset = pos->offset;
                 pos->parent->size += pos->size;
                 pos->parent->host = pos->host;
@@ -75,22 +81,24 @@ Allocator::free(const MemBlock block)
 VkResult
 Allocator::allocate_from_pool_(const uint32_t type,
                                const VkDeviceSize req,
-							   const VkDeviceSize align,
+                               const VkDeviceSize align,
                                __MemBlock& result)
 {
-    if (mem_pool_.find(type) == mem_pool_.cend()) {
+    if (mem_pool_.find(type) == mem_pool_.cend())
+    {
         return VK_ERROR_OUT_OF_POOL_MEMORY;
     }
 
     auto size = (req + align - 1) / align * align;
     auto& blocks = mem_pool_[type];
-    for (auto pos = blocks.begin(); pos != blocks.end(); ++pos) {
+    for (auto pos = blocks.begin(); pos != blocks.end(); ++pos)
+    {
         auto& block = *pos;
         if (block.allocated || block.size < size)
             continue;
 
-        result = { block.mem,  size,   block.offset, block.flags,
-                   block.type, &block, block.host,   true };
+        result = {block.mem, size, block.offset, align, block.flags,
+                  block.type, &block, block.host, true};
 
         block.size -= size;
         block.offset += size;
@@ -111,15 +119,15 @@ Allocator::allocate_(VkMemoryRequirements const& req,
     uint32_t type = dev_->find_mem(req.memoryTypeBits, flags);
 
     auto ret = allocate_from_pool_(type, req.size, req.alignment, result);
-    if (ret == VK_SUCCESS || ret != VK_ERROR_OUT_OF_POOL_MEMORY) {
+    if (ret == VK_SUCCESS || ret != VK_ERROR_OUT_OF_POOL_MEMORY)
+    {
         return ret;
     }
 
     {
         auto size = ((req.size + BLOCK_ALIGN - 1) / BLOCK_ALIGN) * BLOCK_ALIGN;
         VkMemoryAllocateInfo allocInfo = {
-            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, size, type
-        };
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, size, type};
 
         VkDeviceMemory mem;
         auto ret = vkAllocateMemory(dev_->device(), &allocInfo, nullptr, &mem);
@@ -127,16 +135,17 @@ Allocator::allocate_(VkMemoryRequirements const& req,
             return ret;
 
         void* host = nullptr;
-        if (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        if (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+        {
             ret = vkMapMemory(dev_->device(), mem, 0, VK_WHOLE_SIZE, 0, &host);
-            if (ret != VK_SUCCESS) {
+            if (ret != VK_SUCCESS)
+            {
                 vkFreeMemory(dev_->device(), mem, nullptr);
                 return ret;
             }
         }
 
-        auto new_block =
-          __MemBlock{ mem, size, 0, flags, type, nullptr, host, false };
+        auto new_block = __MemBlock{mem, size, 0, 0, flags, type, nullptr, host, false};
         mem_pool_[type].push_back(new_block);
     }
 

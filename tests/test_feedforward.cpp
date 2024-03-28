@@ -59,14 +59,13 @@ TEST_P(TestFeedForawrd, test_2d)
 
         ASSERT_TRUE(w1 && w2 && w3 && X) << "fail at creating tensors";
 
-        FeedForward feed_forward_op(gpu_, &command, w1.value().first,
-                                    w2.value().first, w3.value().first);
+        FeedForward feed_forward_op(gpu_, &command, w1->first, w2->first, w3->first);
 
         ASSERT_TRUE(feed_forward_op.init() == VK_SUCCESS)
             << "fail at init feed_forward_op";
 
         VkTensor output;
-        ASSERT_TRUE(feed_forward_op(X.value().first, output) == VK_SUCCESS)
+        ASSERT_TRUE(feed_forward_op(X->first, output) == VK_SUCCESS)
             << "fail at forwarding feed_forward op";
 
         std::vector<float> buf(output.channels() * output.height() * output.width());
@@ -79,10 +78,11 @@ TEST_P(TestFeedForawrd, test_2d)
 
         using EigenMap = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic,
                                                   Eigen::RowMajor> >;
-        auto ew1 = EigenMap(w1.value().second.data(), w1.value().first.height(), w1.value().first.width());
-        auto ew2 = EigenMap(w2.value().second.data(), w2.value().first.height(), w2.value().first.width());
-        auto ew3 = EigenMap(w3.value().second.data(), w3.value().first.height(), w3.value().first.width());
-        auto eX = EigenMap(X.value().second.data(), X.value().first.height(), X.value().first.width());
+
+        auto ew1 = EigenMap(w1->second.data(), w1->first.height(), w1->first.width());
+        auto ew2 = EigenMap(w2->second.data(), w2->first.height(), w2->first.width());
+        auto ew3 = EigenMap(w3->second.data(), w3->first.height(), w3->first.width());
+        auto eX = EigenMap(X->second.data(), X->first.height(), X->first.width());
         auto eoutput = EigenMap(buf.data(), output.height(), output.width());
 
         auto dnn1 = (eX * ew1);

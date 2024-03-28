@@ -2,8 +2,10 @@
 #define __VKLLAMA_TEST_COMMON_H__
 #include <math.h>
 
+#include <memory>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 #include <random>
 
@@ -21,7 +23,7 @@ inline void random_vec(float* v, const int n, const float min, const float max)
     }
 }
 
-inline std::optional<std::pair<VkTensor, std::vector<float> > > random_tensor(
+inline std::unique_ptr<std::pair<VkTensor, std::vector<float> > > random_tensor(
     GPUDevice* dev, Command* command, const int c, const int h, const int w, const float min = -1.0, const float max = 1.0)
 {
     VkTensor tensor(c, h, w, dev);
@@ -40,6 +42,6 @@ inline std::optional<std::pair<VkTensor, std::vector<float> > > random_tensor(
         return {};
     }
 
-    return {{tensor, buf}};
+    return std::make_unique<std::pair<VkTensor, std::vector<float> > >(tensor, buf);
 }
 #endif
