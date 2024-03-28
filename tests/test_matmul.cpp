@@ -69,7 +69,7 @@ TEST_P(TestMatmul, test_matmul_broadcast)
         ASSERT_TRUE(false) << "unsupported broadcast_type " << broadcast_type;
     }
 
-    ASSERT_EQ(command_->begin(), VK_SUCCESS) << "failed at init command";
+    ASSERT_EQ(command_->begin(), VK_SUCCESS) << "failed at begin command";
     auto input0 = random_tensor(gpu_, command_, in0_channel, params.M, params.K);
     auto input1 = random_tensor(gpu_, command_, in1_channel, params.K, params.N);
 
