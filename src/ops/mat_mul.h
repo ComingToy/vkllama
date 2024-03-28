@@ -14,7 +14,8 @@ public:
 
 private:
     std::unique_ptr<Pipeline> pipeline_;
-	const int broadcast_type_;
+    const int broadcast_type_;
+    const int act_;
 };
 
 #endif

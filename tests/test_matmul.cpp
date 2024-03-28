@@ -117,16 +117,23 @@ TEST_P(TestMatmul, test_matmul_broadcast)
     }
 
     auto output_mapped = TensorMap(buf.data(), (Eigen::Index)output.channels(), (Eigen::Index)output.height(), (Eigen::Index)output.width());
-	std::cerr << "eigen output mean: " << eigen_output.mean() << ", vulkan output mean: " << output_mapped.mean() << std::endl;
     Eigen::Tensor<float, 0, Eigen::RowMajor> mse = (eigen_output - output_mapped).pow(2.0f).mean();
     ASSERT_LT(*mse.data(), 1e-4f);
 }
 
 std::vector<TestMatMulParams> params = {
-    // {1, 64, 64, 64, 0},
-    // {1, 64, 32, 16, 0},
-    // {5, 64, 32, 16, 0},
-    {16, 64, 32, 16, 0},
+    {1, 1024, 1023, 225, 0},
+    {1, 1027, 619, 32, 0},
+    {5, 1024, 512, 256, 0},
+    {16, 255, 321, 513, 0},
+    {1, 1024, 1023, 225, 1},
+    {1, 1027, 619, 32, 1},
+    {5, 1024, 512, 256, 1},
+    {16, 255, 321, 513, 1},
+    {1, 1024, 1023, 225, 2},
+    {1, 1027, 619, 32, 2},
+    {5, 1024, 512, 256, 2},
+    {16, 255, 321, 513, 2},
 };
 
 INSTANTIATE_TEST_SUITE_P(TestMatmulBroadcast, TestMatmul,
