@@ -11,6 +11,7 @@
 
 #include "core/command.h"
 #include "core/tensor.h"
+#include "unsupported/Eigen/CXX11/Tensor"
 
 inline void random_vec(float* v, const int n, const float min, const float max)
 {
@@ -44,4 +45,9 @@ inline std::unique_ptr<std::pair<VkTensor, std::vector<float> > > random_tensor(
 
     return std::make_unique<std::pair<VkTensor, std::vector<float> > >(tensor, buf);
 }
+
+using TensorMap = Eigen::TensorMap<Eigen::Tensor<float, 3, Eigen::RowMajor> >;
+
+template<int NumIndices_>
+using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;
 #endif

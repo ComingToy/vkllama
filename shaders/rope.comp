@@ -1,0 +1,69 @@
+#version 450 core
+layout(local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
+
+layout(set = 0, binding = 0) readonly buffer InputTensor0
+{
+    float input_query[];
+};
+
+layout(set = 0, binding = 1) readonly buffer InputTensor1
+{
+    float input_key[];
+};
+
+layout(set = 0, binding = 2) readonly buffer InputTensor2
+{
+    float rope_freqc[];
+};
+layout(set = 0, binding = 3) readonly buffer InputTensor3
+{
+    float rope_freqs[];
+};
+layout(set = 0, binding = 4) writeonly buffer OutputTensor0
+{
+    float output_query[];
+};
+
+layout(set = 0, binding = 5) writeonly buffer OutputTensor1
+{
+    float output_key[];
+};
+
+layout(push_constant) uniform constants
+{
+    uint C; // batch size
+    uint H; // seqlen
+    uint W; // token dim
+};
+
+void main(void)
+{
+    uint tid_x = gl_GlobalInvocationID.x;
+    uint tid_y = gl_GlobalInvocationID.y;
+    uint tid_z = gl_GlobalInvocationID.z;
+
+    if (tid_z >= C || tid_y >= H || tid_x >= 2 * W)
+    {
+        return;
+    }
+
+    float freqc = rope_freqc[tid_y * W/2 + tid_x];
+    float freqs = rope_freqs[tid_y * W/2 + tid_x];
+
+    uint src_idx = tid_z * H * W + tid_y * W + 2 * tid_x;
+    float q0 = input_query[src_idx];
+    float q1 = input_query[src_idx + 1];
+    float k0 = input_key[src_idx];
+    float k1 = input_key[src_idx + 1];
+
+    float qr0 = q0 * freqc - q1 * freqs;
+    float qr1 = q0 * freqs + q1 * freqc;
+
+    float kr0 = k0 * freqc - k1 * freqs;
+    float kr1 = k0 * freqs + k1 * freqc;
+
+    output_query[src_idx] = qr0;
+    output_query[src_idx + 1] = qr1;
+    output_key[src_idx] = kr0;
+    output_key[src_idx + 1] = kr1;
+}

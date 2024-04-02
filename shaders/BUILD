@@ -12,6 +12,7 @@ glsl_shader(
         "matmul_broadcast0.comp",
         "matmul_broadcast1.comp",
         "matmul_broadcast2.comp",
+        "rope.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]

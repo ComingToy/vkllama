@@ -69,9 +69,6 @@ MatMul::operator()(VkTensor a, VkTensor b, VkTensor& c)
         return ret;
     }
 
-    c.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
-    c.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-
     int channels = std::max(a.channels(), b.channels());
     Pipeline::ConstantType C = {.i = channels};
     Pipeline::ConstantType M = {.i = (int)a.height()};
@@ -81,5 +78,13 @@ MatMul::operator()(VkTensor a, VkTensor b, VkTensor& c)
     uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
     pipeline_->set_group(groupx, groupy, groupz);
 
-    return command_->record_pipeline(*pipeline_, {a, b, c}, {C, M, N, K});
+    ret = command_->record_pipeline(*pipeline_, {a, b, c}, {C, M, N, K});
+    if (ret != VK_SUCCESS)
+    {
+        return ret;
+    }
+
+    c.set_access_flags(VK_ACCESS_SHADER_WRITE_BIT);
+    c.set_pipeline_stage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    return VK_SUCCESS;
 }

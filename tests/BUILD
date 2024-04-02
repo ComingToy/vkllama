@@ -35,3 +35,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_rope",
+	srcs = ["test_rope.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
