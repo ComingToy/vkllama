@@ -7,15 +7,17 @@
 class MatMul : public Op
 {
 public:
-    MatMul(GPUDevice* dev, Command* command, const int act = 0, const int broadcast_type = 0);
-    VkResult operator()(VkTensor a, VkTensor b, VkTensor& c);
-    VkResult init() override;
-    uint64_t time() override;
+  MatMul (GPUDevice *dev, Command *command, const int act = 0,
+          const int broadcast_type = 0, const bool transpose_b = false);
+  VkResult operator() (VkTensor a, VkTensor b, VkTensor &c);
+  VkResult init () override;
+  uint64_t time () override;
 
 private:
-    std::unique_ptr<Pipeline> pipeline_;
-    const int broadcast_type_;
-    const int act_;
+  std::unique_ptr<Pipeline> pipeline_;
+  const int broadcast_type_;
+  const int act_;
+  const bool transpose_b_;
 };
 
 #endif

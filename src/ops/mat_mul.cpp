@@ -6,16 +6,20 @@
 #include "src/core/tensor.h"
 
 MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
-                const int broadcast_type)
-    : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act)
+                const int broadcast_type, const bool transpose_b)
+    : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act),
+      transpose_b_ (transpose_b)
 {
 }
 
 VkResult
 MatMul::init ()
 {
-  Pipeline::ShaderInfo info = { 1, 3, 4, 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 2, 3, 4, 16, 16, 1 };
   Pipeline::ConstantType act_type = { .i = act_ };
+  Pipeline::ConstantType transpose_b
+      = { .i = static_cast<int> (transpose_b_) };
+
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
   if (broadcast_type_ == 0)
@@ -38,7 +42,8 @@ MatMul::init ()
       return VK_ERROR_UNKNOWN;
     }
 
-  pipeline_.reset (new Pipeline (dev_, pcode, code_size, { act_type }, info));
+  pipeline_.reset (
+      new Pipeline (dev_, pcode, code_size, { act_type, transpose_b }, info));
 
   return pipeline_->init ();
 }
@@ -58,8 +63,9 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c)
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  c = VkTensor (std::max (a.channels (), b.channels ()), a.height (),
-                b.width (), dev_, false);
+  size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
+  c = VkTensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
+                false);
 
   auto ret = c.create ();
   if (ret != VK_SUCCESS)
@@ -70,8 +76,8 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c)
   int channels = std::max (a.channels (), b.channels ());
   Pipeline::ConstantType C = { .i = channels };
   Pipeline::ConstantType M = { .i = (int)a.height () };
-  Pipeline::ConstantType N = { .i = (int)b.width () };
-  Pipeline::ConstantType K = { .i = (int)b.height () };
+  Pipeline::ConstantType N = { .i = (int)out_w };
+  Pipeline::ConstantType K = { .i = (int)a.width () };
 
   uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
   pipeline_->set_group (groupx, groupy, groupz);
