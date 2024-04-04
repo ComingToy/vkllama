@@ -5,7 +5,8 @@ cc_library(
         'mat_mul.cpp',
         'rms_norm.cpp',
         'feed_forward.cpp',
-        'rope.cpp'
+        'rope.cpp',
+		'elementwise.cpp',
     ],
     hdrs = [
         'op.h',
@@ -13,6 +14,7 @@ cc_library(
         'rms_norm.h',
         'feed_forward.h',
         'rope.h',
+		'elementwise.h',
     ],
     deps = ["//src/core:core", "//shaders:vkllama_shaders"],
     copts = ['-std=c++17'],

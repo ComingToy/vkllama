@@ -9,6 +9,7 @@ glsl_shader(
         "matmul_shared_mem.comp",
         "rms_norm.comp",
         "element_wise.comp",
+        "element_wise_constant.comp",
         "matmul_broadcast0.comp",
         "matmul_broadcast1.comp",
         "matmul_broadcast2.comp",

@@ -44,3 +44,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_elementwise",
+	srcs = ["test_elementwise.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
