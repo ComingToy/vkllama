@@ -59,7 +59,9 @@ random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
                                                                       buf);
 }
 
-using TensorMap = Eigen::TensorMap<Eigen::Tensor<float, 3, Eigen::RowMajor> >;
+template <int NumIndices_ = 3>
+using TensorMap
+    = Eigen::TensorMap<Eigen::Tensor<float, NumIndices_, Eigen::RowMajor> >;
 
 template <int NumIndices_>
 using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;

@@ -53,3 +53,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_reduce",
+	srcs = ["test_reduce.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)

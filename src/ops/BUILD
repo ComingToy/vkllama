@@ -15,6 +15,7 @@ cc_library(
         'feed_forward.h',
         'rope.h',
 		'elementwise.h',
+		'reduce.h',
     ],
     deps = ["//src/core:core", "//shaders:vkllama_shaders"],
     copts = ['-std=c++17'],
