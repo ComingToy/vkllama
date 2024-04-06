@@ -9,7 +9,6 @@ layout (push_constant) uniform constants
   int C;
   int H;
   int W;
-  int G;
   float MEAN_SCALE;
 };
 
@@ -24,7 +23,7 @@ main (void)
   uint tid_y = gl_GlobalInvocationID.y;
   uint tid_z = gl_GlobalInvocationID.z;
 
-  if (tid_x >= G || tid_y >= H || tid_z >= C)
+  if (tid_x >= W || tid_y >= H || tid_z >= C)
     {
       return;
     }
@@ -33,7 +32,7 @@ main (void)
   uint output_base = tid_z * H + tid_y;
 
   float r = input0[input_base];
-  for (uint i = 1; i < G; ++i)
+  for (uint i = 1; i < W; ++i)
     {
       if (op_type == 0)
         {

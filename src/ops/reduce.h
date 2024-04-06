@@ -21,7 +21,7 @@ public:
   VkResult
   init () override
   {
-    Pipeline::ShaderInfo stage0Info = { 1, 1, 3, 64, 4, 1 };
+    Pipeline::ShaderInfo stage0Info = { 1, 2, 3, 64, 4, 1 };
     Pipeline::ShaderInfo stage1Info = { 1, 2, 5, 1, 64, 1 };
 
     Pipeline::ConstantType op_type = { .i = op_type_ == 3 ? 0 : op_type_ };
@@ -66,17 +66,25 @@ public:
         return ret;
       }
 
+    stage0_output_ = VkTensor (a.channels (), a.height (), group_x, dev_);
+    if ((ret = stage0_output_.create ()) != VK_SUCCESS)
+      {
+        return ret;
+      }
+
     Pipeline::ConstantType C = { .i = static_cast<int> (a.channels ()) };
     Pipeline::ConstantType H = { .i = static_cast<int> (a.height ()) };
     Pipeline::ConstantType W = { .i = static_cast<int> (a.width ()) };
-    ret = command_->record_pipeline (*stage0_, { a }, { C, H, W });
+
+    ret = command_->record_pipeline (*stage0_, { a, stage0_output_ },
+                                     { C, H, W });
     if (ret != VK_SUCCESS)
       {
         return ret;
       }
 
-    a.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-    a.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+    stage0_output_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+    stage0_output_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
 
     Pipeline::ConstantType mean_scale;
     if (op_type_ == 3)
@@ -88,10 +96,10 @@ public:
         mean_scale.f = 1.0f;
       }
 
-    Pipeline::ConstantType G = { .i = (int)group_x };
+    W.i = static_cast<int> (group_x);
     ret = stage1_->set_group (1, group_y, group_z);
-    ret = command_->record_pipeline (*stage1_, { a, b },
-                                     { C, H, W, G, mean_scale });
+    ret = command_->record_pipeline (*stage1_, { stage0_output_, b },
+                                     { C, H, W, mean_scale });
     if (ret != VK_SUCCESS)
       {
         return ret;
@@ -106,6 +114,7 @@ private:
   std::unique_ptr<Pipeline> stage0_;
   std::unique_ptr<Pipeline> stage1_;
   const int op_type_;
+  VkTensor stage0_output_;
 };
 
 #endif

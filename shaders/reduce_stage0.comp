@@ -11,7 +11,8 @@ layout (push_constant) uniform constants
   int W;
 };
 
-layout (binding = 0) buffer InputTensor0 { float input0[]; };
+layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { float output0[]; };
 
 // block size = [64, 4, 1]
 shared float smem[4][64];
@@ -24,6 +25,7 @@ main (void)
   uint tid_z = gl_GlobalInvocationID.z;
   uint group_x = gl_WorkGroupSize.x;
   uint group_id = gl_WorkGroupID.x;
+  uint WO = gl_NumWorkGroups.x;
 
   uint local_tid_x = gl_LocalInvocationID.x;
   uint local_tid_y = gl_LocalInvocationID.y;
@@ -35,7 +37,7 @@ main (void)
     }
 
   const uint in_base = tid_z * H * W + tid_y * W;
-  const uint out_base = tid_z * H * W;
+  const uint out_base = tid_z * H * WO + tid_y * WO;
 
   if (tid_x < W)
     {
@@ -77,6 +79,6 @@ main (void)
 
   if (local_tid_x == 0)
     {
-      input0[in_base + group_id] = smem[local_tid_y][0];
+      output0[out_base + group_id] = smem[local_tid_y][0];
     }
 }
