@@ -16,6 +16,8 @@ glsl_shader(
         "rope.comp",
         "reduce_stage0.comp",
         "reduce_stage1.comp",
+        "softmax_stage0.comp",
+        "softmax_stage1.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]

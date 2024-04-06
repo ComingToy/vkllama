@@ -14,7 +14,7 @@ cc_library(
 cc_binary(
     name = "test_rmsnorm",
     srcs = ["test_rmsnorm.cpp"],
-    deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
+    deps = ["//src:vkllama", "//src/shaders:vkllama_shaders", "@eigen3//:eigen"],
     copts = ["-std=c++17"],
 )
 

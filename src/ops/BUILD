@@ -17,7 +17,7 @@ cc_library(
 		'elementwise.h',
 		'reduce.h',
     ],
-    deps = ["//src/core:core", "//shaders:vkllama_shaders"],
+    deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
     copts = ['-std=c++17'],
     visibility = ['//visibility:public']
 )

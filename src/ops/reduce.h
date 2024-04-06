@@ -1,7 +1,7 @@
 #ifndef __VKLLAMA_REDUCE_H__
 #define __VKLLAMA_REDUCE_H__
 
-#include "shaders/vkllama_comp_shaders.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"

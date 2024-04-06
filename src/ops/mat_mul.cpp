@@ -1,5 +1,5 @@
 #include "mat_mul.h"
-#include "shaders/vkllama_comp_shaders.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"

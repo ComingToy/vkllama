@@ -52,7 +52,7 @@ main (void)
 
   for (uint stride = group_x / 2; stride > 0; stride /= 2)
     {
-      if (local_tid_x < stride && local_tid_x + stride < W)
+      if (local_tid_x < stride && tid_x + stride < W)
         {
           if (op_type == 0)
             {

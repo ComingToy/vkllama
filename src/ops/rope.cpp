@@ -6,7 +6,7 @@
 #include <vector>
 #include "src/core/command.h"
 #include "src/core/pipeline.h"
-#include "shaders/vkllama_comp_shaders.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 
 Rope::Rope(GPUDevice* dev, Command* command, const int maxlen, const int dim)
     : Op(dev, command), maxlen_(maxlen), dim_(dim)
