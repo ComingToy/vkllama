@@ -62,3 +62,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_softmax",
+	srcs = ["test_softmax.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)

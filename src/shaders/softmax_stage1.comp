@@ -10,11 +10,11 @@ layout (push_constant) uniform constants
   uint G;
 };
 
-// shape of input0 [C, H, G], input1 [C, H, W], output0 [C, H, W]
+// shape of input0 [C, H, G], input1 [C, H, W]
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
-layout (binding = 1) readonly buffer InputTensor1 { float input1[]; };
-layout (binding = 2) writeonly buffer OutputTensor0 { float output0[]; };
+layout (binding = 1) buffer InputTensor1 { float input1[]; };
 
+shared float smem[4];
 void
 main (void)
 {
@@ -23,23 +23,24 @@ main (void)
   uint glb_tid_z = gl_GlobalInvocationID.z;
 
   uint loc_tid_x = gl_LocalInvocationID.x;
+  uint loc_tid_y = gl_LocalInvocationID.y;
 
   if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
     {
       return;
     }
 
-  float m = .0;
   if (loc_tid_x == 0)
     {
-
+      smem[loc_tid_y] = .0;
       uint base_idx = glb_tid_z * H * G + glb_tid_y * G;
       for (uint i = 0; i < G; ++i)
         {
-          m += input0[base_idx + i];
+          smem[loc_tid_y] += input0[base_idx + i];
         }
     }
 
+  barrier ();
   uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
-  output0[idx] = input1[idx] / m;
+  input1[idx] = input1[idx] / smem[loc_tid_y];
 }

@@ -13,7 +13,7 @@ layout (push_constant) uniform constants
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
 layout (binding = 1) readonly buffer InputTensor1 { float input1[]; };
 
-// shape of output0 [C, H, G]
+// shape of output0 [C, H, Gx]
 layout (binding = 2) writeonly buffer OutputTensor0 { float output0[]; };
 // shape of output1 [C, H, W]
 layout (binding = 3) writeonly buffer OutputTensor1 { float output1[]; };
@@ -35,6 +35,7 @@ main (void)
   uint group_x = gl_WorkGroupSize.x;
   uint group_id = gl_WorkGroupID.x;
 
+  smem[loc_tid_y][loc_tid_x] = .0;
   if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
     {
       return;
@@ -46,12 +47,11 @@ main (void)
   const float e = exp (input0[idx] - bias);
   smem[loc_tid_y][loc_tid_x] = e;
   output1[idx] = e;
-
   barrier ();
 
   for (uint stride = group_x / 2; stride > 0; stride /= 2)
     {
-      if (loc_tid_x < stride && glb_tid_x + stride < W)
+      if (loc_tid_x < stride)
         {
           smem[loc_tid_y][loc_tid_x] += smem[loc_tid_y][loc_tid_x + stride];
         }
