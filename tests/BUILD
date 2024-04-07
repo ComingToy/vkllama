@@ -71,3 +71,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_concat",
+	srcs = ["test_concat.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)

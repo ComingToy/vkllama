@@ -8,6 +8,7 @@ cc_library(
         'rope.cpp',
 		'elementwise.cpp',
         'softmax.cpp',
+        'concat.cpp',
     ],
     hdrs = [
         'op.h',
@@ -17,7 +18,8 @@ cc_library(
         'rope.h',
 		'elementwise.h',
 		'reduce.h',
-        'softmax.h'
+        'softmax.h',
+        'concat.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
     copts = ['-std=c++17'],
