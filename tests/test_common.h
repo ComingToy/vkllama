@@ -65,4 +65,54 @@ using TensorMap
 
 template <int NumIndices_>
 using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;
+
+inline Tensor<3>
+eigen_tensor_matmul (Tensor<3> lhs, Tensor<3> rhs_, const int broadcast_type,
+                     const bool transpose_b = false)
+{
+
+  Tensor<3> rhs;
+
+  if (transpose_b)
+    {
+      Eigen::array<Eigen::Index, 3> trans = { 0, 2, 1 };
+      rhs = rhs_.shuffle (trans);
+    }
+  else
+    {
+      rhs = rhs_;
+    }
+
+  Tensor<3> eigen_output (lhs.dimension (0), lhs.dimension (1),
+                          rhs.dimension (2));
+  Eigen::array<Eigen::IndexPair<int>, 1> dims
+      = { Eigen::IndexPair<int> (1, 0) };
+  if (broadcast_type == 0)
+    {
+      for (int i = 0; i < lhs.dimension (0); ++i)
+        {
+          eigen_output.chip<0> (i)
+              = lhs.chip<0> (i).contract (rhs.chip<0> (i), dims);
+        }
+    }
+  else if (broadcast_type == 1)
+    {
+      for (int i = 0; i < lhs.dimension (0); ++i)
+        {
+          eigen_output.chip<0> (i)
+              = lhs.chip<0> (i).contract (rhs.chip<0> (0), dims);
+        }
+    }
+  else if (broadcast_type == 2)
+    {
+      for (int i = 0; i < lhs.dimension (0); ++i)
+        {
+          eigen_output.chip<0> (i)
+              = lhs.chip<0> (0).contract (rhs.chip<0> (i), dims);
+        }
+    }
+
+  return eigen_output;
+}
+
 #endif

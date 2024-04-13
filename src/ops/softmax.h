@@ -21,6 +21,7 @@ private:
 
   VkTensor bias_;
   VkTensor m_;
+  VkTensor exps_;
   VkTensor n_;
 };
 #endif

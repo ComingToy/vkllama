@@ -93,9 +93,9 @@ TEST_P (TestReduce, test_reduce)
       output_tensor = input0_tensor.mean (dims);
     }
 
-  // std::cerr << "input: " << input0_tensor << std::endl
-  //           << "vulkan output: " << vk_output_tensor << std::endl
-  //           << "host output: " << output_tensor << std::endl;
+  std::cerr << "input: " << input0_tensor.mean () << std::endl
+            << "vulkan output: " << vk_output_tensor.mean () << std::endl
+            << "host output: " << output_tensor.mean () << std::endl;
   Tensor<0> mse = (output_tensor - vk_output_tensor).pow (2.0).mean ();
   ASSERT_LT (*mse.data (), 1e-4);
 }

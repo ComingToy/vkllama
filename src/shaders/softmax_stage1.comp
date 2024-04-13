@@ -12,7 +12,8 @@ layout (push_constant) uniform constants
 
 // shape of input0 [C, H, G], input1 [C, H, W]
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
-layout (binding = 1) buffer InputTensor1 { float input1[]; };
+layout (binding = 1) readonly buffer InputTensor1 { float input1[]; };
+layout (binding = 2) buffer OutputTensor0 { float output0[]; };
 
 shared float smem[4];
 void
@@ -42,5 +43,5 @@ main (void)
 
   barrier ();
   uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
-  input1[idx] = input1[idx] / smem[loc_tid_y];
+  output0[idx] = input1[idx] / smem[loc_tid_y];
 }

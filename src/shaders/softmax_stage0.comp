@@ -36,6 +36,7 @@ main (void)
   uint group_id = gl_WorkGroupID.x;
 
   smem[loc_tid_y][loc_tid_x] = .0;
+  barrier ();
   if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
     {
       return;
