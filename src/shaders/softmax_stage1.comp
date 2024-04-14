@@ -1,48 +1,38 @@
 #version 450 core
 layout (local_size_x_id = 253, local_size_y_id = 254,
-        local_size_z_id = 256) in;
+        local_size_z_id = 255) in;
 
 layout (push_constant) uniform constants
 {
   uint C;
   uint H;
   uint W;
-  uint G;
 };
 
-// shape of input0 [C, H, G], input1 [C, H, W]
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
-layout (binding = 1) readonly buffer InputTensor1 { float input1[]; };
-layout (binding = 2) writeonly buffer OutputTensor0 { float output0[]; };
-layout (binding = 3) buffer OutputTensor1 { float output1[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { float output0[]; };
 
+// block size = [1, 32, 1]
 void
 main (void)
 {
-  uint glb_tid_x = gl_GlobalInvocationID.x;
-  uint glb_tid_y = gl_GlobalInvocationID.y;
-  uint glb_tid_z = gl_GlobalInvocationID.z;
+  uint tid_x = gl_GlobalInvocationID.x;
+  uint tid_y = gl_GlobalInvocationID.y;
+  uint tid_z = gl_GlobalInvocationID.z;
 
-  uint loc_tid_x = gl_LocalInvocationID.x;
-  uint loc_tid_y = gl_LocalInvocationID.y;
-
-  if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
+  if (tid_x >= W || tid_y >= H || tid_z >= C)
     {
       return;
     }
 
-  if (glb_tid_x == 0)
+  uint input_base = tid_z * H * W + tid_y * W;
+  uint output_base = tid_z * H + tid_y;
+
+  float r = 0;
+  for (uint i = 0; i < W; ++i)
     {
-      float sum = .0;
-      uint base_idx = glb_tid_z * H * G + glb_tid_y * G;
-      for (uint i = 0; i < G; ++i)
-        {
-          sum += input0[base_idx + i];
-        }
-      output1[glb_tid_y] = sum;
+      r += input0[input_base + i];
     }
 
-  barrier();
-  uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
-  output0[idx] = input1[idx] / output1[glb_tid_y];
+  output0[output_base] = r;
 }

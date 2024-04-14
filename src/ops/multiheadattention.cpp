@@ -171,13 +171,12 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output)
     }
 
   tmp_tensors_.push_back (concated);
-#if 0
+#if 1
   if ((ret = out_matmul_->operator() (concated, wo_, output)) != VK_SUCCESS)
     {
       return ret;
     }
 #endif
-  output = softmax_attns[0];
 
   return VK_SUCCESS;
 }

@@ -237,10 +237,9 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
           }
 
         Tensor<3> normalized_attn_scores (attn_scores.dimensions ());
-        Tensor<3> exps;
-        float m;
         {
-
+          Tensor<3> exps;
+          Tensor<3> m;
           Eigen::array<Eigen::Index, 1> max_dims = { 2 };
           Eigen::array<Eigen::Index, 3> bias_dims
               = { attn_scores.dimension (0), attn_scores.dimension (1), 1 };
@@ -251,10 +250,9 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
                               .reshape (bias_dims)
                               .broadcast (broadcasts);
           exps = debias.exp ();
-          Tensor<0> sum = exps.sum ();
-          m = *sum.data ();
+          m = exps.sum (max_dims).reshape (bias_dims).broadcast (broadcasts);
+          normalized_attn_scores = exps / m;
         }
-        normalized_attn_scores = exps / m;
 
         Tensor<3> head (V.dimensions ());
         {
@@ -272,7 +270,6 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
                   << ", transpoed_k = " << rotated_transpoed_k.mean ()
                   << ", scale = " << scale
                   << ", attn_scores = " << attn_scores.mean ()
-                  << ", exps = " << exps.mean () << ", sum exps = " << m
                   << ", normalized_attn_scores = "
                   << normalized_attn_scores.mean ()
                   << ", head = " << head.mean () << std::endl;

@@ -18,6 +18,7 @@ glsl_shader(
         "reduce_stage1.comp",
         "softmax_stage0.comp",
         "softmax_stage1.comp",
+        "softmax_stage2.comp",
         "concat_axis2.comp",
     ],
     tool = '//tools:binary_to_array',

@@ -97,13 +97,12 @@ TEST_P (TestSoftmax, test_softmax)
   //           << "exps : " << exps << std::endl
   //           << "output_tensor: " << output_tensor << std::endl
   //           << "vk_output_tensor: " << vk_output_tensor << std::endl;
-  // std::cerr << "mean of output_tensor: " << output_tensor.mean () <<
-  // std::endl; std::cerr << "mean of vk_output_tensor: " <<
-  // vk_output_tensor.mean ()
-  //           << std::endl;
+  std::cerr << "mean of output_tensor: " << output_tensor.mean () << std::endl;
+  std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
+            << std::endl;
 }
 
-std::vector<TestSoftmaxParams> params = { { 1, 2, 8 } };
+std::vector<TestSoftmaxParams> params = { { 1, 1023, 63 }, { 3, 1023, 51 } };
 
 INSTANTIATE_TEST_SUITE_P (test_softmax, TestSoftmax,
                           ::testing::ValuesIn (params));

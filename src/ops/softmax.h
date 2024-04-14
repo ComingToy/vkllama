@@ -18,6 +18,7 @@ private:
   std::unique_ptr<Reduce> reduce_;
   std::unique_ptr<Pipeline> softmax0_;
   std::unique_ptr<Pipeline> softmax1_;
+  std::unique_ptr<Pipeline> softmax2_;
 
   VkTensor bias_;
   VkTensor m_;
