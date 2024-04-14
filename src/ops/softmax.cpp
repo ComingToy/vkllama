@@ -19,7 +19,7 @@ Softmax::init ()
     }
 
   Pipeline::ShaderInfo info0 = { 0, 4, 3, 32, 4, 1 };
-  Pipeline::ShaderInfo info1 = { 0, 3, 4, 32, 4, 1 };
+  Pipeline::ShaderInfo info1 = { 0, 4, 4, 32, 4, 1 };
 
   softmax0_.reset (new Pipeline (dev_, __get_softmax_stage0_comp_spv_code (),
                                  __get_softmax_stage0_comp_spv_size (), {},
@@ -88,25 +88,33 @@ Softmax::operator() (VkTensor a, VkTensor &b)
   m_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
   exps_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   exps_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
-#if 0
-b = VkTensor::like (a);
-  auto ret = b.create ();
+
+  out_ = VkTensor::like (a);
+  ret = out_.create ();
   if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  sum_ = VkTensor (a.channels (), a.height (), 1, dev_);
+  if ((ret = sum_.create ()) != VK_SUCCESS)
     {
       return ret;
     }
 
   shape.push_back ({ .u32 = (uint32_t)m_.width () });
   softmax1_->set_group (group_x, group_y, group_z);
-  ret = command_->record_pipeline (*softmax1_, { m_, exps_, b }, shape);
+  ret = command_->record_pipeline (*softmax1_, { m_, exps_, out_, sum_ },
+                                   shape);
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
 
-  b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  b.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
-#endif
-  b = m_;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  sum_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  sum_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  b = out_;
   return VK_SUCCESS;
 }

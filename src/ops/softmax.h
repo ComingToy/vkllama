@@ -23,5 +23,7 @@ private:
   VkTensor m_;
   VkTensor exps_;
   VkTensor n_;
+  VkTensor sum_;
+  VkTensor out_;
 };
 #endif
