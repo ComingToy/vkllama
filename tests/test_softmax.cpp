@@ -77,7 +77,7 @@ TEST_P (TestSoftmax, test_softmax)
   Eigen::array<Eigen::Index, 1> dims = { 2 };
 
   Tensor<3> exps;
-  float m;
+  Tensor<3> m;
   {
     Eigen::array<Eigen::Index, 3> bias_dims
         = { input_tensor.dimension (0), input_tensor.dimension (1), 1 };
@@ -87,20 +87,20 @@ TEST_P (TestSoftmax, test_softmax)
                   - input_tensor.maximum (dims).reshape (bias_dims).broadcast (
                       broadcasts);
     exps = debias.exp ();
-    Tensor<0> sum = exps.sum ();
-    m = *sum.data ();
+    m = exps.sum (dims).reshape (bias_dims).broadcast (broadcasts);
   }
 
   output_tensor = exps / m;
-  // Tensor<0> mse = (vk_output_tensor - output_tensor).pow (2.0).mean ();
-  // ASSERT_LT (*mse.data (), 1e-4);
-  std::cerr << "input tensor: " << input_tensor << std::endl
-            << "exps : " << exps << std::endl
-            << "output_tensor: " << output_tensor << std::endl
-            << "vk_output_tensor: " << vk_output_tensor << std::endl;
-  std::cerr << "mean of output_tensor: " << output_tensor.mean () << std::endl;
-  std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
-            << std::endl;
+  Tensor<0> mse = (vk_output_tensor - output_tensor).pow (2.0).mean ();
+  ASSERT_LT (*mse.data (), 1e-4);
+  // std::cerr << "input tensor: " << input_tensor << std::endl
+  //           << "exps : " << exps << std::endl
+  //           << "output_tensor: " << output_tensor << std::endl
+  //           << "vk_output_tensor: " << vk_output_tensor << std::endl;
+  // std::cerr << "mean of output_tensor: " << output_tensor.mean () <<
+  // std::endl; std::cerr << "mean of vk_output_tensor: " <<
+  // vk_output_tensor.mean ()
+  //           << std::endl;
 }
 
 std::vector<TestSoftmaxParams> params = { { 1, 2, 8 } };
