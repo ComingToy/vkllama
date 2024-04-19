@@ -91,15 +91,12 @@ TEST_P (TestSoftmax, test_softmax)
   }
 
   output_tensor = exps / m;
-  Tensor<0> mse = (vk_output_tensor - output_tensor).pow (2.0).mean ();
-  ASSERT_LT (*mse.data (), 1e-4);
-  // std::cerr << "input tensor: " << input_tensor << std::endl
-  //           << "exps : " << exps << std::endl
-  //           << "output_tensor: " << output_tensor << std::endl
-  //           << "vk_output_tensor: " << vk_output_tensor << std::endl;
-  std::cerr << "mean of output_tensor: " << output_tensor.mean () << std::endl;
-  std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
-            << std::endl;
+
+  Tensor<3> err (vk_output_tensor.dimensions ());
+  err.setConstant (1e-3);
+  _Tensor<int, 0> diff
+      = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
+  ASSERT_EQ (*diff.data (), 0);
 }
 
 std::vector<TestSoftmaxParams> params = { { 1, 1023, 63 }, { 3, 1023, 51 } };

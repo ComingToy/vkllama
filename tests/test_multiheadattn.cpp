@@ -188,8 +188,8 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
   Tensor<3> vk_output_tensor
       = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
                       output.width ());
-  std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
-            << std::endl;
+  // std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
+  //           << std::endl;
 
   // std::vector<Tensor<3> > K (wk.size ()), Q (wq.size ()), V (wv.size ());
   Tensor<3> input_tensor
@@ -263,6 +263,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
             }
         }
         heads.push_back (head);
+#if 0
         std::cerr << "head " << i << ", mean of K = " << K.mean ()
                   << ", Q = " << Q.mean () << ", V = " << V.mean ()
                   << ", Kr = " << rotated_k.mean ()
@@ -273,6 +274,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
                   << ", normalized_attn_scores = "
                   << normalized_attn_scores.mean ()
                   << ", head = " << head.mean () << std::endl;
+#endif
       }
 
     Tensor<3> tmp = heads[0];
@@ -286,18 +288,30 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
     Tensor<3> wo_tensor = TensorMap<3> (wo_bufs.data (), wo.channels (),
                                         wo.height (), wo.width ());
 
-    std::cerr << "mean of concated_head = " << concated_head.mean ()
-              << ", wo mean: " << wo_tensor.mean () << std::endl;
+    // std::cerr << "mean of concated_head = " << concated_head.mean ()
+    //           << ", wo mean: " << wo_tensor.mean () << std::endl;
     eigen_output_tensor = eigen_tensor_matmul (concated_head, wo_tensor, 0);
   }
 
-  std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
-            << std::endl
-            << "mean of eigen_output_tensor: " << eigen_output_tensor.mean ()
-            << std::endl;
+  Tensor<0> m0 = vk_output_tensor.mean ();
+  Tensor<0> m1 = eigen_output_tensor.mean ();
+
+  Tensor<3> err (vk_output_tensor.dimensions ());
+  err.setConstant (1e-3);
+  Tensor<0> diff = ((vk_output_tensor - eigen_output_tensor).abs () > err)
+                       .cast<float> ()
+                       .sum ();
+
+  ASSERT_FLOAT_EQ (*diff.data (), .0f);
+  // std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
+  //           << std::endl
+  //           << "mean of eigen_output_tensor: " << eigen_output_tensor.mean
+  //           ()
+  //           << std::endl;
 }
 
-std::vector<TestMultiheadattnParams> params = { { 1, 256, 64, 128, 4, 256 } };
+std::vector<TestMultiheadattnParams> params
+    = { { 1, 256, 64, 512, 8, 512 }, { 3, 253, 64, 512, 3, 321 } };
 INSTANTIATE_TEST_SUITE_P (test_multiheadattn, TestMultiheadattn,
                           ::testing::ValuesIn (params));
 }

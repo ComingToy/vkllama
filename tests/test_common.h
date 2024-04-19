@@ -66,6 +66,9 @@ using TensorMap
 template <int NumIndices_>
 using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;
 
+template <typename Scalar, int NumIndices_>
+using _Tensor = Eigen::Tensor<Scalar, NumIndices_, Eigen::RowMajor>;
+
 inline Tensor<3>
 eigen_tensor_matmul (Tensor<3> lhs, Tensor<3> rhs_, const int broadcast_type,
                      const bool transpose_b = false)
