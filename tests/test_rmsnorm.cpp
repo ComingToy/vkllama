@@ -10,93 +10,95 @@ float output[3 * 1024 * 1024];
 
 Eigen::Map<
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    A(x, 3 * 1024, 1024);
+    A (x, 3 * 1024, 1024);
 
 Eigen::Map<
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    W(w, 1, 1024);
+    W (w, 1, 1024);
 
 Eigen::Map<
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    B(output, 3 * 1024, 1024);
+    B (output, 3 * 1024, 1024);
 
-void random_vec(float* v, const int n)
+void
+random_vec (float *v, const int n)
 {
-    for (int i = 0; i < n; ++i)
+  for (int i = 0; i < n; ++i)
     {
-        v[i] = static_cast<float>(random() % 100) / 50.0f;
+      v[i] = static_cast<float> (random () % 100) / 50.0f;
     }
 }
 
-int main(void)
+int
+main (void)
 {
-    random_vec(x, 3 * 1024 * 1024);
-    random_vec(w, 1024);
-    GPUDevice gpu;
-    if (gpu.init() != VK_SUCCESS)
+  random_vec (x, 3 * 1024 * 1024);
+  random_vec (w, 1024);
+  GPUDevice gpu;
+  if (gpu.init () != VK_SUCCESS)
     {
-        fprintf(stderr, "failed at init gpu device\n");
+      fprintf (stderr, "failed at init gpu device\n");
+      return -1;
+    }
+
+  fprintf (stderr, "init gpu successfully!\n");
+
+  {
+    VkTensor a (3, 1024, 1024, &gpu, VkTensor::FP32, true);
+    VkTensor b (1, 1, 1024, &gpu, VkTensor::FP32, true);
+    if (a.create () != VK_SUCCESS || b.create () != VK_SUCCESS)
+      {
+        fprintf (stderr, "failed at create input tensor\n");
         return -1;
-    }
+      }
 
-    fprintf(stderr, "init gpu successfully!\n");
+    Command command (&gpu);
+    auto ret = command.init ();
 
-    {
-        VkTensor a(3, 1024, 1024, &gpu, true);
-        VkTensor b(1, 1, 1024, &gpu, true);
-        if (a.create() != VK_SUCCESS || b.create() != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at create input tensor\n");
-            return -1;
-        }
+    if (ret != VK_SUCCESS)
+      {
+        fprintf (stderr, "failed at init command\n");
+        return -1;
+      }
 
-        Command command(&gpu);
-        auto ret = command.init();
+    command.begin ();
+    command.upload (x, 3 * 1024 * 1024, a);
+    command.upload (w, 1024, b);
 
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at init command\n");
-            return -1;
-        }
+    RMSNorm norm (&gpu, &command);
+    ret = norm.init ();
 
-        command.begin();
-        command.upload(x, 3 * 1024 * 1024, a);
-        command.upload(w, 1024, b);
+    if (ret != VK_SUCCESS)
+      {
+        fprintf (stderr, "failed at init op\n");
+        return -1;
+      }
 
-        RMSNorm norm(&gpu, &command);
-        ret = norm.init();
+    VkTensor c;
+    ret = norm (a, b, c);
+    if (ret != VK_SUCCESS)
+      {
+        fprintf (stderr, "failed at op compute\n");
+        return -1;
+      }
 
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at init op\n");
-            return -1;
-        }
+    command.download (c, output, 3 * 1024 * 1024);
+    command.end ();
+    command.submit_and_wait ();
 
-        VkTensor c;
-        ret = norm(a, b, c);
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at op compute\n");
-            return -1;
-        }
+    std::cerr << "time cost: " << norm.time () << std::endl;
 
-        command.download(c, output, 3 * 1024 * 1024);
-        command.end();
-        command.submit_and_wait();
+    auto V = (A.array ().pow (2.0).rowwise ().mean () + 1e-3)
+                 .rsqrt ()
+                 .rowwise ()
+                 .replicate (1024);
 
-        std::cerr << "time cost: " << norm.time() << std::endl;
+    auto C = A.array () * V * W.array ().replicate<3 * 1024, 1> ();
 
-        auto V = (A.array().pow(2.0).rowwise().mean() + 1e-3)
-                     .rsqrt()
-                     .rowwise()
-                     .replicate(1024);
+    auto mse = (C - B.array ()).pow (2.0f).mean ();
+    std::cerr << "mse: " << mse << std::endl;
+  }
 
-        auto C = A.array() * V * W.array().replicate<3 * 1024, 1>();
-
-        auto mse = (C - B.array()).pow(2.0f).mean();
-        std::cerr << "mse: " << mse << std::endl;
-    }
-
-    return 0;
+  return 0;
 }
 

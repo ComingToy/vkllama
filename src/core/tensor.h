@@ -3,6 +3,7 @@
 
 #include "allocator.h"
 #include <atomic>
+#include <type_traits>
 #include <vulkan/vulkan.h>
 
 class GPUDevice;
@@ -11,13 +12,26 @@ class VkTensor
 public:
   typedef enum
   {
-    FP32
+    FP32,
+    UINT32
   } DType;
+
+  template <typename T> DType static to_dtype ()
+  {
+    if (std::is_same<T, float>::value)
+      {
+        return FP32;
+      }
+    else
+      {
+        return UINT32;
+      }
+  }
 
   static VkTensor like (VkTensor const &);
   VkTensor ();
   VkTensor (const int c, const int h, const int w, GPUDevice *dev,
-            const bool visable = false);
+            DType const dtype = FP32, const bool visable = false);
 
   VkTensor &operator= (VkTensor const &);
   VkTensor (const VkTensor &rhs);
@@ -39,6 +53,8 @@ public:
   VkResult create ();
   size_t bytes () const;
   bool visable () const;
+  DType dtype () const;
+  size_t elem_bytes () const;
   VkResult flush ();
   VkResult invalid ();
 
@@ -52,6 +68,7 @@ private:
 
   GPUDevice *dev_;
   bool visable_;
+  DType dtype_;
   VkBuffer data_;
   Allocator::MemBlock mem_;
   struct __TensorStatus

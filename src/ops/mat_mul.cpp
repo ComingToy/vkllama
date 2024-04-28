@@ -1,9 +1,9 @@
 #include "mat_mul.h"
-#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 
 MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
                 const int broadcast_type, const bool transpose_b)
@@ -65,7 +65,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c)
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
   c = VkTensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
-                false);
+                VkTensor::FP32, false);
 
   auto ret = c.create ();
   if (ret != VK_SUCCESS)

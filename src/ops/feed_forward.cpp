@@ -1,10 +1,10 @@
 #include "src/ops/feed_forward.h"
 
-#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 
 FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
                           VkTensor w2, VkTensor w3)
@@ -77,8 +77,10 @@ FeedForward::time ()
 VkResult
 FeedForward::operator() (VkTensor X, VkTensor &output)
 {
-  t0_ = VkTensor (X.channels (), X.height (), w1_.width (), dev_, false);
-  t1_ = VkTensor (X.channels (), X.height (), w3_.width (), dev_, false);
+  t0_ = VkTensor (X.channels (), X.height (), w1_.width (), dev_,
+                  VkTensor::FP32, false);
+  t1_ = VkTensor (X.channels (), X.height (), w3_.width (), dev_,
+                  VkTensor::FP32, false);
   t2_ = VkTensor::like (t0_);
   output = VkTensor (X.channels (), X.height (), w2_.width (), dev_);
 

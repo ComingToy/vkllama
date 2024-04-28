@@ -6,14 +6,14 @@
 #include <vulkan/vulkan_core.h>
 
 VkTensor::VkTensor ()
-    : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false),
+    : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false), dtype_ (FP32),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
   mem_ = { VK_NULL_HANDLE, 0, 0, 0, nullptr, 0 };
 }
 VkTensor::VkTensor (const int c, const int h, const int w, GPUDevice *dev,
-                    const bool visable)
-    : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable),
+                    const DType dtype, const bool visable)
+    : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
   mem_ = { VK_NULL_HANDLE, 0, 0, 0, nullptr, 0 };
@@ -21,8 +21,8 @@ VkTensor::VkTensor (const int c, const int h, const int w, GPUDevice *dev,
 
 VkTensor::VkTensor (const VkTensor &rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
-      dev_ (rhs.dev_), visable_ (rhs.visable ()), data_ (rhs.data_),
-      mem_ (rhs.mem_), status_ (rhs.status_)
+      dev_ (rhs.dev_), visable_ (rhs.visable ()), dtype_ (rhs.dtype_),
+      data_ (rhs.data_), mem_ (rhs.mem_), status_ (rhs.status_)
 {
   if (status_)
     {
@@ -32,8 +32,8 @@ VkTensor::VkTensor (const VkTensor &rhs)
 
 VkTensor::VkTensor (VkTensor &&rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
-      dev_ (rhs.dev_), visable_ (rhs.visable_), data_ (rhs.data_),
-      mem_ (rhs.mem_), status_ (rhs.status_)
+      dev_ (rhs.dev_), visable_ (rhs.visable_), dtype_ (rhs.dtype_),
+      data_ (rhs.data_), mem_ (rhs.mem_), status_ (rhs.status_)
 {
   rhs.status_ = nullptr;
 }
@@ -53,6 +53,7 @@ VkTensor::operator= (VkTensor const &rhs)
   w_ = rhs.width ();
   dev_ = rhs.dev_;
   visable_ = rhs.visable_;
+  dtype_ = rhs.dtype_;
   data_ = rhs.data_;
   mem_ = rhs.mem_;
   status_ = rhs.status_;
@@ -60,10 +61,28 @@ VkTensor::operator= (VkTensor const &rhs)
   return *this;
 }
 
+size_t
+VkTensor::elem_bytes () const
+{
+  if (dtype_ == FP32)
+    {
+      return sizeof (float);
+    }
+  else if (dtype_ == UINT32)
+    {
+      return sizeof (uint32_t);
+    }
+  else
+    {
+      return 0;
+    }
+}
+
 VkResult
 VkTensor::create ()
 {
-  auto bytes = sizeof (float) * w_ * h_ * c_;
+
+  auto bytes = elem_bytes () * w_ * h_ * c_;
   bytes = (bytes + 63) / 64 * 64;
   {
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -112,7 +131,7 @@ VkTensor::create ()
 size_t
 VkTensor::bytes () const
 {
-  auto bytes = sizeof (float) * w_ * h_ * c_;
+  auto bytes = elem_bytes () * w_ * h_ * c_;
   bytes = (bytes + 63) / 64 * 64;
   return bytes;
 }
@@ -230,12 +249,18 @@ VkTensor::release_ ()
     }
 }
 
+VkTensor::DType
+VkTensor::dtype () const
+{
+  return dtype_;
+}
+
 VkTensor::~VkTensor () { release_ (); }
 
 VkTensor
 VkTensor::like (const VkTensor &tensor)
 {
   VkTensor tmp (tensor.channels (), tensor.height (), tensor.width (),
-                tensor.dev_, tensor.visable ());
+                tensor.dev_, tensor.dtype (), tensor.visable ());
   return tmp;
 }
