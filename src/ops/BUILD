@@ -9,6 +9,7 @@ cc_library(
 	    'elementwise.cpp',
         'softmax.cpp',
         'concat.cpp',
+		'embedding.cpp',
 	    'multiheadattention.cpp',
     ],
     hdrs = [
@@ -21,6 +22,7 @@ cc_library(
 	    'reduce.h',
         'softmax.h',
         'concat.h',
+		'embedding.h',
 	    'multiheadattention.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],

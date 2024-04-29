@@ -89,3 +89,12 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_test(
+	name = "test_embedding",
+	srcs = ["test_embedding.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)

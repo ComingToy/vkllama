@@ -6,6 +6,7 @@
 #include <optional>
 #include <random>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -19,7 +20,10 @@ random_vec (T *v, const int n, const T min, const T max)
 {
   std::random_device rd;
   std::mt19937 e2 (rd ());
-  std::uniform_real_distribution<T> dist (min, max);
+  typename std::conditional<
+      std::is_floating_point<T>::value, std::uniform_real_distribution<T>,
+      std::uniform_int_distribution<T> >::type dist (min, max);
+
   for (int i = 0; i < n; ++i)
     {
       v[i] = dist (e2);
@@ -64,6 +68,10 @@ random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
 template <int NumIndices_ = 3>
 using TensorMap
     = Eigen::TensorMap<Eigen::Tensor<float, NumIndices_, Eigen::RowMajor> >;
+
+template <typename Scalar, int NumIndices_ = 3>
+using _TensorMap
+    = Eigen::TensorMap<Eigen::Tensor<Scalar, NumIndices_, Eigen::RowMajor> >;
 
 template <int NumIndices_>
 using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;

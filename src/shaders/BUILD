@@ -20,6 +20,7 @@ glsl_shader(
         "softmax_stage1.comp",
         "softmax_stage2.comp",
         "concat_axis2.comp",
+        "embedding.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]
