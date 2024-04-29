@@ -46,7 +46,7 @@ TEST_P (TestReduce, test_reduce)
   const auto op_type = params.op_type;
 
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
-  auto input0 = random_tensor (gpu_, command_, params.C, params.H, params.W);
+  auto input0 = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
 
   ASSERT_TRUE (input0) << "failed at create tensor";
 

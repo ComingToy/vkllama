@@ -47,7 +47,7 @@ TEST_P (TestConcat, test_concat)
 
   for (auto const w : params.W)
     {
-      auto input = random_tensor (gpu_, command_, params.C, params.H, w);
+      auto input = random_tensor<float> (gpu_, command_, params.C, params.H, w);
       ASSERT_TRUE (input) << "failed at create tensor";
       input_tensors.push_back (input->first);
       input_bufs.push_back (std::move (input->second));

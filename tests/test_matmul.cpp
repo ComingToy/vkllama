@@ -81,8 +81,8 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
 
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin command";
-  auto input0 = random_tensor (gpu_, command_, in0_channel, in0_h, in0_w);
-  auto input1 = random_tensor (gpu_, command_, in1_channel, in1_h, in1_w);
+  auto input0 = random_tensor<float> (gpu_, command_, in0_channel, in0_h, in0_w);
+  auto input1 = random_tensor<float> (gpu_, command_, in1_channel, in1_h, in1_w);
 
   ASSERT_TRUE (input0 && input1) << "failed at create tensors";
 

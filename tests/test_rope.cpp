@@ -44,9 +44,9 @@ TEST_P (TestRope, test_rope)
 
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at beign command";
   auto input_query
-      = random_tensor (dev_, command_, params.C, params.H, params.W);
+      = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
   auto input_key
-      = random_tensor (dev_, command_, params.C, params.H, params.W);
+      = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
 
   ASSERT_TRUE (input_query && input_key);
 

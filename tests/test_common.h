@@ -13,40 +13,43 @@
 #include "core/tensor.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 
+template <typename T>
 inline void
-random_vec (float *v, const int n, const float min, const float max)
+random_vec (T *v, const int n, const T min, const T max)
 {
   std::random_device rd;
   std::mt19937 e2 (rd ());
-  std::uniform_real_distribution<float> dist (min, max);
+  std::uniform_real_distribution<T> dist (min, max);
   for (int i = 0; i < n; ++i)
     {
       v[i] = dist (e2);
     }
 }
 
-inline float
-random_float (float min, float max)
+template <typename T>
+inline T
+random_number (T min, T max)
 {
 
   std::random_device rd;
   std::mt19937 e2 (rd ());
-  std::uniform_real_distribution<float> dist (min, max);
+  std::uniform_real_distribution<T> dist (min, max);
   return dist (e2);
 }
 
-inline std::unique_ptr<std::pair<VkTensor, std::vector<float> > >
+template <typename T>
+inline std::unique_ptr<std::pair<VkTensor, std::vector<T> > >
 random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
-               const int w, const float min = -1.0, const float max = 1.0)
+               const int w, const T min = -1, const T max = 1)
 {
-  VkTensor tensor (c, h, w, dev);
+  VkTensor tensor (c, h, w, dev, VkTensor::to_dtype<T> ());
   if (tensor.create () != VK_SUCCESS)
     {
       return {};
     }
 
   const int n = c * h * w;
-  std::vector<float> buf (n);
+  std::vector<T> buf (n);
   random_vec (buf.data (), n, min, max);
 
   auto ret = command->upload (buf.data (), n, tensor);
@@ -55,8 +58,7 @@ random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
       return {};
     }
 
-  return std::make_unique<std::pair<VkTensor, std::vector<float> > > (tensor,
-                                                                      buf);
+  return std::make_unique<std::pair<VkTensor, std::vector<T> > > (tensor, buf);
 }
 
 template <int NumIndices_ = 3>

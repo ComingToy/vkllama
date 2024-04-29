@@ -134,7 +134,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
 {
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
-  auto input0 = random_tensor (gpu_, command_, params.C, params.H, params.W);
+  auto input0 = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
 
   std::vector<VkTensor> wk, wq, wv;
@@ -144,7 +144,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
 
   {
     auto pwo
-        = random_tensor (gpu_, command_, params.C, params.HDIM * params.HEADS,
+        = random_tensor<float> (gpu_, command_, params.C, params.HDIM * params.HEADS,
                          input0->first.width ());
     ASSERT_TRUE (pwo) << "failed at create tensor";
     wo = pwo->first;
@@ -153,11 +153,11 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
     for (int i = 0; i < params.HEADS; ++i)
       {
         auto k
-            = random_tensor (gpu_, command_, params.C, params.W, params.HDIM);
+            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
         auto q
-            = random_tensor (gpu_, command_, params.C, params.W, params.HDIM);
+            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
         auto v
-            = random_tensor (gpu_, command_, params.C, params.W, params.HDIM);
+            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
 
         ASSERT_TRUE (k && q && v) << "failed at create tensor";
         wk.push_back (k->first);
