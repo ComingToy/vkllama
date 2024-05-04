@@ -9,10 +9,10 @@ class ElementWise : public Op
 {
 public:
   ElementWise (GPUDevice *dev, Command *command_, const int type);
-  VkResult operator() (VkTensor x, VkTensor y, VkTensor &out);
-  VkResult operator() (VkTensor x, float y, VkTensor &out);
-  VkResult init () override;
-  uint64_t time () override;
+  VkResult operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept;
+  VkResult operator() (VkTensor x, float y, VkTensor &out) noexcept;
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
 
 private:
   const int type_;

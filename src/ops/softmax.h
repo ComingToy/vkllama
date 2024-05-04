@@ -10,9 +10,9 @@ class Softmax : public Op
 {
 public:
   Softmax (GPUDevice *dev, Command *command);
-  VkResult init () override;
-  uint64_t time () override;
-  VkResult operator() (VkTensor a, VkTensor &b);
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
+  VkResult operator() (VkTensor a, VkTensor &b) noexcept;
 
 private:
   std::unique_ptr<Reduce> reduce_;

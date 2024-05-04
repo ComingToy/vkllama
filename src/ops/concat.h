@@ -9,9 +9,10 @@ class Concat : public Op
 {
 public:
   Concat (GPUDevice *gpu, Command *command, const int num);
-  VkResult init () override;
-  VkResult operator() (std::vector<VkTensor> const &inputs, VkTensor &output);
-  uint64_t time () override;
+  VkResult init () noexcept override;
+  VkResult operator() (std::vector<VkTensor> const &inputs,
+                       VkTensor &output) noexcept;
+  uint64_t time () noexcept override;
 
 private:
   const int num_;

@@ -10,7 +10,7 @@ Embedding::Embedding (GPUDevice *dev, Command *command, const uint32_t UNK)
 }
 
 VkResult
-Embedding::init ()
+Embedding::init () noexcept
 {
   Pipeline::ShaderInfo info = { 1, 3, 4, 16, 16, 1 };
   Pipeline::ConstantType unk = { .u32 = UNK_ };
@@ -21,7 +21,8 @@ Embedding::init ()
 }
 
 VkResult
-Embedding::operator() (VkTensor vocab, VkTensor indices, VkTensor &out)
+Embedding::operator() (VkTensor vocab, VkTensor indices,
+                       VkTensor &out) noexcept
 {
   if (vocab.channels () != 1 || indices.channels () != 1
       || indices.dtype () != VkTensor::UINT32
@@ -67,7 +68,7 @@ Embedding::operator() (VkTensor vocab, VkTensor indices, VkTensor &out)
 }
 
 uint64_t
-Embedding::time ()
+Embedding::time () noexcept
 {
   return pipeline_->time ();
 }

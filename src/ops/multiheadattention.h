@@ -20,9 +20,9 @@ public:
                       std::vector<VkTensor> const &Wq,
                       std::vector<VkTensor> const &Wv, VkTensor const Wo,
                       const int maxlen, const int dim);
-  VkResult operator() (VkTensor X, VkTensor &output);
-  VkResult init () override;
-  uint64_t time () override;
+  VkResult operator() (VkTensor X, VkTensor &output) noexcept;
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
 
 private:
   std::vector<std::unique_ptr<MatMul> > k_ops_;

@@ -9,7 +9,7 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type)
 }
 
 VkResult
-ElementWise::init ()
+ElementWise::init () noexcept
 {
   Pipeline::ShaderInfo info = { 1, 3, 1, 128, 1, 1 };
   Pipeline::ConstantType op_type = { .i = type_ };
@@ -33,13 +33,13 @@ ElementWise::init ()
 }
 
 uint64_t
-ElementWise::time ()
+ElementWise::time () noexcept
 {
   return pipeline0_->time ();
 }
 
 VkResult
-ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out)
+ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
 {
   if (x.channels () != y.channels () || x.height () != y.height ()
       || x.width () != y.width ())
@@ -73,7 +73,7 @@ ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out)
 }
 
 VkResult
-ElementWise::operator() (VkTensor x, float y, VkTensor &out)
+ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
 {
   out = VkTensor::like (x);
   VkResult ret = VK_SUCCESS;

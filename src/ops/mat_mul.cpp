@@ -13,7 +13,7 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
 }
 
 VkResult
-MatMul::init ()
+MatMul::init () noexcept
 {
   Pipeline::ShaderInfo info = { 2, 3, 4, 16, 16, 1 };
   Pipeline::ConstantType act_type = { .i = act_ };
@@ -49,7 +49,7 @@ MatMul::init ()
 }
 
 uint64_t
-MatMul::time ()
+MatMul::time () noexcept
 {
   return pipeline_->time ();
 }

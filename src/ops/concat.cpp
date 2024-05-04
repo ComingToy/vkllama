@@ -15,7 +15,7 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num)
 }
 
 VkResult
-Concat::init ()
+Concat::init () noexcept
 {
   std::vector<std::unique_ptr<Pipeline> > pipelines;
   for (int i = 0; i < num_; ++i)
@@ -39,7 +39,8 @@ Concat::init ()
 }
 
 VkResult
-Concat::operator() (const std::vector<VkTensor> &inputs, VkTensor &output)
+Concat::operator() (const std::vector<VkTensor> &inputs,
+                    VkTensor &output) noexcept
 {
   if (inputs.size () != num_)
     {
@@ -94,7 +95,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs, VkTensor &output)
 }
 
 uint64_t
-Concat::time ()
+Concat::time () noexcept
 {
   std::vector<uint64_t> times;
   std::generate_n (std::back_inserter (times), num_, [this, i = 0] () mutable {

@@ -1,12 +1,12 @@
 #ifndef __VKLLAMA_REDUCE_H__
 #define __VKLLAMA_REDUCE_H__
 
-#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 #include "src/ops/op.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 #include <memory>
 
 // 0: sum 1: max 2: min 3: mean
@@ -19,7 +19,7 @@ public:
   }
 
   VkResult
-  init () override
+  init () noexcept override
   {
     Pipeline::ShaderInfo stage0Info = { 1, 2, 3, 64, 4, 1 };
     Pipeline::ShaderInfo stage1Info = { 1, 2, 5, 1, 64, 1 };
@@ -43,7 +43,7 @@ public:
   }
 
   uint64_t
-  time () override
+  time () noexcept override
   {
     return stage0_->time () + stage1_->time ();
   };

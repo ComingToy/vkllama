@@ -9,9 +9,10 @@ class Embedding : public Op
 {
 public:
   Embedding (GPUDevice *dev, Command *, const uint32_t UNK);
-  VkResult init () override;
-  uint64_t time () override;
-  VkResult operator() (VkTensor vocab, VkTensor indices, VkTensor &out);
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
+  VkResult operator() (VkTensor vocab, VkTensor indices,
+                       VkTensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

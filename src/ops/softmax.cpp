@@ -9,7 +9,7 @@
 
 Softmax::Softmax (GPUDevice *dev, Command *command) : Op (dev, command) {}
 VkResult
-Softmax::init ()
+Softmax::init () noexcept
 {
   reduce_.reset (new Reduce (dev_, command_, 1));
   auto ret = reduce_->init ();
@@ -45,14 +45,14 @@ Softmax::init ()
 }
 
 uint64_t
-Softmax::time ()
+Softmax::time () noexcept
 {
   return reduce_->time () + softmax0_->time () + softmax1_->time ()
          + softmax2_->time ();
 }
 
 VkResult
-Softmax::operator() (VkTensor a, VkTensor &b)
+Softmax::operator() (VkTensor a, VkTensor &b) noexcept
 {
   auto ret = reduce_->operator() (a, bias_);
   if (ret != VK_SUCCESS)

@@ -22,7 +22,7 @@ MultiHeadAttention::MultiHeadAttention (GPUDevice *dev, Command *command,
 }
 
 VkResult
-MultiHeadAttention::init ()
+MultiHeadAttention::init () noexcept
 {
   if (wk_.size () != wq_.size () || wq_.size () != wv_.size ())
     {
@@ -77,7 +77,7 @@ MultiHeadAttention::init ()
 }
 
 VkResult
-MultiHeadAttention::operator() (VkTensor X, VkTensor &output)
+MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
 {
   VkResult ret = VK_SUCCESS;
   std::vector<VkTensor> head_tensors;
@@ -182,7 +182,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output)
 }
 
 uint64_t
-MultiHeadAttention::time ()
+MultiHeadAttention::time () noexcept
 {
   return 0;
 }

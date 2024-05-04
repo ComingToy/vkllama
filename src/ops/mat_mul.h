@@ -10,8 +10,8 @@ public:
   MatMul (GPUDevice *dev, Command *command, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false);
   VkResult operator() (VkTensor a, VkTensor b, VkTensor &c);
-  VkResult init () override;
-  uint64_t time () override;
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

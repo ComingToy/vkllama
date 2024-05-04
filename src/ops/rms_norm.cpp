@@ -14,19 +14,19 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command) : Op (dev, command)
 }
 
 VkResult
-RMSNorm::init ()
+RMSNorm::init () noexcept
 {
   return pipeline_->init ();
 }
 
 uint64_t
-RMSNorm::time ()
+RMSNorm::time () noexcept
 {
   return pipeline_->time ();
 }
 
 VkResult
-RMSNorm::operator() (VkTensor x, VkTensor w, VkTensor &output)
+RMSNorm::operator() (VkTensor x, VkTensor w, VkTensor &output) noexcept
 {
   output = VkTensor (x.channels (), x.height (), x.width (), dev_,
                      VkTensor::FP32, false);

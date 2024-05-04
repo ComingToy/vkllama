@@ -9,24 +9,24 @@ class GPUDevice;
 class Command;
 class FeedForward : public Op
 {
-  public:
-    FeedForward(GPUDevice*, Command*, VkTensor, VkTensor, VkTensor);
-    VkResult operator()(VkTensor X, VkTensor& output);
-    VkResult init() override;
-    uint64_t time() override;
+public:
+  FeedForward (GPUDevice *, Command *, VkTensor, VkTensor, VkTensor);
+  VkResult operator() (VkTensor X, VkTensor &output) noexcept;
+  VkResult init () noexcept override;
+  uint64_t time () noexcept override;
 
-  private:
-    VkTensor w1_;
-    VkTensor w2_;
-    VkTensor w3_;
+private:
+  VkTensor w1_;
+  VkTensor w2_;
+  VkTensor w3_;
 
-	VkTensor t0_;
-	VkTensor t1_;
-	VkTensor t2_;
-    std::unique_ptr<Pipeline> pipeline0_;
-    std::unique_ptr<Pipeline> pipeline1_;
-    std::unique_ptr<Pipeline> pipeline2_;
-	std::unique_ptr<Pipeline> pipeline3_;
+  VkTensor t0_;
+  VkTensor t1_;
+  VkTensor t2_;
+  std::unique_ptr<Pipeline> pipeline0_;
+  std::unique_ptr<Pipeline> pipeline1_;
+  std::unique_ptr<Pipeline> pipeline2_;
+  std::unique_ptr<Pipeline> pipeline3_;
 };
 
 #endif

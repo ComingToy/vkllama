@@ -36,7 +36,7 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
 }
 
 VkResult
-FeedForward::init ()
+FeedForward::init () noexcept
 {
   if (w3_.width () != w1_.width ())
     {
@@ -68,14 +68,14 @@ FeedForward::init ()
 }
 
 uint64_t
-FeedForward::time ()
+FeedForward::time () noexcept
 {
   return std::max (pipeline0_->time (), pipeline2_->time ())
          + pipeline1_->time () + pipeline3_->time ();
 }
 
 VkResult
-FeedForward::operator() (VkTensor X, VkTensor &output)
+FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
 {
   t0_ = VkTensor (X.channels (), X.height (), w1_.width (), dev_,
                   VkTensor::FP32, false);

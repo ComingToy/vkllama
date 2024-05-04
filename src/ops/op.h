@@ -9,14 +9,14 @@ class Command;
 
 class Op
 {
-  public:
-    Op(GPUDevice* dev, Command* command);
-    virtual VkResult init() = 0;
-    virtual uint64_t time() = 0;
+public:
+  Op (GPUDevice *dev, Command *command) noexcept;
+  virtual VkResult init () noexcept = 0;
+  virtual uint64_t time () noexcept = 0;
 
-  protected:
-    GPUDevice* dev_;
-    Command* command_;
+protected:
+  GPUDevice *dev_;
+  Command *command_;
 };
 
 #endif
