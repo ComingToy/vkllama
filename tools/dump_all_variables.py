@@ -10,17 +10,15 @@ def parse_block(block_idx, constants):
     block_suffix = f'_{block_idx}' if block_idx > 0 else ''
     ff_layer_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/feed_forward{block_suffix}/ff_w%d/Tensordot/ReadVariableOp'
     w1, w2, w3 = constants[ff_layer_fmt % 1], constants[ff_layer_fmt % 2], constants[ff_layer_fmt % 3]
-    variables.append(llama2.Variable(name='block_{block_idx}/feed_forward/w1', shape=w1.shape, f32_values=w1.reshape(-1)))
-    variables.append(llama2.Variable(name='block_{block_idx}/feed_forward/w2', shape=w2.shape, f32_values=w2.reshape(-1)))
-    variables.append(llama2.Variable(name='block_{block_idx}/feed_forward/w3', shape=w3.shape, f32_values=w3.reshape(-1)))
+    variables.append(llama2.Variable(name=f'block_{block_idx}/feed_forward/w1', shape=w1.shape, f32_values=w1.reshape(-1)))
+    variables.append(llama2.Variable(name=f'block_{block_idx}/feed_forward/w2', shape=w2.shape, f32_values=w2.reshape(-1)))
+    variables.append(llama2.Variable(name=f'block_{block_idx}/feed_forward/w3', shape=w3.shape, f32_values=w3.reshape(-1)))
 
     transformer_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/gq_attention{block_suffix}/%s/Tensordot/ReadVariableOp'
     Wk = constants[transformer_fmt % 'Wk']
     Wq = constants[transformer_fmt % 'Wq']
     Wv = constants[transformer_fmt % 'Wv']
-    Wks = []
-    Wqs = []
-    Wvs = []
+    Wo = constants[transformer_fmt % 'Wo']
     for i in range(8):
         wk = Wk[:, i*512:(i+1)*512]
         wq = Wq[:, i*512:(i+1)*512]
@@ -28,6 +26,7 @@ def parse_block(block_idx, constants):
         variables.append(llama2.Variable(name=f'block_{block_idx}/Wk/head_{i}', shape=wk.shape, f32_values=wk.reshape(-1)))
         variables.append(llama2.Variable(name=f'block_{block_idx}/Wq/head_{i}', shape=wq.shape, f32_values=wq.reshape(-1)))
         variables.append(llama2.Variable(name=f'block_{block_idx}/Wv/head_{i}', shape=wv.shape, f32_values=wv.reshape(-1)))
+    variables.append(llama2.Variable(name=f'block_{block_idx}/Wo', shape=Wo.shape, f32_values=Wo.reshape(-1)))
 
     rms_norm_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/rms_norm_{block_idx + 1}/mul_1/ReadVariableOp'
     weight = constants[rms_norm_fmt]

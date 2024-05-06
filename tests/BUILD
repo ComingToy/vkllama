@@ -98,3 +98,10 @@ cc_test(
 		":test_common",
 	],
 )
+
+cc_binary(
+	name="llama2",
+	srcs=["llama2.cpp"],
+    copts = ["-std=c++17"],
+    deps = ["//src/models:llama2", "//src:vkllama"],
+)
