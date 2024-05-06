@@ -15,6 +15,7 @@ py_binary(
     srcs=['dump_all_variables.py'],
     visibility = ["//visibility:public"],
     deps = [
+        "//src/proto:llama2_model_py_proto",
         requirement('tensorflow')
     ]
 )
