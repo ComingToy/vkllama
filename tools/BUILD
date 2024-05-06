@@ -9,3 +9,12 @@ py_binary(
         requirement('jinja2')
     ]
 )
+
+py_binary(
+    name='dump_all_variables',
+    srcs=['dump_all_variables.py'],
+    visibility = ["//visibility:public"],
+    deps = [
+        requirement('tensorflow')
+    ]
+)

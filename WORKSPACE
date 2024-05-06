@@ -29,7 +29,6 @@ pip_parse(
 load("@pip_deps//:requirements.bzl", "install_deps")
 install_deps()
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "hedron_compile_commands",
     url = "https://github.com/hedronvision/bazel-compile-commands-extractor/archive/0e990032f3c5a866e72615cf67e5ce22186dcb97.tar.gz",
@@ -43,3 +42,26 @@ load("@hedron_compile_commands//:workspace_setup_transitive_transitive.bzl", "he
 hedron_compile_commands_setup_transitive_transitive()
 load("@hedron_compile_commands//:workspace_setup_transitive_transitive_transitive.bzl", "hedron_compile_commands_setup_transitive_transitive_transitive")
 hedron_compile_commands_setup_transitive_transitive_transitive()
+
+http_archive(
+    name = "rules_proto",
+    sha256 = "80d3a4ec17354cccc898bfe32118edd934f851b03029d63ef3fc7c8663a7415c",
+    strip_prefix = "rules_proto-5.3.0-21.5",
+    urls = [
+        "https://github.com/bazelbuild/rules_proto/archive/refs/tags/5.3.0-21.5.tar.gz",
+    ],
+)
+load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+rules_proto_dependencies()
+rules_proto_toolchains()
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+git_repository(
+    name = "com_google_protobuf",
+    remote = "https://github.com/protocolbuffers/protobuf",
+    tag='v26.0'
+)
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+protobuf_deps()
+
