@@ -21,6 +21,8 @@ glsl_shader(
         "softmax_stage2.comp",
         "concat_axis2.comp",
         "embedding.comp",
+        "argmax_stage0.comp",
+        "argmax_stage1.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]

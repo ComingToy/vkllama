@@ -1,4 +1,5 @@
 #include "src/models/llama2.h"
+#include <vector>
 int
 main (const int argc, const char *argv[])
 {
@@ -16,8 +17,15 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
-  auto output = model ({ 1, 2, 3, 4, 5 });
-  fprintf (stdout, "output size: %zu\n", output.size ());
+  std::vector<uint32_t> toks (128);
+  std::generate (toks.begin (), toks.end (),
+                 [x = uint32_t (0)] () mutable { return ++x; });
+
+  for (int i = 0; i < 100; ++i)
+    {
+      auto output = model (toks);
+      fprintf (stdout, "output size: %zu\n", output.size ());
+    }
   return 0;
 }
 

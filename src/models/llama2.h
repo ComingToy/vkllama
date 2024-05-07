@@ -443,15 +443,15 @@ public:
         }
     }
 
-    // command_->end ();
-    // command_->submit_and_wait ();
+    command_->end ();
+    command_->submit_and_wait ();
     return VK_SUCCESS;
   }
 
   std::vector<float>
   operator() (std::vector<uint32_t> const &toks)
   {
-    // command_->begin ();
+    command_->begin ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
     if (vktoks.create () != VK_SUCCESS)
       {

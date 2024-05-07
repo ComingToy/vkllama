@@ -24,6 +24,7 @@ cc_library(
         'concat.h',
 		'embedding.h',
 	    'multiheadattention.h',
+        'argop.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
     copts = ['-std=c++17'],

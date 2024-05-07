@@ -55,7 +55,7 @@ MatMul::time () noexcept
 }
 
 VkResult
-MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c)
+MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
 {
   if ((broadcast_type_ == 0 && b.channels () != a.channels ())
       || (broadcast_type_ == 1 && b.channels () != 1))
