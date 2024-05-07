@@ -11,9 +11,9 @@ layout (push_constant) uniform constants
   uint W;
 };
 
-layout(binding=0) readonly buffer InputTensor0 { uint input0[]; };
-layout(binding=1) readonly buffer InputTensor1 { float input1[]; };
-layout(binding=2) writeonly buffer OutputTensor0 { uint output0[]; };
+layout (binding = 0) readonly buffer InputTensor0 { uint input0[]; };
+layout (binding = 1) readonly buffer InputTensor1 { float input1[]; };
+layout (binding = 2) writeonly buffer OutputTensor0 { uint output0[]; };
 
 // block size = [1, 128, 1]
 void
@@ -32,7 +32,7 @@ main (void)
   uint output_base = tid_z * H + tid_y;
 
   float v = input1[input_base];
-  uint r = input0[input_base];
+  uint r = 0;
   for (uint i = 1; i < W; ++i)
     {
       if ((op_type == 0 && input1[input_base + i] > v)

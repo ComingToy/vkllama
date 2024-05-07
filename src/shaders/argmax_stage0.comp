@@ -23,8 +23,8 @@ void
 main (void)
 {
   uint glb_tid_x = gl_GlobalInvocationID.x;
-  uint glb_tid_y = gl_GlobalInvocationID.x;
-  uint glb_tid_z = gl_GlobalInvocationID.x;
+  uint glb_tid_y = gl_GlobalInvocationID.y;
+  uint glb_tid_z = gl_GlobalInvocationID.z;
 
   uint group_size_x = gl_WorkGroupSize.x;
   uint gid_x = gl_WorkGroupID.x;
@@ -39,7 +39,7 @@ main (void)
       return;
     }
 
-  const uint in_base = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
+  const uint in_base = glb_tid_z * H * W + glb_tid_y * W;
   if (glb_tid_x < W)
     {
       smem_values[local_tid_y][local_tid_x] = input0[in_base + glb_tid_x];
@@ -64,7 +64,8 @@ main (void)
                 {
                   smem_values[local_tid_y][local_tid_x]
                       = smem_values[local_tid_y][local_tid_x + stride];
-                  smem_indice[local_tid_y][local_tid_x] = local_tid_x + stride;
+                  smem_indice[local_tid_y][local_tid_x]
+                      = smem_indice[local_tid_y][local_tid_x + stride];
                 }
             }
           else if (op_type == 1)
@@ -74,7 +75,8 @@ main (void)
                 {
                   smem_values[local_tid_y][local_tid_x]
                       = smem_values[local_tid_y][local_tid_x + stride];
-                  smem_indice[local_tid_y][local_tid_x] = local_tid_x + stride;
+                  smem_indice[local_tid_y][local_tid_x]
+                      = smem_indice[local_tid_y][local_tid_x + stride];
                 }
             }
         }

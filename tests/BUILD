@@ -99,6 +99,16 @@ cc_test(
 	],
 )
 
+cc_test(
+	name = "test_argop",
+	srcs = ["test_argop.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+
 cc_binary(
 	name="llama2",
 	srcs=["llama2.cpp"],
