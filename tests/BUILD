@@ -11,11 +11,13 @@ cc_library(
 	],
 )
 
-cc_binary(
-    name = "test_rmsnorm",
-    srcs = ["test_rmsnorm.cpp"],
-    deps = ["//src:vkllama", "//shaders:vkllama_shaders", "@eigen3//:eigen"],
+cc_test(
+	name = "test_rmsnorm",
+	srcs = ["test_rmsnorm.cpp"],
     copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
 )
 
 cc_test(
@@ -43,4 +45,75 @@ cc_test(
 	deps = [
 		":test_common",
 	],
+)
+
+cc_test(
+	name = "test_elementwise",
+	srcs = ["test_elementwise.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_reduce",
+	srcs = ["test_reduce.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_softmax",
+	srcs = ["test_softmax.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_concat",
+	srcs = ["test_concat.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_multiheadattn",
+	srcs = ["test_multiheadattn.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_embedding",
+	srcs = ["test_embedding.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+cc_test(
+	name = "test_argop",
+	srcs = ["test_argop.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+
+cc_binary(
+	name="llama2",
+	srcs=["llama2.cpp"],
+    copts = ["-std=c++17"],
+    deps = ["//models:llama2", "//src:vkllama"],
 )

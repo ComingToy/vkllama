@@ -1,0 +1,24 @@
+syntax = "proto3";
+package llama2;
+
+enum DType
+{
+    UINT32 = 0;
+    FLOAT32 = 1;
+    INT32 = 2;
+}
+
+message Variable 
+{
+    string name = 1;
+    DType dtype = 2;
+    repeated int32 shape=3;
+    repeated float f32_values = 4;
+    repeated uint32 u32_values = 5;
+    repeated int32 int32_values = 6;
+};
+
+message Variables
+{
+    repeated Variable variables = 1;
+};

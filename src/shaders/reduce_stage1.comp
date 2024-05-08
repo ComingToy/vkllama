@@ -1,0 +1,52 @@
+#version 450 core
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+// 0: sum 1: max 2: min
+layout (constant_id = 0) const int op_type = 0;
+layout (push_constant) uniform constants
+{
+  int C;
+  int H;
+  int W;
+  float MEAN_SCALE;
+};
+
+layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { float output0[]; };
+
+// block size = [1, 128, 1]
+void
+main (void)
+{
+  uint tid_x = gl_GlobalInvocationID.x;
+  uint tid_y = gl_GlobalInvocationID.y;
+  uint tid_z = gl_GlobalInvocationID.z;
+
+  if (tid_x >= W || tid_y >= H || tid_z >= C)
+    {
+      return;
+    }
+
+  uint input_base = tid_z * H * W + tid_y * W;
+  uint output_base = tid_z * H + tid_y;
+
+  float r = input0[input_base];
+  for (uint i = 1; i < W; ++i)
+    {
+      if (op_type == 0)
+        {
+          r += input0[input_base + i];
+        }
+      else if (op_type == 1)
+        {
+          r = max (input0[input_base + i], r);
+        }
+      else if (op_type == 2)
+        {
+          r = min (input0[input_base + i], r);
+        }
+    }
+
+  output0[output_base] = r * MEAN_SCALE;
+}

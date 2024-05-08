@@ -2,101 +2,89 @@
 #include "core/command.h"
 #include "core/gpu_device.h"
 #include "ops/rms_norm.h"
-#include <cstdio>
+#include "test_common.h"
+#include "gtest/gtest.h"
+#include <memory>
+#include <vector>
 
-float x[3 * 1024 * 1024];
-float w[1024];
-float output[3 * 1024 * 1024];
-
-Eigen::Map<
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    A(x, 3 * 1024, 1024);
-
-Eigen::Map<
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    W(w, 1, 1024);
-
-Eigen::Map<
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> >
-    B(output, 3 * 1024, 1024);
-
-void random_vec(float* v, const int n)
+namespace
 {
-    for (int i = 0; i < n; ++i)
-    {
-        v[i] = static_cast<float>(random() % 100) / 50.0f;
-    }
-}
-
-int main(void)
+struct TestRMSNormParams
 {
-    random_vec(x, 3 * 1024 * 1024);
-    random_vec(w, 1024);
-    GPUDevice gpu;
-    if (gpu.init() != VK_SUCCESS)
-    {
-        fprintf(stderr, "failed at init gpu device\n");
-        return -1;
-    }
+  const int C;
+  const int H;
+  const int W;
+};
 
-    fprintf(stderr, "init gpu successfully!\n");
+using TestRMSNorm = VkllamaTestWithParam<TestRMSNormParams>;
 
-    {
-        VkTensor a(3, 1024, 1024, &gpu, true);
-        VkTensor b(1, 1, 1024, &gpu, true);
-        if (a.create() != VK_SUCCESS || b.create() != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at create input tensor\n");
-            return -1;
-        }
+TEST_P (TestRMSNorm, test_rmsnorm)
+{
+  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
 
-        Command command(&gpu);
-        auto ret = command.init();
+  auto params = GetParam ();
+  auto input0
+      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
+  auto input1 = random_tensor<float> (gpu_, command_, 1, 1, params.W);
 
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at init command\n");
-            return -1;
-        }
+  ASSERT_TRUE (input0);
+  ASSERT_TRUE (input1);
 
-        command.begin();
-        command.upload(x, 3 * 1024 * 1024, a);
-        command.upload(w, 1024, b);
+  RMSNorm norm_op (gpu_, command_);
+  ASSERT_EQ (norm_op.init (), VK_SUCCESS);
 
-        RMSNorm norm(&gpu, &command);
-        ret = norm.init();
+  VkTensor output;
+  ASSERT_EQ (norm_op (input0->first, input1->first, output), VK_SUCCESS);
+  std::vector<float> output_buf (output.size ());
 
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at init op\n");
-            return -1;
-        }
+  ASSERT_EQ (
+      command_->download (output, output_buf.data (), output_buf.size ()),
+      VK_SUCCESS);
 
-        VkTensor c;
-        ret = norm(a, b, c);
-        if (ret != VK_SUCCESS)
-        {
-            fprintf(stderr, "failed at op compute\n");
-            return -1;
-        }
+  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+      << "failed at submit commands";
 
-        command.download(c, output, 3 * 1024 * 1024);
-        command.end();
-        command.submit_and_wait();
+  Tensor<3> vk_output_tensor
+      = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
+                      output.width ());
 
-        std::cerr << "time cost: " << norm.time() << std::endl;
+  Tensor<3> input_tensor0
+      = TensorMap<3> (input0->second.data (), input0->first.channels (),
+                      input0->first.height (), input0->first.width ());
 
-        auto V = (A.array().pow(2.0).rowwise().mean() + 1e-3)
-                     .rsqrt()
-                     .rowwise()
-                     .replicate(1024);
+  Tensor<3> input_tensor1
+      = TensorMap<3> (input1->second.data (), input1->first.channels (),
+                      input1->first.height (), input1->first.width ());
 
-        auto C = A.array() * V * W.array().replicate<3 * 1024, 1>();
+  Eigen::array<Eigen::Index, 1> mean_dims = { 2 };
+  Eigen::array<Eigen::Index, 3> dims
+      = { input_tensor0.dimension (0), input_tensor0.dimension (1), 1 };
+  Eigen::array<Eigen::Index, 3> broadcasts
+      = { 1, 1, input_tensor0.dimension (2) };
+  Eigen::array<Eigen::Index, 3> weight_broadcasts
+      = { input_tensor0.dimension (0), input_tensor0.dimension (1), 1 };
 
-        auto mse = (C - B.array()).pow(2.0f).mean();
-        std::cerr << "mse: " << mse << std::endl;
-    }
+  Tensor<3> eigen_output_tensor
+      = (input_tensor0.pow (2.0f).mean (mean_dims) + 1e-3f)
+            .rsqrt ()
+            .reshape (dims)
+            .broadcast (broadcasts)
+        * input_tensor1.broadcast (weight_broadcasts) * input_tensor0;
+  // std::cerr << "eigen output mean: " << eigen_output_tensor.mean ()
+  //           << std::endl
+  //           << "vk output mean: " << vk_output_tensor.mean () << std::endl;
 
-    return 0;
+  Tensor<3> err (vk_output_tensor.dimensions ());
+  err.setConstant (1e-3);
+  _Tensor<int, 0> diff
+      = ((vk_output_tensor - eigen_output_tensor).abs () > err)
+            .cast<int> ()
+            .sum ();
+  ASSERT_EQ (*diff.data (), 0);
+};
+
+std::vector<TestRMSNormParams> params = { { 1, 1023, 63 }, { 3, 1023, 63 } };
+INSTANTIATE_TEST_SUITE_P (test_rmsnorm, TestRMSNorm,
+                          ::testing::ValuesIn (params));
 }
-

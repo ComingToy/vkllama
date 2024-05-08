@@ -11,7 +11,6 @@ refresh_compile_commands(
     targets = {
         "//src:all": "",
         "//tests:all": "",
-        "//shaders:all": "",
     },
 )
 

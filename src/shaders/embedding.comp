@@ -1,0 +1,50 @@
+#version 450 core
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+layout (constant_id = 0) const uint UNK_TOK = 0;
+
+// shape = [1, VH, VW]
+layout (binding = 0) readonly buffer InputTensor0 { float input_tensor0[]; };
+// shape = [1, H, W]
+layout (binding = 1) readonly buffer InputTensor1 { uint input_tensor1[]; };
+// shape = [H, W, VW]
+layout (binding = 2) writeonly buffer OutputTensor0
+{
+  float output_tensor0[];
+};
+
+layout (push_constant) uniform constants
+{
+  uint H;
+  uint W;
+  uint VH;
+  uint VW;
+};
+
+void
+main (void)
+{
+  uint tid_x = gl_GlobalInvocationID.x;
+  uint tid_y = gl_GlobalInvocationID.y;
+  uint tid_z = gl_GlobalInvocationID.z;
+
+  if (tid_z >= 1 || tid_y >= H || tid_x >= W)
+    {
+      return;
+    }
+
+  uint tok = input_tensor1[tid_y * W + tid_x];
+  if (tok >= VH)
+    {
+      tok = UNK_TOK;
+    }
+
+  const uint out_base = tid_y * W * VW + tid_x * VW;
+  const uint in_base = tok * VW;
+
+  for (uint i = 0; i < VW; ++i)
+    {
+      output_tensor0[out_base + i] = input_tensor0[in_base + i];
+    }
+}

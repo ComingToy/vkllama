@@ -2,6 +2,7 @@
 layout (local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
 
 layout(constant_id=0) const int act = 0;
+layout(constant_id=1) const int transpose_b = 0;
 layout(set=0, binding=0) readonly buffer V1 {float values[];} v1;
 layout(set=0, binding=1) readonly buffer V2 {float values[];} v2;
 layout(set=0, binding=2) writeonly buffer V3 {float values[];} v3;
@@ -53,7 +54,6 @@ void main(void)
     };
 
     uint a_channel_base = z * M * K;
-    uint b_channel_base = z * K * N;
     
     for (int i = 0; i < (K + 7)/8; ++i)
     {
@@ -65,7 +65,12 @@ void main(void)
         }
 
         if (b_x < N && i*8 + tid_b_y < K){
-            uint b_src_idx = b_channel_base + (i*8 + tid_b_y)*N + b_x;
+            uint b_src_idx = 0;
+            if (transpose_b > 0){
+                b_src_idx = b_x * K + i*8 + tid_b_y;
+            }else{
+                b_src_idx = (i*8 + tid_b_y)*N + b_x;
+            }
             tileB[tid_b_y][tid_b_x] = v2.values[b_src_idx];
         }else{
             tileB[tid_b_y][tid_b_x] = .0;

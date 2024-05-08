@@ -1,0 +1,94 @@
+#version 450 core
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+// 0 = max, 1 = min
+layout (constant_id = 0) const int op_type = 0;
+layout (push_constant) uniform constants
+{
+  uint C;
+  uint H;
+  uint W;
+};
+
+layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { uint output0[]; };
+layout (binding = 2) writeonly buffer OutputTensor1 { float output1[]; };
+
+// block size [32, 4, 1]
+shared float smem_values[4][32];
+shared uint smem_indice[4][32];
+
+void
+main (void)
+{
+  uint glb_tid_x = gl_GlobalInvocationID.x;
+  uint glb_tid_y = gl_GlobalInvocationID.y;
+  uint glb_tid_z = gl_GlobalInvocationID.z;
+
+  uint group_size_x = gl_WorkGroupSize.x;
+  uint gid_x = gl_WorkGroupID.x;
+  uint group_num_x = gl_NumWorkGroups.x;
+
+  uint local_tid_x = gl_LocalInvocationID.x;
+  uint local_tid_y = gl_LocalInvocationID.y;
+  uint local_tid_z = gl_LocalInvocationID.z;
+
+  if (glb_tid_z >= H || glb_tid_z >= C)
+    {
+      return;
+    }
+
+  const uint in_base = glb_tid_z * H * W + glb_tid_y * W;
+  if (glb_tid_x < W)
+    {
+      smem_values[local_tid_y][local_tid_x] = input0[in_base + glb_tid_x];
+    }
+  else
+    {
+      smem_values[local_tid_y][local_tid_x] = .0;
+    }
+
+  smem_indice[local_tid_y][local_tid_x] = glb_tid_x;
+
+  barrier ();
+
+  for (uint stride = group_size_x / 2; stride > 0; stride /= 2)
+    {
+      if (local_tid_x < stride && glb_tid_x + stride < W)
+        {
+          if (op_type == 0)
+            {
+              if (smem_values[local_tid_y][local_tid_x]
+                  < smem_values[local_tid_y][local_tid_x + stride])
+                {
+                  smem_values[local_tid_y][local_tid_x]
+                      = smem_values[local_tid_y][local_tid_x + stride];
+                  smem_indice[local_tid_y][local_tid_x]
+                      = smem_indice[local_tid_y][local_tid_x + stride];
+                }
+            }
+          else if (op_type == 1)
+            {
+              if (smem_values[local_tid_y][local_tid_x]
+                  > smem_values[local_tid_y][local_tid_x + stride])
+                {
+                  smem_values[local_tid_y][local_tid_x]
+                      = smem_values[local_tid_y][local_tid_x + stride];
+                  smem_indice[local_tid_y][local_tid_x]
+                      = smem_indice[local_tid_y][local_tid_x + stride];
+                }
+            }
+        }
+
+      barrier ();
+    }
+
+  if (local_tid_x == 0)
+    {
+      uint out_idx
+          = glb_tid_z * H * group_num_x + glb_tid_y * group_num_x + gid_x;
+      output0[out_idx] = smem_indice[local_tid_y][0];
+      output1[out_idx] = smem_values[local_tid_y][0];
+    }
+}

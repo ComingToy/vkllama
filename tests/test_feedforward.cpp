@@ -52,10 +52,10 @@ TEST_P(TestFeedForawrd, test_2d)
     {
         ASSERT_TRUE(command.begin() == VK_SUCCESS) << "fail at begin command";
 
-        auto w1 = random_tensor(gpu_, &command, 1, indim, units);
-        auto w2 = random_tensor(gpu_, &command, 1, units, outdim);
-        auto w3 = random_tensor(gpu_, &command, 1, indim, units);
-        auto X = random_tensor(gpu_, &command, 1, 64, indim);
+        auto w1 = random_tensor<float>(gpu_, &command, 1, indim, units);
+        auto w2 = random_tensor<float>(gpu_, &command, 1, units, outdim);
+        auto w3 = random_tensor<float>(gpu_, &command, 1, indim, units);
+        auto X = random_tensor<float>(gpu_, &command, 1, 64, indim);
 
         ASSERT_TRUE(w1 && w2 && w3 && X) << "fail at creating tensors";
 
