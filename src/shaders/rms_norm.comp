@@ -43,7 +43,7 @@ main(void)
         r += v;
     }
 
-    float alpha = 1.0 / (sqrt(r / float(W)) + eps);
+    float alpha = 1.0 / (sqrt(r / float(W) + eps));
 
     for (uint ow = 0; ow < W; ++ow) {
         float v = input_tensor[c * H * W + h * W + ow];

@@ -13,6 +13,7 @@
 #include "core/command.h"
 #include "core/tensor.h"
 #include "unsupported/Eigen/CXX11/Tensor"
+#include "gtest/gtest.h"
 
 template <typename T>
 inline void
@@ -128,4 +129,28 @@ eigen_tensor_matmul (Tensor<3> lhs, Tensor<3> rhs_, const int broadcast_type,
   return eigen_output;
 }
 
+template <typename _Params>
+class VkllamaTestWithParam : public ::testing::TestWithParam<_Params>
+{
+public:
+  void
+  SetUp () override
+  {
+    gpu_ = new GPUDevice ();
+    command_ = new Command (gpu_);
+
+    gpu_->init ();
+    command_->init ();
+  }
+
+  void
+  TearDown () override
+  {
+    delete command_;
+    delete gpu_;
+  }
+
+  GPUDevice *gpu_;
+  Command *command_;
+};
 #endif
