@@ -17,15 +17,22 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
-  std::vector<uint32_t> toks (128);
-  std::generate (toks.begin (), toks.end (),
-                 [x = uint32_t (0)] () mutable { return ++x; });
+  // std::vector<uint32_t> toks (128);
+  // std::generate (toks.begin (), toks.end (),
+  //                [x = uint32_t (0)] () mutable { return ++x; });
 
-  for (int i = 0; i < 100; ++i)
+  std::vector<uint32_t> toks = { 2, 13709, 11823 };
+  for (int i = 0; i < 10; ++i)
     {
       auto output = model (toks);
-      fprintf (stdout, "output size: %zu\n", output.size ());
+      toks.push_back (output.back ());
     }
+
+  for (auto tok : toks)
+    {
+      std::cerr << tok << " ";
+    }
+  std::cerr << std::endl;
   return 0;
 }
 

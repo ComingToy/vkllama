@@ -2,15 +2,19 @@
 #define __VKLLAMA_MODELS_LLAMA2_H__
 #include "src/core/command.h"
 #include "src/core/tensor.h"
+#include "src/ops/argop.h"
+#include "src/ops/elementwise.h"
 #include "src/ops/embedding.h"
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/rms_norm.h"
 #include "src/proto/llama2_model.pb.h"
+#include <algorithm>
 #include <cstdio>
 #include <fcntl.h>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -53,6 +57,7 @@ public:
         throw std::runtime_error ("failed at forwarding embedding op");
       }
 
+    out = embs_;
     if ((ret = norm_op_->operator() (embs_, norm_weights_, out)) != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding rms norm op");
@@ -96,7 +101,8 @@ public:
 
   struct RmsNormParams
   {
-    VkTensor weight;
+    VkTensor weight1;
+    VkTensor weight2;
   };
 
   Llama2Block (GPUDevice *dev, Command *command,
@@ -119,10 +125,14 @@ public:
         new FeedForward (gpu_, command_, feedforward_params_.w1,
                          feedforward_params_.w2, feedforward_params_.w3));
     norm_op_.reset (new RMSNorm (gpu_, command_));
+    norm_op2_.reset (new RMSNorm (gpu_, command_));
+    add_op_.reset (new ElementWise (gpu_, command_, 0));
 
     auto ret = attn_op_->init ();
     if (ret != VK_SUCCESS || (ret = feedforward_op_->init ()) != VK_SUCCESS
-        || (ret = norm_op_->init ()) != VK_SUCCESS)
+        || (ret = norm_op_->init ()) != VK_SUCCESS
+        || (ret = norm_op2_->init ()) != VK_SUCCESS
+        || (ret = add_op_->init ()) != VK_SUCCESS)
       {
         return ret;
       }
@@ -133,7 +143,7 @@ public:
   VkTensor
   operator() (VkTensor in)
   {
-    auto ret = norm_op_->operator() (in, rmsnorm_params_.weight, normed_);
+    auto ret = norm_op_->operator() (in, rmsnorm_params_.weight1, normed_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding RMSNorm op");
@@ -146,8 +156,20 @@ public:
             "failed at forwarding MultiHeadAttention op");
       }
 
+    ret = add_op_->operator() (transformed_, in, added_);
+    if (ret != VK_SUCCESS)
+      {
+        throw std::runtime_error ("failed at forwarding add op");
+      }
+
+    ret = norm_op2_->operator() (added_, rmsnorm_params_.weight2, normed2_);
+    if (ret != VK_SUCCESS)
+      {
+        throw std::runtime_error ("failed at forwarding RMSNorm op");
+      }
+
     VkTensor out;
-    ret = feedforward_op_->operator() (transformed_, out);
+    ret = feedforward_op_->operator() (normed2_, out);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding FeedForward op");
@@ -162,13 +184,17 @@ private:
   std::unique_ptr<MultiHeadAttention> attn_op_;
   std::unique_ptr<FeedForward> feedforward_op_;
   std::unique_ptr<RMSNorm> norm_op_;
+  std::unique_ptr<RMSNorm> norm_op2_;
+  std::unique_ptr<ElementWise> add_op_;
 
   TransformerParams transformer_params_;
   FeedForwardParams feedforward_params_;
   RmsNormParams rmsnorm_params_;
 
   VkTensor normed_;
+  VkTensor normed2_;
   VkTensor transformed_;
+  VkTensor added_;
 };
 
 class OutputLayer
@@ -183,17 +209,29 @@ public:
   init ()
   {
     matmul_op_.reset (new MatMul (gpu_, command_, 0, 0, true));
-    return matmul_op_->init ();
+    auto ret = matmul_op_->init ();
+    if (ret != VK_SUCCESS)
+      {
+        return ret;
+      }
+
+    argmax_op_.reset (new ArgMax (gpu_, command_));
+    return argmax_op_->init ();
   }
 
   VkTensor
   operator() (VkTensor in)
   {
-    VkTensor out;
-    auto ret = matmul_op_->operator() (in, wo_, out);
+    auto ret = matmul_op_->operator() (in, wo_, matmul_output_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding MatMul op");
+      }
+
+    VkTensor out;
+    if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
+      {
+        throw std::runtime_error ("failed at forwarding argmax");
       }
 
     return out;
@@ -203,7 +241,9 @@ private:
   GPUDevice *gpu_;
   Command *command_;
   VkTensor wo_;
+  VkTensor matmul_output_;
   std::unique_ptr<MatMul> matmul_op_;
+  std::unique_ptr<ArgMax> argmax_op_;
 };
 
 class Model
@@ -301,8 +341,6 @@ public:
         {
           return ret;
         }
-
-      fprintf (stderr, "init input and output layer successfully\n");
     }
 
     // blocks
@@ -310,16 +348,32 @@ public:
       char vname[512];
       for (int b = 0; b < 6; ++b)
         {
-          ::snprintf (vname, sizeof (vname), "block_%d/rms_norm/weight", b);
-          const auto *rms_norm_weight = variables[vname];
-          VkTensor vkrmsnorm_weight (1, 1, rms_norm_weight->shape (0), gpu_);
-          if ((ret = vkrmsnorm_weight.create ()) != VK_SUCCESS)
+          ::snprintf (vname, sizeof (vname), "block_%d/rms_norm_1/weight", b);
+          const auto *rms_norm_weight_1 = variables[vname];
+          ::snprintf (vname, sizeof (vname), "block_%d/rms_norm_2/weight", b);
+          const auto *rms_norm_weight_2 = variables[vname];
+
+          VkTensor vkrmsnorm_weight_1 (1, 1, rms_norm_weight_1->shape (0),
+                                       gpu_);
+          VkTensor vkrmsnorm_weight_2 (1, 1, rms_norm_weight_2->shape (0),
+                                       gpu_);
+          if ((ret = vkrmsnorm_weight_1.create ()) != VK_SUCCESS
+              || (ret = vkrmsnorm_weight_2.create ()) != VK_SUCCESS)
             {
               return ret;
             }
-          ret = command_->upload (rms_norm_weight->f32_values ().data (),
-                                  rms_norm_weight->f32_values_size (),
-                                  vkrmsnorm_weight);
+
+          ret = command_->upload (rms_norm_weight_1->f32_values ().data (),
+                                  rms_norm_weight_1->f32_values_size (),
+                                  vkrmsnorm_weight_1);
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
+
+          ret = command_->upload (rms_norm_weight_2->f32_values ().data (),
+                                  rms_norm_weight_2->f32_values_size (),
+                                  vkrmsnorm_weight_2);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -424,7 +478,8 @@ public:
               return ret;
             }
 
-          Llama2Block::RmsNormParams rmsnorm_params = { vkrmsnorm_weight };
+          Llama2Block::RmsNormParams rmsnorm_params
+              = { vkrmsnorm_weight_1, vkrmsnorm_weight_2 };
           Llama2Block::TransformerParams transformer_params
               = { Wk, Wq, Wv, Wo, 128, 512 };
           Llama2Block::FeedForwardParams feedfward_params
@@ -439,7 +494,6 @@ public:
             }
 
           blocks_.push_back (block);
-          fprintf (stderr, "init block %d successfully\n", b);
         }
     }
 
@@ -448,7 +502,7 @@ public:
     return VK_SUCCESS;
   }
 
-  std::vector<float>
+  std::vector<uint32_t>
   operator() (std::vector<uint32_t> const &toks)
   {
     command_->begin ();
@@ -464,29 +518,24 @@ public:
       }
 
     VkTensor X = (*input_layer_) (vktoks);
-    fprintf (stderr, "forward input layer successfully.\n");
     std::vector<VkTensor> tmps;
     tmps.push_back (X);
 
-    int i = 0;
-    for (auto *block : blocks_)
+    for (int i = 0; i < blocks_.size (); ++i)
       {
+        auto *block = blocks_[i];
         X = (*block) (X);
         tmps.push_back (X);
-        fprintf (stderr, "forward block %d successfully\n", i);
-        i += 1;
       }
 
     VkTensor output = (*output_layer_) (X);
-    fprintf (stderr, "forward output layer successfully\n");
+    std::vector<uint32_t> buf (output.size ());
 
-    std::vector<float> buf (output.size ());
     ret = command_->download (output, buf.data (), buf.size ());
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at downloadding outputs");
       }
-    fprintf (stderr, "download output successfully\n");
 
     ret = command_->end ();
     if (ret != VK_SUCCESS)
@@ -499,6 +548,7 @@ public:
       {
         throw std::runtime_error ("failed at submit");
       }
+
     return buf;
   }
 

@@ -1,5 +1,6 @@
 #include "allocator.h"
 #include <algorithm>
+#include <iostream>
 #include <list>
 #include <set>
 #include <vulkan/vulkan.h>

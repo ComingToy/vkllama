@@ -7,7 +7,11 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <vector>
 
-Softmax::Softmax (GPUDevice *dev, Command *command) : Op (dev, command) {}
+Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask)
+    : Op (dev, command), seq_mask_ (seq_mask)
+{
+}
+
 VkResult
 Softmax::init () noexcept
 {
@@ -18,13 +22,14 @@ Softmax::init () noexcept
       return ret;
     }
 
-  Pipeline::ShaderInfo info0 = { 0, 4, 3, 32, 4, 1 };
+  Pipeline::ConstantType seq_mask = { .i = static_cast<int> (seq_mask_) };
+  Pipeline::ShaderInfo info0 = { 1, 4, 3, 32, 4, 1 };
   Pipeline::ShaderInfo info1 = { 0, 2, 3, 1, 32, 1 };
   Pipeline::ShaderInfo info2 = { 0, 3, 3, 32, 4, 1 };
 
   softmax0_.reset (new Pipeline (dev_, __get_softmax_stage0_comp_spv_code (),
-                                 __get_softmax_stage0_comp_spv_size (), {},
-                                 info0));
+                                 __get_softmax_stage0_comp_spv_size (),
+                                 { seq_mask }, info0));
 
   softmax1_.reset (new Pipeline (dev_, __get_softmax_stage1_comp_spv_code (),
                                  __get_softmax_stage1_comp_spv_size (), {},

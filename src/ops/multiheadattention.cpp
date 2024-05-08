@@ -47,7 +47,7 @@ MultiHeadAttention::init () noexcept
       auto rope = std::make_unique<Rope> (dev_, command_, maxlen_, dim_);
       auto attn_score = std::make_unique<MatMul> (dev_, command_, 0, 0, 1);
       auto elementwise = std::make_unique<ElementWise> (dev_, command_, 2);
-      auto softmax = std::make_unique<Softmax> (dev_, command_);
+      auto softmax = std::make_unique<Softmax> (dev_, command_, true);
 
       if ((ret = k_matmul->init ()) != VK_SUCCESS
           || (ret = q_matmul->init ()) != VK_SUCCESS

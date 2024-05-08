@@ -28,14 +28,18 @@ def parse_block(block_idx, constants):
         variables.append(llama2.Variable(name=f'block_{block_idx}/Wv/head_{i}', shape=wv.shape, f32_values=wv.reshape(-1)))
     variables.append(llama2.Variable(name=f'block_{block_idx}/Wo', shape=Wo.shape, f32_values=Wo.reshape(-1)))
 
-    rms_norm_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/rms_norm_{block_idx + 1}/mul_1/ReadVariableOp'
+    rms_norm_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/rms_norm_{2*block_idx + 1}/mul_1/ReadVariableOp'
     weight = constants[rms_norm_fmt]
-    variables.append(llama2.Variable(name=f'block_{block_idx}/rms_norm/weight', shape=weight.shape, f32_values=weight.reshape(-1)))
+    variables.append(llama2.Variable(name=f'block_{block_idx}/rms_norm_1/weight', shape=weight.shape, f32_values=weight.reshape(-1)))
+
+    rms_norm_fmt = f'llama2_model/StatefulPartitionedCall/llama2_block{block_suffix}/rms_norm_{2*block_idx + 2}/mul_1/ReadVariableOp'
+    weight = constants[rms_norm_fmt]
+    variables.append(llama2.Variable(name=f'block_{block_idx}/rms_norm_2/weight', shape=weight.shape, f32_values=weight.reshape(-1)))
     return variables
 
 
 def parse_input(constants):
-    embeddings = constants['llama2_model/26387']
+    embeddings = constants['llama2_model/159991682']
     weight = constants['llama2_model/StatefulPartitionedCall/rms_norm/mul_1/ReadVariableOp']
     return [llama2.Variable(name=f'input/embeddings', shape=embeddings.shape, f32_values=embeddings.reshape(-1)), llama2.Variable(name='input/rms_norm/weight', shape=weight.shape, f32_values=weight.reshape(-1))]
 

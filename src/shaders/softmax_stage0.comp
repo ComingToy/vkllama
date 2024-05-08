@@ -2,6 +2,7 @@
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
 
+layout (constant_id = 0) const int seq_mask = 0;
 layout (push_constant) uniform constants
 {
   uint C;
@@ -45,9 +46,15 @@ main (void)
   const float bias = input1[glb_tid_z * C + glb_tid_y];
   const uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
 
-  const float e = exp (input0[idx] - bias);
+  float e = 0;
+  if (seq_mask > 0 && glb_tid_x <= glb_tid_y)
+    {
+      e = exp (input0[idx] - bias);
+    }
+
   smem[loc_tid_y][loc_tid_x] = e;
   output1[idx] = e;
+
   barrier ();
 
   for (uint stride = group_x / 2; stride > 0; stride /= 2)

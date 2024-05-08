@@ -9,7 +9,7 @@ class Command;
 class Softmax : public Op
 {
 public:
-  Softmax (GPUDevice *dev, Command *command);
+  Softmax (GPUDevice *dev, Command *command, bool seq_mask=false);
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
   VkResult operator() (VkTensor a, VkTensor &b) noexcept;
@@ -26,5 +26,6 @@ private:
   VkTensor n_;
   VkTensor sum_;
   VkTensor out_;
+  bool seq_mask_;
 };
 #endif
