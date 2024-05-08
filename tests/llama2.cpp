@@ -1,11 +1,16 @@
 #include "models/llama2.h"
+#include "sentencepiece_processor.h"
+#include <iterator>
 #include <vector>
+
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 2)
+  if (argc != 4)
     {
-      fprintf (stderr, "usage: %s <path to checkpoitns>\n", argv[0]);
+      fprintf (stderr,
+               "usage: %s <path to checkpoitns> <path to bpe> <prompt>\n",
+               argv[0]);
       return -1;
     }
 
@@ -17,22 +22,43 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
+  sentencepiece::SentencePieceProcessor sp;
+  auto status = sp.Load (argv[2]);
+  if (!status.ok ())
+    {
+      fprintf (stderr, "init bpe failed: %s\n", status.ToString ().c_str ());
+      return static_cast<int> (status.code ());
+    }
+
+  std::vector<int> prompt;
+  sp.Encode (argv[3], &prompt);
+
   // std::vector<uint32_t> toks (128);
   // std::generate (toks.begin (), toks.end (),
   //                [x = uint32_t (0)] () mutable { return ++x; });
 
-  std::vector<uint32_t> toks = { 2, 13709, 11823 };
-  for (int i = 0; i < 10; ++i)
+  std::vector<uint32_t> toks = { (uint32_t)sp.bos_id () };
+  std::transform (prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
+                  [] (const int tok) { return static_cast<uint32_t> (tok); });
+
+  for (int i = 0; i < 64; ++i)
     {
       auto output = model (toks);
+      if ((int)output.back () == sp.eos_id ())
+        {
+          break;
+        }
       toks.push_back (output.back ());
     }
 
-  for (auto tok : toks)
-    {
-      std::cerr << tok << " ";
-    }
-  std::cerr << std::endl;
+  std::vector<int> output;
+  std::transform (toks.cbegin (), toks.cend (), std::back_inserter (output),
+                  [] (uint32_t const tok) { return static_cast<int> (tok); });
+
+  std::string content;
+  sp.Decode (output, &content);
+  std::cerr << "prompt: " << argv[3] << std::endl
+            << "output: " << content << std::endl;
   return 0;
 }
 

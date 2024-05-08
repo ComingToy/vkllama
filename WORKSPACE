@@ -65,3 +65,5 @@ git_repository(
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 protobuf_deps()
 
+load("//thirdparty/sentencepiece:repo.bzl", sentencepiece_repo = "repo")
+sentencepiece_repo()
