@@ -1,6 +1,6 @@
 import tensorflow as tf
 import sys
-from src.proto import llama2_model_pb2 as llama2
+from models.proto import llama2_model_pb2 as llama2
 # from tools import llama2_model_pb2 as llama2
 tf.compat.v1.disable_eager_execution()
 

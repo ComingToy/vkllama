@@ -1,4 +1,4 @@
-#include "src/models/llama2.h"
+#include "models/llama2.h"
 #include <vector>
 int
 main (const int argc, const char *argv[])

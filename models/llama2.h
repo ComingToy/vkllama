@@ -8,7 +8,7 @@
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/rms_norm.h"
-#include "src/proto/llama2_model.pb.h"
+#include "models/proto/llama2_model.pb.h"
 #include <algorithm>
 #include <cstdio>
 #include <fcntl.h>
