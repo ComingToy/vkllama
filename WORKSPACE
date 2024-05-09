@@ -67,3 +67,6 @@ protobuf_deps()
 
 load("//thirdparty/sentencepiece:repo.bzl", sentencepiece_repo = "repo")
 sentencepiece_repo()
+
+load("//thirdparty/VulkanMemoryAllocator:repo.bzl", vma_repo= "repo")
+vma_repo()

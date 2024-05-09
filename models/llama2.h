@@ -1,5 +1,6 @@
 #ifndef __VKLLAMA_MODELS_LLAMA2_H__
 #define __VKLLAMA_MODELS_LLAMA2_H__
+#include "models/proto/llama2_model.pb.h"
 #include "src/core/command.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
@@ -8,8 +9,8 @@
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/rms_norm.h"
-#include "models/proto/llama2_model.pb.h"
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <fcntl.h>
 #include <map>
@@ -38,7 +39,7 @@ public:
         return ret;
       }
 
-    norm_op_.reset (new RMSNorm (gpu_, command_));
+    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weights_));
     if ((ret = norm_op_->init ()) != VK_SUCCESS)
       {
         return ret;
@@ -58,7 +59,7 @@ public:
       }
 
     out = embs_;
-    if ((ret = norm_op_->operator() (embs_, norm_weights_, out)) != VK_SUCCESS)
+    if ((ret = norm_op_->operator() (embs_, out)) != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding rms norm op");
       }
@@ -124,8 +125,8 @@ public:
     feedforward_op_.reset (
         new FeedForward (gpu_, command_, feedforward_params_.w1,
                          feedforward_params_.w2, feedforward_params_.w3));
-    norm_op_.reset (new RMSNorm (gpu_, command_));
-    norm_op2_.reset (new RMSNorm (gpu_, command_));
+    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1));
+    norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2));
     add_op_.reset (new ElementWise (gpu_, command_, 0));
 
     auto ret = attn_op_->init ();
@@ -143,7 +144,7 @@ public:
   VkTensor
   operator() (VkTensor in)
   {
-    auto ret = norm_op_->operator() (in, rmsnorm_params_.weight1, normed_);
+    auto ret = norm_op_->operator() (in, normed_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding RMSNorm op");
@@ -162,7 +163,7 @@ public:
         throw std::runtime_error ("failed at forwarding add op");
       }
 
-    ret = norm_op2_->operator() (added_, rmsnorm_params_.weight2, normed2_);
+    ret = norm_op2_->operator() (added_, normed2_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding RMSNorm op");
@@ -505,6 +506,7 @@ public:
   std::vector<uint32_t>
   operator() (std::vector<uint32_t> const &toks)
   {
+    auto t1 = std::chrono::high_resolution_clock::now ();
     command_->begin ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
     if (vktoks.create () != VK_SUCCESS)
@@ -543,12 +545,22 @@ public:
         throw std::runtime_error ("failed at end commands");
       }
 
+    auto t2 = std::chrono::high_resolution_clock::now ();
     ret = command_->submit_and_wait ();
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at submit");
       }
 
+    auto t3 = std::chrono::high_resolution_clock::now ();
+    auto record_cost
+        = std::chrono::duration_cast<std::chrono::microseconds> (t2 - t1)
+              .count ();
+    auto sharder_cost
+        = std::chrono::duration_cast<std::chrono::microseconds> (t3 - t2)
+              .count ();
+    fprintf (stderr, "record cost: %ldus, shader cost: %ldus\n", record_cost,
+             sharder_cost);
     return buf;
   }
 

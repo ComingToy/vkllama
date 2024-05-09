@@ -1,6 +1,6 @@
 #include "tensor.h"
-#include "allocator.h"
 #include "gpu_device.h"
+#include "vk_mem_alloc.h"
 #include <atomic>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -9,20 +9,21 @@ VkTensor::VkTensor ()
     : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false), dtype_ (FP32),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
-  mem_ = { VK_NULL_HANDLE, 0, 0, 0, nullptr, 0 };
+  mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 VkTensor::VkTensor (const int c, const int h, const int w, GPUDevice *dev,
                     const DType dtype, const bool visable)
     : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
-  mem_ = { VK_NULL_HANDLE, 0, 0, 0, nullptr, 0 };
+  mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 
 VkTensor::VkTensor (const VkTensor &rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
       dev_ (rhs.dev_), visable_ (rhs.visable ()), dtype_ (rhs.dtype_),
-      data_ (rhs.data_), mem_ (rhs.mem_), status_ (rhs.status_)
+      data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
+      status_ (rhs.status_)
 {
   if (status_)
     {
@@ -33,7 +34,8 @@ VkTensor::VkTensor (const VkTensor &rhs)
 VkTensor::VkTensor (VkTensor &&rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
       dev_ (rhs.dev_), visable_ (rhs.visable_), dtype_ (rhs.dtype_),
-      data_ (rhs.data_), mem_ (rhs.mem_), status_ (rhs.status_)
+      data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
+      status_ (rhs.status_)
 {
   rhs.status_ = nullptr;
 }
@@ -56,6 +58,7 @@ VkTensor::operator= (VkTensor const &rhs)
   dtype_ = rhs.dtype_;
   data_ = rhs.data_;
   mem_ = rhs.mem_;
+  allocation_ = rhs.allocation_;
   status_ = rhs.status_;
 
   return *this;
@@ -81,7 +84,6 @@ VkTensor::elem_bytes () const
 VkResult
 VkTensor::create ()
 {
-
   auto bytes = elem_bytes () * w_ * h_ * c_;
   bytes = (bytes + 63) / 64 * 64;
   {
@@ -96,30 +98,24 @@ VkTensor::create ()
                                       0,
                                       nullptr };
 
-    auto ret = vkCreateBuffer (dev_->device (), &createInfo, nullptr, &data_);
+    VmaAllocationCreateFlags flags = 0;
+    if (visable_)
+      {
+        flags = VMA_ALLOCATION_CREATE_MAPPED_BIT
+                | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+      }
+
+    VmaAllocationCreateInfo allocInfo = {
+      flags, VMA_MEMORY_USAGE_AUTO, 0, 0, 0, VK_NULL_HANDLE, nullptr, 0
+    };
+
+    auto ret = vmaCreateBuffer (dev_->allocator (), &createInfo, &allocInfo,
+                                &data_, &allocation_, &mem_);
     if (ret != VK_SUCCESS)
-      return ret;
+      {
+        return ret;
+      }
   }
-
-  VkMemoryRequirements req;
-  vkGetBufferMemoryRequirements (dev_->device (), data_, &req);
-
-  auto ret = dev_->allocator ().allocate (req, &mem_, visable_);
-  if (ret != VK_SUCCESS)
-    {
-      vkDestroyBuffer (dev_->device (), data_, nullptr);
-      data_ = VK_NULL_HANDLE;
-      return ret;
-    }
-
-  ret = vkBindBufferMemory (dev_->device (), data_, mem_.mem, mem_.offset);
-  if (ret != VK_SUCCESS)
-    {
-      vkDestroyBuffer (dev_->device (), data_, nullptr);
-      dev_->allocator ().free (mem_);
-      data_ = VK_NULL_HANDLE;
-      return ret;
-    }
 
   status_ = new __TensorStatus ();
   status_->access_flags_.store (0);
@@ -139,7 +135,7 @@ VkTensor::bytes () const
 void *
 VkTensor::host ()
 {
-  return mem_.host;
+  return mem_.pMappedData;
 }
 
 VkAccessFlags
@@ -215,7 +211,7 @@ VkTensor::flush ()
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
-                                mem_.mem, mem_.offset, mem_.size };
+                                mem_.deviceMemory, mem_.offset, mem_.size };
 
   return vkFlushMappedMemoryRanges (dev_->device (), 1, &range);
 }
@@ -229,7 +225,7 @@ VkTensor::invalid ()
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
-                                mem_.mem, mem_.offset, mem_.size };
+                                mem_.deviceMemory, mem_.offset, mem_.size };
 
   return vkInvalidateMappedMemoryRanges (dev_->device (), 1, &range);
 }
@@ -241,8 +237,7 @@ VkTensor::release_ ()
     {
       if (data_ != VK_NULL_HANDLE)
         {
-          dev_->allocator ().free (mem_);
-          vkDestroyBuffer (dev_->device (), data_, nullptr);
+          vmaDestroyBuffer (dev_->allocator (), data_, allocation_);
         }
 
       delete status_;

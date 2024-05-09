@@ -7,12 +7,13 @@
 class RMSNorm : public Op
 {
 public:
-  RMSNorm (GPUDevice *dev, Command *command);
-  VkResult operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept;
+  RMSNorm (GPUDevice *dev, Command *command, VkTensor weight);
+  VkResult operator() (VkTensor a, VkTensor &c) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
+  VkTensor weight_;
 };
 #endif

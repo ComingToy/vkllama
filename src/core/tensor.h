@@ -1,12 +1,11 @@
 #ifndef __VKLLAMA_TENSOR__
 #define __VKLLAMA_TENSOR__
 
-#include "allocator.h"
+#include "gpu_device.h"
 #include <atomic>
 #include <type_traits>
 #include <vulkan/vulkan.h>
 
-class GPUDevice;
 class VkTensor
 {
 public:
@@ -70,7 +69,6 @@ private:
   bool visable_;
   DType dtype_;
   VkBuffer data_;
-  Allocator::MemBlock mem_;
   struct __TensorStatus
   {
     std::atomic<VkAccessFlags> access_flags_;
@@ -78,6 +76,8 @@ private:
     std::atomic<int> ref_;
   };
 
+  VmaAllocationInfo mem_;
+  VmaAllocation allocation_;
   __TensorStatus *status_;
   void release_ ();
 };

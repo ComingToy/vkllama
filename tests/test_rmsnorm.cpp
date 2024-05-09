@@ -30,11 +30,11 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
 
-  RMSNorm norm_op (gpu_, command_);
+  RMSNorm norm_op (gpu_, command_, input1->first);
   ASSERT_EQ (norm_op.init (), VK_SUCCESS);
 
   VkTensor output;
-  ASSERT_EQ (norm_op (input0->first, input1->first, output), VK_SUCCESS);
+  ASSERT_EQ (norm_op (input0->first, output), VK_SUCCESS);
   std::vector<float> output_buf (output.size ());
 
   ASSERT_EQ (
