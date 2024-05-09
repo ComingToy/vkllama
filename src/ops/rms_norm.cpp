@@ -3,7 +3,8 @@
 #include "src/core/pipeline.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
-RMSNorm::RMSNorm (GPUDevice *dev, Command *command) : Op (dev, command)
+RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight)
+    : Op (dev, command), weight_ (weight)
 {
   Pipeline::ConstantType power = { .f = 2.0f };
   Pipeline::ConstantType eps = { .f = 1e-3 };
@@ -26,7 +27,7 @@ RMSNorm::time () noexcept
 }
 
 VkResult
-RMSNorm::operator() (VkTensor x, VkTensor w, VkTensor &output) noexcept
+RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
 {
   output = VkTensor (x.channels (), x.height (), x.width (), dev_,
                      VkTensor::FP32, false);
@@ -44,5 +45,6 @@ RMSNorm::operator() (VkTensor x, VkTensor w, VkTensor &output) noexcept
   Pipeline::ConstantType W = { .u32 = (uint32_t)x.width () };
 
   pipeline_->set_group (1, (H.u32 + 31) / 32, (C.u32 + 31) / 32);
-  return command_->record_pipeline (*pipeline_, { x, w, output }, { C, H, W });
+  return command_->record_pipeline (*pipeline_, { x, weight_, output },
+                                    { C, H, W });
 }
