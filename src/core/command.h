@@ -1,7 +1,6 @@
 #ifndef __VKLLAMA_COMMAND_H__
 #define __VKLLAMA_COMMAND_H__
 
-#include "allocator.h"
 #include "gpu_device.h"
 #include "pipeline.h"
 #include "tensor.h"
@@ -18,7 +17,7 @@
 class Command
 {
 public:
-  Command (GPUDevice *dev) : dev_ (dev), allocator_ (dev->allocator ()) {}
+  Command (GPUDevice *dev) : dev_ (dev) {}
 
   ~Command ()
   {
@@ -371,7 +370,6 @@ private:
   VkCommandBuffer commandBuffer_;
   VkFence fence_;
   VkCommandPool commandPool_;
-  Allocator &allocator_;
   std::vector<std::function<VkResult (void)> > defer_task_;
 };
 
