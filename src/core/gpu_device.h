@@ -21,6 +21,7 @@ public:
   uint32_t require_queue (VkQueueFlags flags) const;
   const VkPhysicalDeviceLimits &limits () const;
   VkResult init ();
+  bool support_descriptor_templ_update () const;
   ~GPUDevice ();
 
 private:
@@ -38,5 +39,6 @@ private:
   const int dev_;
   VmaAllocator allocator_;
   uint32_t version_;
+  bool support_descriptor_templ_update_;
 };
 #endif

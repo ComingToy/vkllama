@@ -1,10 +1,16 @@
 #include "gpu_device.h"
 #include <algorithm>
+#include <cstdio>
 #include <memory>
+#include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-GPUDevice::GPUDevice (int dev) : dev_ (dev) {}
+GPUDevice::GPUDevice (int dev)
+    : physicalDev_ (VK_NULL_HANDLE), device_ (VK_NULL_HANDLE), dev_ (dev),
+      version_ (0), support_descriptor_templ_update_ (false)
+{
+}
 
 VkResult
 GPUDevice::init ()
@@ -95,7 +101,7 @@ GPUDevice::create_instance_ ()
 
   const char *exts[] = {
 #if __APPLE__
-    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
 #endif
   };
 
@@ -125,9 +131,9 @@ GPUDevice::create_instance_ ()
     {
       return ret;
     }
+  instanceExts_.resize (nExts);
   ret = vkEnumerateInstanceExtensionProperties (nullptr, &nExts,
                                                 instanceExts_.data ());
-
   return ret;
 }
 
@@ -199,23 +205,36 @@ GPUDevice::init_device_ ()
       }
   }
 
-  const char *devExts[] = {
+  std::vector<const char *> devExts = {
 #if __APPLE__
     "VK_KHR_portability_subset"
 #endif
   };
 
-  VkDeviceCreateInfo devCreateInfo
-      = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-          nullptr,
-          0,
-          (uint32_t)queueCreateInfos.size (),
-          queueCreateInfos.data (),
-          0,
-          nullptr,
-          sizeof (devExts) / sizeof (const char *),
-          devExts,
-          &physicalFeats_ };
+  {
+    std::string descriptor_template_update
+        = "VK_KHR_descriptor_update_template";
+    for (auto const &ext : physicalDevExts_)
+      {
+        if (descriptor_template_update == ext.extensionName)
+          {
+            support_descriptor_templ_update_ = true;
+            devExts.push_back (ext.extensionName);
+            break;
+          }
+      }
+  }
+
+  VkDeviceCreateInfo devCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                                       nullptr,
+                                       0,
+                                       (uint32_t)queueCreateInfos.size (),
+                                       queueCreateInfos.data (),
+                                       0,
+                                       nullptr,
+                                       (uint32_t)devExts.size (),
+                                       devExts.data (),
+                                       &physicalFeats_ };
 
   return vkCreateDevice (physicalDev_, &devCreateInfo, nullptr, &device_);
 }
@@ -235,6 +254,12 @@ GPUDevice::require_queue (VkQueueFlags flags) const
     }
 
   return type;
+}
+
+bool
+GPUDevice::support_descriptor_templ_update () const
+{
+  return support_descriptor_templ_update_;
 }
 
 VkPhysicalDeviceLimits const &
