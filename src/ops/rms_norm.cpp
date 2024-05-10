@@ -17,7 +17,17 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight)
 VkResult
 RMSNorm::init () noexcept
 {
-  return pipeline_->init ();
+  auto ret = pipeline_->init ();
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  if ((ret = pipeline_->update_bindings ({ weight_ }, { 1 })) != VK_SUCCESS)
+    {
+      return ret;
+    }
+  return VK_SUCCESS;
 }
 
 uint64_t
@@ -45,6 +55,6 @@ RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
   Pipeline::ConstantType W = { .u32 = (uint32_t)x.width () };
 
   pipeline_->set_group (1, (H.u32 + 31) / 32, (C.u32 + 31) / 32);
-  return command_->record_pipeline (*pipeline_, { x, weight_, output },
+  return command_->record_pipeline (*pipeline_, { x, output }, { 0, 2 },
                                     { C, H, W });
 }

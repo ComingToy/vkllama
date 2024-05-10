@@ -30,7 +30,7 @@ MultiHeadAttention::init () noexcept
     }
 
   VkResult ret = VK_SUCCESS;
-  out_matmul_ = std::make_unique<MatMul> (dev_, command_, 0, 0);
+  out_matmul_ = std::make_unique<MatMul> (dev_, command_, wo_, 0, 0);
   if ((ret = out_matmul_->init ()) != VK_SUCCESS)
     {
       return ret;
@@ -40,9 +40,9 @@ MultiHeadAttention::init () noexcept
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
-      auto k_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
-      auto q_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
-      auto v_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
+      auto k_matmul = std::make_unique<MatMul> (dev_, command_, wk_[i], 0, 0);
+      auto q_matmul = std::make_unique<MatMul> (dev_, command_, wq_[i], 0, 0);
+      auto v_matmul = std::make_unique<MatMul> (dev_, command_, wv_[i], 0, 0);
       auto weighted_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
       auto rope = std::make_unique<Rope> (dev_, command_, maxlen_, dim_);
       auto attn_score = std::make_unique<MatMul> (dev_, command_, 0, 0, 1);
@@ -83,6 +83,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
   std::vector<VkTensor> head_tensors;
   std::vector<VkTensor> ks, qs, vs, sacled_attns, softmax_attns;
   VkTensor input = X;
+  tmp_tensors_.clear ();
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
@@ -108,9 +109,9 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
       auto &scale_op = *elementwise_ops_[i];
       auto &softmax_op = *softmax_ops_[i];
 
-      if ((ret = matmul_k (input, wk, k)) != VK_SUCCESS
-          || (ret = matmul_q (input, wq, q)) != VK_SUCCESS
-          || (ret = matmul_v (input, wv, v)) != VK_SUCCESS)
+      if ((ret = matmul_k (input, k)) != VK_SUCCESS
+          || (ret = matmul_q (input, q)) != VK_SUCCESS
+          || (ret = matmul_v (input, v)) != VK_SUCCESS)
         {
           return ret;
         }
@@ -172,7 +173,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
 
   tmp_tensors_.push_back (concated);
 #if 1
-  if ((ret = out_matmul_->operator() (concated, wo_, output)) != VK_SUCCESS)
+  if ((ret = out_matmul_->operator() (concated, output)) != VK_SUCCESS)
     {
       return ret;
     }

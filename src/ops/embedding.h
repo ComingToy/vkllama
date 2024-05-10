@@ -8,14 +8,15 @@ class Command;
 class Embedding : public Op
 {
 public:
-  Embedding (GPUDevice *dev, Command *, const uint32_t UNK);
+  Embedding (GPUDevice *dev, Command *, VkTensor vocab, const uint32_t UNK);
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor vocab, VkTensor indices,
+  VkResult operator() (VkTensor indices,
                        VkTensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
+  VkTensor vocab_;
   const uint32_t UNK_;
 };
 #endif

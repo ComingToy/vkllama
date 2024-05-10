@@ -32,7 +32,7 @@ public:
   VkResult
   init ()
   {
-    embedding_op_.reset (new Embedding (gpu_, command_, UNK_));
+    embedding_op_.reset (new Embedding (gpu_, command_, vocab_, UNK_));
     auto ret = embedding_op_->init ();
     if (ret != VK_SUCCESS)
       {
@@ -52,7 +52,7 @@ public:
   operator() (VkTensor toks)
   {
     VkTensor out;
-    auto ret = embedding_op_->operator() (vocab_, toks, embs_);
+    auto ret = embedding_op_->operator() (toks, embs_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding embedding op");
@@ -482,7 +482,7 @@ public:
           Llama2Block::RmsNormParams rmsnorm_params
               = { vkrmsnorm_weight_1, vkrmsnorm_weight_2 };
           Llama2Block::TransformerParams transformer_params
-              = { Wk, Wq, Wv, Wo, 128, 512 };
+              = { Wk, Wq, Wv, Wo, 1024, 512 };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 
@@ -545,22 +545,12 @@ public:
         throw std::runtime_error ("failed at end commands");
       }
 
-    auto t2 = std::chrono::high_resolution_clock::now ();
     ret = command_->submit_and_wait ();
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at submit");
       }
 
-    auto t3 = std::chrono::high_resolution_clock::now ();
-    auto record_cost
-        = std::chrono::duration_cast<std::chrono::microseconds> (t2 - t1)
-              .count ();
-    auto sharder_cost
-        = std::chrono::duration_cast<std::chrono::microseconds> (t3 - t2)
-              .count ();
-    fprintf (stderr, "record cost: %ldus, shader cost: %ldus\n", record_cost,
-             sharder_cost);
     return buf;
   }
 

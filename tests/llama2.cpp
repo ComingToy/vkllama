@@ -1,6 +1,7 @@
 #include "models/llama2.h"
 #include "sentencepiece_processor.h"
 #include <iterator>
+#include <unistd.h>
 #include <vector>
 
 int
@@ -37,28 +38,33 @@ main (const int argc, const char *argv[])
   // std::generate (toks.begin (), toks.end (),
   //                [x = uint32_t (0)] () mutable { return ++x; });
 
-  std::vector<uint32_t> toks = { (uint32_t)sp.bos_id () };
-  std::transform (prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
-                  [] (const int tok) { return static_cast<uint32_t> (tok); });
-
-  for (int i = 0; i < 64; ++i)
+  for (int r = 0; r < 1; ++r)
     {
-      auto output = model (toks);
-      if ((int)output.back () == sp.eos_id ())
+      std::vector<uint32_t> toks = { (uint32_t)sp.bos_id () };
+      std::transform (
+          prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
+          [] (const int tok) { return static_cast<uint32_t> (tok); });
+      for (int i = 0; i < 512; ++i)
         {
-          break;
+          auto output = model (toks);
+          if ((int)output.back () == sp.eos_id ())
+            {
+              break;
+            }
+          toks.push_back (output.back ());
         }
-      toks.push_back (output.back ());
+
+      std::vector<int> output;
+      std::transform (
+          toks.cbegin (), toks.cend (), std::back_inserter (output),
+          [] (uint32_t const tok) { return static_cast<int> (tok); });
+
+      std::string content;
+      sp.Decode (output, &content);
+      std::cerr << "prompt: " << argv[3] << std::endl
+                << "output: " << content << std::endl;
     }
 
-  std::vector<int> output;
-  std::transform (toks.cbegin (), toks.cend (), std::back_inserter (output),
-                  [] (uint32_t const tok) { return static_cast<int> (tok); });
-
-  std::string content;
-  sp.Decode (output, &content);
-  std::cerr << "prompt: " << argv[3] << std::endl
-            << "output: " << content << std::endl;
   return 0;
 }
 

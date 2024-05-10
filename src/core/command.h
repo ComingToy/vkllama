@@ -4,11 +4,13 @@
 #include "gpu_device.h"
 #include "pipeline.h"
 #include "tensor.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -177,6 +179,7 @@ public:
 
   VkResult
   record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+                   std::vector<uint32_t> const &indices,
                    std::vector<Pipeline::ConstantType> const &constants)
   {
     auto &layout = pipeline.vklayout ();
@@ -204,7 +207,7 @@ public:
                               nullptr, 1, &barrier, 0, nullptr);
       }
 
-    pipeline.update_bindings (bindings);
+    pipeline.update_bindings (bindings, indices);
 
     vkCmdBindPipeline (commandBuffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                        pipeline.vkpileine ());
@@ -228,6 +231,17 @@ public:
     vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                          pipeline.vkquerypool (), 1);
     return VK_SUCCESS;
+  }
+
+  VkResult
+  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+                   std::vector<Pipeline::ConstantType> const &constants)
+  {
+    std::vector<uint32_t> indices;
+    std::generate_n (std::back_inserter (indices), bindings.size (),
+                     [i = 0u] () mutable { return i++; });
+
+    return record_pipeline (pipeline, bindings, indices, constants);
   }
 
 private:

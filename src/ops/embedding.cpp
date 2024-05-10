@@ -4,8 +4,9 @@
 #include <memory>
 #include <vector>
 
-Embedding::Embedding (GPUDevice *dev, Command *command, const uint32_t UNK)
-    : Op (dev, command), UNK_ (UNK)
+Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
+                      const uint32_t UNK)
+    : Op (dev, command), vocab_ (vocab), UNK_ (UNK)
 {
 }
 
@@ -17,22 +18,27 @@ Embedding::init () noexcept
   pipeline_.reset (new Pipeline (dev_, __get_embedding_comp_spv_code (),
                                  __get_embedding_comp_spv_size (), { unk },
                                  info));
-  return pipeline_->init ();
+  auto ret = pipeline_->init ();
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  return pipeline_->update_bindings ({ vocab_ }, { 0 });
 }
 
 VkResult
-Embedding::operator() (VkTensor vocab, VkTensor indices,
-                       VkTensor &out) noexcept
+Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
 {
-  if (vocab.channels () != 1 || indices.channels () != 1
+  if (vocab_.channels () != 1 || indices.channels () != 1
       || indices.dtype () != VkTensor::UINT32
-      || vocab.dtype () != VkTensor::FP32)
+      || vocab_.dtype () != VkTensor::FP32)
     {
       return VK_ERROR_UNKNOWN;
     }
 
-  out = VkTensor (indices.height (), indices.width (), vocab.width (), dev_,
-                  vocab.dtype ());
+  out = VkTensor (indices.height (), indices.width (), vocab_.width (), dev_,
+                  vocab_.dtype ());
   auto ret = out.create ();
 
   if (ret != VK_SUCCESS)
@@ -43,8 +49,8 @@ Embedding::operator() (VkTensor vocab, VkTensor indices,
   std::vector<Pipeline::ConstantType> constants
       = { { .u32 = (uint32_t)indices.height () },
           { .u32 = (uint32_t)indices.width () },
-          { .u32 = (uint32_t)vocab.height () },
-          { .u32 = (uint32_t)vocab.width () } };
+          { .u32 = (uint32_t)vocab_.height () },
+          { .u32 = (uint32_t)vocab_.width () } };
 
   uint32_t group_x = (indices.width () + 15) / 16,
            group_y = (indices.height () + 15) / 16;
@@ -54,7 +60,7 @@ Embedding::operator() (VkTensor vocab, VkTensor indices,
       return ret;
     }
 
-  ret = command_->record_pipeline (*pipeline_, { vocab, indices, out },
+  ret = command_->record_pipeline (*pipeline_, { indices, out }, { 1, 2 },
                                    constants);
   if (ret != VK_SUCCESS)
     {

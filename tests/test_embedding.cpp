@@ -52,11 +52,11 @@ TEST_P (TestEmbedding, test_embedding)
   ASSERT_TRUE (vocab);
   ASSERT_TRUE (indices);
 
-  Embedding emb_op (gpu_, command_, params.UNK);
+  Embedding emb_op (gpu_, command_, vocab->first, params.UNK);
   ASSERT_EQ (emb_op.init (), VK_SUCCESS);
   VkTensor vk_output;
 
-  ASSERT_EQ (emb_op (vocab->first, indices->first, vk_output), VK_SUCCESS);
+  ASSERT_EQ (emb_op (indices->first, vk_output), VK_SUCCESS);
   std::vector<float> vk_output_buf (vk_output.size ());
   ASSERT_EQ (command_->download (vk_output, vk_output_buf.data (),
                                  vk_output_buf.size ()),
