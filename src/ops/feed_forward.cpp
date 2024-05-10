@@ -64,6 +64,22 @@ FeedForward::init () noexcept
       return ret;
     }
 
+  ret = pipeline0_->update_bindings ({ w1_ }, { 1 });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+  ret = pipeline1_->update_bindings ({ w2_ }, { 1 });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+  ret = pipeline2_->update_bindings ({ w3_ }, { 1 });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
   return VK_SUCCESS;
 }
 
@@ -120,8 +136,8 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
       return ret;
     }
 
-  command_->record_pipeline (*pipeline0_, { X, w1_, t0_ }, { M, N, K });
-  command_->record_pipeline (*pipeline2_, { X, w3_, t1_ }, { M, N, K });
+  command_->record_pipeline (*pipeline0_, { X, t0_ }, { 0, 2 }, { M, N, K });
+  command_->record_pipeline (*pipeline2_, { X, t1_ }, { 0, 2 }, { M, N, K });
 
   t0_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t0_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -150,7 +166,8 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
       return ret;
     }
 
-  command_->record_pipeline (*pipeline1_, { t2_, w2_, output }, { M, N, K });
+  command_->record_pipeline (*pipeline1_, { t2_, output }, { 0, 2 },
+                             { M, N, K });
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 

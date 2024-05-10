@@ -5,6 +5,14 @@
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
+                const int act, const int broadcast_type,
+                const bool transpose_b)
+    : Op (dev, command), weight_ (weight), broadcast_type_ (broadcast_type),
+      act_ (act), transpose_b_ (transpose_b)
+{
+}
+
 MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
                 const int broadcast_type, const bool transpose_b)
     : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act),
@@ -45,7 +53,22 @@ MatMul::init () noexcept
   pipeline_.reset (
       new Pipeline (dev_, pcode, code_size, { act_type, transpose_b }, info));
 
-  return pipeline_->init ();
+  auto ret = pipeline_->init ();
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  if (weight_.size () == 0)
+    return VK_SUCCESS;
+
+  ret = pipeline_->update_bindings ({ weight_ }, { 1 });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  return VK_SUCCESS;
 }
 
 uint64_t
@@ -55,8 +78,59 @@ MatMul::time () noexcept
 }
 
 VkResult
+MatMul::operator() (VkTensor a, VkTensor &c) noexcept
+{
+  if (weight_.size () == 0)
+    {
+      return VK_ERROR_UNKNOWN;
+    }
+
+  if ((broadcast_type_ == 0 && weight_.channels () != a.channels ())
+      || (broadcast_type_ == 1 && weight_.channels () != 1))
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  size_t out_h = a.height (),
+         out_w = transpose_b_ ? weight_.height () : weight_.width ();
+  c = VkTensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
+                dev_, VkTensor::FP32, false);
+
+  auto ret = c.create ();
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  int channels = std::max (a.channels (), weight_.channels ());
+  Pipeline::ConstantType C = { .i = channels };
+  Pipeline::ConstantType M = { .i = (int)a.height () };
+  Pipeline::ConstantType N = { .i = (int)out_w };
+  Pipeline::ConstantType K = { .i = (int)a.width () };
+
+  uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
+  pipeline_->set_group (groupx, groupy, groupz);
+
+  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 },
+                                   { C, M, N, K });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return VK_SUCCESS;
+}
+
+VkResult
 MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
 {
+  if (b.size () == 0)
+    {
+      return VK_ERROR_UNKNOWN;
+    }
+
   if ((broadcast_type_ == 0 && b.channels () != a.channels ())
       || (broadcast_type_ == 1 && b.channels () != 1))
     {

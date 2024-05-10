@@ -32,7 +32,7 @@ public:
   VkResult
   init ()
   {
-    embedding_op_.reset (new Embedding (gpu_, command_, UNK_));
+    embedding_op_.reset (new Embedding (gpu_, command_, vocab_, UNK_));
     auto ret = embedding_op_->init ();
     if (ret != VK_SUCCESS)
       {
@@ -52,7 +52,7 @@ public:
   operator() (VkTensor toks)
   {
     VkTensor out;
-    auto ret = embedding_op_->operator() (vocab_, toks, embs_);
+    auto ret = embedding_op_->operator() (toks, embs_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding embedding op");

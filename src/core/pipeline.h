@@ -16,12 +16,6 @@ public:
     int binding_count;
     int push_constant_count;
     uint32_t local_x, local_y, local_z;
-
-    // 0 = null
-    // 1 = storage buffer
-    // 2 = storage image
-    // 3 = combined image sampler
-    int binding_types[8];
   };
 
   union ConstantType
@@ -49,6 +43,8 @@ public:
   uint32_t group_z () const;
   VkResult set_group (uint32_t x, uint32_t y, uint32_t z);
   VkResult update_bindings (std::vector<VkTensor> bindings);
+  VkResult update_bindings (std::vector<VkTensor> bindings,
+                            std::vector<uint32_t> const &indices);
 
 private:
   bool init_;
@@ -77,6 +73,8 @@ private:
   VkResult create_query_pool_ ();
   VkResult create_descriptor_update_template_ ();
   VkResult set_bindings_ (std::vector<VkTensor> bindings);
+  VkResult set_bindings_ (std::vector<VkTensor> bindings,
+                          std::vector<uint32_t> const &indices);
   VkResult limits_ ();
 };
 #endif

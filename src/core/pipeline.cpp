@@ -272,6 +272,13 @@ Pipeline::update_bindings (std::vector<VkTensor> bindings)
 }
 
 VkResult
+Pipeline::update_bindings (std::vector<VkTensor> bindings,
+                           const std::vector<uint32_t> &indices)
+{
+  return set_bindings_ (bindings, indices);
+}
+
+VkResult
 Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
 {
   std::vector<VkDescriptorBufferInfo> descriptors;
@@ -307,6 +314,36 @@ Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
       vkUpdateDescriptorSets (device_->device (), writes.size (),
                               writes.data (), 0, nullptr);
     }
+
+  return VK_SUCCESS;
+}
+
+VkResult
+Pipeline::set_bindings_ (std::vector<VkTensor> bindings,
+                         const std::vector<uint32_t> &indices)
+{
+  std::vector<VkDescriptorBufferInfo> descriptors (indices.size ());
+  descriptors.resize (indices.size ());
+
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.resize (bindings.size ());
+  for (size_t i = 0; i < indices.size (); ++i)
+    {
+      descriptors[i] = { bindings[i].data (), 0, VK_WHOLE_SIZE };
+      writes[i] = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    nullptr,
+                    descriptorSet_,
+                    indices[i],
+                    0,
+                    1,
+                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    nullptr,
+                    &descriptors[i],
+                    nullptr };
+    }
+
+  vkUpdateDescriptorSets (device_->device (), writes.size (), writes.data (),
+                          0, nullptr);
 
   return VK_SUCCESS;
 }
