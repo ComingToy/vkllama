@@ -38,7 +38,7 @@ main (const int argc, const char *argv[])
   // std::generate (toks.begin (), toks.end (),
   //                [x = uint32_t (0)] () mutable { return ++x; });
 
-  for (int r = 0; r < 1; ++r)
+  for (int r = 0; r < 10; ++r)
     {
       std::vector<uint32_t> toks = { (uint32_t)sp.bos_id () };
       std::transform (

@@ -599,9 +599,14 @@ public:
     auto sharder_cost
         = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t2)
               .count ();
+    auto infer_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t1)
+              .count ();
 
-    fprintf (stderr, "host time cost: %ld, device time cost: %ld\n", host_cost,
-             sharder_cost);
+    fprintf (
+        stderr,
+        "host time cost: %ldms, device time cost: %ldms, total cost: %ldms\n",
+        host_cost, sharder_cost, infer_cost);
     return buf;
   }
 
