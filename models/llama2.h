@@ -253,9 +253,17 @@ public:
   Model ()
   {
     gpu_ = new GPUDevice ();
-    command_ = new Command (gpu_);
     gpu_->init ();
-    command_->init ();
+    input_command_ = new Command (gpu_);
+    output_command_ = new Command (gpu_);
+    input_command_->init ();
+    output_command_->init ();
+
+    for (int i = 0; i < 6; ++i)
+      {
+        block_commands_.push_back (new Command (gpu_));
+        block_commands_.back ()->init ();
+      }
   }
 
   ~Model ()
@@ -266,7 +274,13 @@ public:
       {
         delete block;
       }
-    delete command_;
+
+    for (auto *command : block_commands_)
+      {
+        delete command;
+      }
+    delete input_command_;
+    delete output_command_;
     delete gpu_;
   }
 
@@ -303,7 +317,7 @@ public:
         variables[v.name ()] = &v;
       }
 
-    command_->begin ();
+    input_command_->begin ();
     // input layer
     {
       const auto *embeddings = variables["input/embeddings"];
@@ -318,24 +332,25 @@ public:
           return ret;
         }
 
-      ret = command_->upload (embeddings->f32_values ().data (),
-                              embeddings->f32_values_size (), vkembeddings);
+      ret = input_command_->upload (embeddings->f32_values ().data (),
+                                    embeddings->f32_values_size (),
+                                    vkembeddings);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
-      ret = command_->upload (rms_norm_weight->f32_values ().data (),
-                              rms_norm_weight->f32_values_size (),
-                              vkrmsnorm_weight);
+      ret = input_command_->upload (rms_norm_weight->f32_values ().data (),
+                                    rms_norm_weight->f32_values_size (),
+                                    vkrmsnorm_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      input_layer_
-          = new InputLayer (gpu_, command_, vkembeddings, vkrmsnorm_weight);
+      input_layer_ = new InputLayer (gpu_, input_command_, vkembeddings,
+                                     vkrmsnorm_weight);
 
-      output_layer_ = new OutputLayer (gpu_, command_, vkembeddings);
+      output_layer_ = new OutputLayer (gpu_, output_command_, vkembeddings);
 
       if ((ret = input_layer_->init ()) != VK_SUCCESS
           || (ret = output_layer_->init ()) != VK_SUCCESS)
@@ -344,11 +359,16 @@ public:
         }
     }
 
+    input_command_->end ();
+    input_command_->submit ();
+
     // blocks
     {
       char vname[512];
       for (int b = 0; b < 6; ++b)
         {
+          auto command_ = block_commands_[b];
+          command_->begin ();
           ::snprintf (vname, sizeof (vname), "block_%d/rms_norm_1/weight", b);
           const auto *rms_norm_weight_1 = variables[vname];
           ::snprintf (vname, sizeof (vname), "block_%d/rms_norm_2/weight", b);
@@ -495,11 +515,16 @@ public:
             }
 
           blocks_.push_back (block);
+          command_->end ();
+          command_->submit ();
         }
     }
 
-    command_->end ();
-    command_->submit_and_wait ();
+    input_command_->wait ();
+    for (auto *c : block_commands_)
+      {
+        c->wait ();
+      }
     return VK_SUCCESS;
   }
 
@@ -507,56 +532,84 @@ public:
   operator() (std::vector<uint32_t> const &toks)
   {
     auto t1 = std::chrono::high_resolution_clock::now ();
-    command_->begin ();
+    input_command_->begin ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
     if (vktoks.create () != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at creating vktoks");
       }
-    auto ret = command_->upload (toks.data (), toks.size (), vktoks);
+    auto ret = input_command_->upload (toks.data (), toks.size (), vktoks);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at uploading toks");
       }
 
     VkTensor X = (*input_layer_) (vktoks);
+    input_command_->end ();
+    input_command_->submit ();
+
     std::vector<VkTensor> tmps;
     tmps.push_back (X);
 
     for (int i = 0; i < blocks_.size (); ++i)
       {
+        auto *command = block_commands_[i];
+        command->begin ();
         auto *block = blocks_[i];
         X = (*block) (X);
         tmps.push_back (X);
+        command->end ();
+        command->submit ();
       }
 
+    output_command_->begin ();
     VkTensor output = (*output_layer_) (X);
     std::vector<uint32_t> buf (output.size ());
 
-    ret = command_->download (output, buf.data (), buf.size ());
+    ret = output_command_->download (output, buf.data (), buf.size ());
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at downloadding outputs");
       }
 
-    ret = command_->end ();
+    ret = output_command_->end ();
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at end commands");
       }
+    output_command_->submit ();
 
-    ret = command_->submit_and_wait ();
+    auto t2 = std::chrono::high_resolution_clock::now ();
+    input_command_->wait ();
+    for (auto *c : block_commands_)
+      {
+        c->wait ();
+      }
+    ret = output_command_->wait ();
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at submit");
       }
 
+    auto t3 = std::chrono::high_resolution_clock::now ();
+
+    auto host_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t2 - t1)
+              .count ();
+    auto sharder_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t2)
+              .count ();
+
+    fprintf (stderr, "host time cost: %ld, device time cost: %ld\n", host_cost,
+             sharder_cost);
     return buf;
   }
 
 private:
   GPUDevice *gpu_;
-  Command *command_;
+  Command *input_command_;
+  std::vector<Command *> block_commands_;
+  Command *output_command_;
   InputLayer *input_layer_;
   OutputLayer *output_layer_;
   std::vector<Llama2Block *> blocks_;
