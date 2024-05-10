@@ -83,6 +83,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
   std::vector<VkTensor> head_tensors;
   std::vector<VkTensor> ks, qs, vs, sacled_attns, softmax_attns;
   VkTensor input = X;
+  tmp_tensors_.clear ();
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {

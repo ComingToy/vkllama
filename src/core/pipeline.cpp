@@ -19,7 +19,7 @@ Pipeline::Pipeline (GPUDevice *device, const uint8_t *spv,
       descriptorSetLayout_ (VK_NULL_HANDLE), descriptorPool_ (VK_NULL_HANDLE),
       descriptorSet_ (VK_NULL_HANDLE), pipelineLayout_ (VK_NULL_HANDLE),
       pipeline_ (VK_NULL_HANDLE), x_ (0), y_ (0), z_ (0),
-      queryPool_ (VK_NULL_HANDLE)
+      queryPool_ (VK_NULL_HANDLE), descriptor_update_template_ (VK_NULL_HANDLE)
 {
 }
 
@@ -32,6 +32,8 @@ Pipeline::~Pipeline ()
                                 nullptr);
   vkDestroyDescriptorPool (device_->device (), descriptorPool_, nullptr);
   vkDestroyQueryPool (device_->device (), queryPool_, nullptr);
+  vkDestroyDescriptorUpdateTemplate (device_->device (),
+                                     descriptor_update_template_, nullptr);
 }
 
 VkResult

@@ -3,6 +3,7 @@
 
 #include "gpu_device.h"
 #include <atomic>
+#include <set>
 #include <type_traits>
 #include <vulkan/vulkan.h>
 
