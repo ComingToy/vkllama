@@ -93,7 +93,11 @@ GPUDevice::create_instance_ ()
                                        "vkllama.cpp",
                                        1,
                                        version_ };
-  const char *enabledLayers[] = { "VK_LAYER_KHRONOS_validation" };
+  const char *enabledLayers[] = { 
+#ifdef __VKLLAMA_DEBUG__
+	  "VK_LAYER_KHRONOS_validation"
+#endif
+  };
 
   const char *exts[] = {
 #if __APPLE__

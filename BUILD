@@ -30,10 +30,9 @@ config_setting (
     visibility = ["//visibility:public"]
 )
 
-config_setting (
-    name = "macos",
-    constraint_values = [
-        "@platforms//os:macos"
-    ],
-    visibility = ["//visibility:public"]
+config_setting(
+    name = "debug_build",
+    values = {
+        "compilation_mode": 'dbg'
+    },
 )
