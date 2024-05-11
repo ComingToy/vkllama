@@ -14,8 +14,8 @@ public:
   VkResult
   init () noexcept override
   {
-    Pipeline::ShaderInfo info0 = { 1, 3, 3, 32, 4, 1 };
-    Pipeline::ShaderInfo info1 = { 1, 3, 3, 1, 128, 1 };
+    Pipeline::ShaderInfo info0 = { 1, 2, 3, 32, 4, 1 };
+    Pipeline::ShaderInfo info1 = { 1, 2, 3, 1, 128, 1 };
 
     pipeline0_.reset (new Pipeline (dev_, __get_argmax_stage0_comp_spv_code (),
                                     __get_argmax_stage0_comp_spv_size (),
@@ -52,12 +52,10 @@ public:
         return ret;
       }
 
-    stage0_values_ = VkTensor (in.channels (), in.height (), group_x, dev_);
-    stage0_indices_ = VkTensor (in.channels (), in.height (), group_x, dev_,
-                                VkTensor::UINT32);
+    stage0_output_
+        = VkTensor (in.channels (), in.height (), group_x * 2, dev_);
 
-    if ((ret = stage0_values_.create ()) != VK_SUCCESS
-        || (ret = stage0_indices_.create ()) != VK_SUCCESS)
+    if ((ret = stage0_output_.create ()) != VK_SUCCESS)
       {
         return ret;
       }
@@ -67,18 +65,17 @@ public:
             { .u32 = static_cast<uint32_t> (in.height ()) },
             { .u32 = static_cast<uint32_t> (in.width ()) } };
 
-    ret = command_->record_pipeline (
-        *pipeline0_, { in, stage0_indices_, stage0_values_ }, shape);
+    ret = command_->record_pipeline (*pipeline0_, { in, stage0_output_ },
+                                     shape);
     if (ret != VK_SUCCESS)
       {
         return ret;
       }
 
-    stage0_indices_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-    stage0_indices_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
-    stage0_values_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-    stage0_values_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+    stage0_output_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+    stage0_output_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
 
+    group_y = (in.height () + 127) / 128;
     ret = pipeline1_->set_group (1, group_y, group_z);
     if (ret != VK_SUCCESS)
       {
@@ -87,8 +84,8 @@ public:
 
     shape[2].u32 = group_x;
 
-    ret = command_->record_pipeline (
-        *pipeline1_, { stage0_indices_, stage0_values_, out }, shape);
+    ret = command_->record_pipeline (*pipeline1_, { stage0_output_, out },
+                                     shape);
 
     if (ret != VK_SUCCESS)
       {
@@ -110,8 +107,7 @@ public:
 private:
   std::unique_ptr<Pipeline> pipeline0_;
   std::unique_ptr<Pipeline> pipeline1_;
-  VkTensor stage0_values_;
-  VkTensor stage0_indices_;
+  VkTensor stage0_output_;
 };
 
 using ArgMax = ArgOp<0>;
