@@ -70,29 +70,34 @@ TEST_P (TestRope, test_rope)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submit commands";
 
-  auto output_query_host
-      = TensorMap<3> (output_query_buf.data (), output_query.channels (),
-                      output_query.height (), output_query.width ());
-  auto output_key_host
-      = TensorMap<3> (output_key_buf.data (), output_key.channels (),
-                      output_key.height (), output_key.width ());
+  auto output_query_host = TensorMap<3> (
+      output_query_buf.data (), (Eigen::Index)output_query.channels (),
+      (Eigen::Index)output_query.height (),
+      (Eigen::Index)output_query.width ());
+  auto output_key_host = TensorMap<3> (
+      output_key_buf.data (), (Eigen::Index)output_key.channels (),
+      (Eigen::Index)output_key.height (), (Eigen::Index)output_key.width ());
 
-  auto input_query_host = TensorMap<3> (
-      input_query->second.data (), input_query->first.channels (),
-      input_query->first.height (), input_query->first.width ());
-  auto input_key_host
-      = TensorMap<3> (input_key->second.data (), input_key->first.channels (),
-                      input_key->first.height (), input_key->first.width ());
+  auto input_query_host
+      = TensorMap<3> (input_query->second.data (),
+                      (Eigen::Index)input_query->first.channels (),
+                      (Eigen::Index)input_query->first.height (),
+                      (Eigen::Index)input_query->first.width ());
+
+  auto input_key_host = TensorMap<3> (
+      input_key->second.data (), (Eigen::Index)input_key->first.channels (),
+      (Eigen::Index)input_key->first.height (),
+      (Eigen::Index)input_key->first.width ());
   size_t w = input_query->first.width () / 2;
 
   auto freqc_buf = rope_op.freqc ();
   auto freqs_buf = rope_op.freqs ();
-  auto input_freqc_host
-      = TensorMap<3> (freqc_buf.data (), input_query->first.channels (),
-                      input_query->first.height (), w);
-  auto input_freqs_host
-      = TensorMap<3> (freqs_buf.data (), input_query->first.channels (),
-                      input_query->first.height (), w);
+  auto input_freqc_host = TensorMap<3> (
+      freqc_buf.data (), (Eigen::Index)input_query->first.channels (),
+      (Eigen::Index)input_query->first.height (), (Eigen::Index)w);
+  auto input_freqs_host = TensorMap<3> (
+      freqs_buf.data (), (Eigen::Index)input_query->first.channels (),
+      (Eigen::Index)input_query->first.height (), (Eigen::Index)w);
 
   auto _apply_rope
       = [] (Tensor<3> input_x, Tensor<3> input_freqc, Tensor<3> input_freqs)

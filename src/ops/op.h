@@ -13,6 +13,7 @@ public:
   Op (GPUDevice *dev, Command *command) noexcept;
   virtual VkResult init () noexcept = 0;
   virtual uint64_t time () noexcept = 0;
+  virtual ~Op (){};
 
 protected:
   GPUDevice *dev_;

@@ -45,17 +45,19 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
-                      output.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      output_buf.data (), (Eigen::Index)output.channels (),
+      (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> input_tensor0
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
+  Tensor<3> input_tensor0 = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
 
-  Tensor<3> input_tensor1
-      = TensorMap<3> (input1->second.data (), input1->first.channels (),
-                      input1->first.height (), input1->first.width ());
+  Tensor<3> input_tensor1 = TensorMap<3> (
+      input1->second.data (), (Eigen::Index)input1->first.channels (),
+      (Eigen::Index)input1->first.height (),
+      (Eigen::Index)input1->first.width ());
 
   Eigen::array<Eigen::Index, 1> mean_dims = { 2 };
   Eigen::array<Eigen::Index, 3> dims

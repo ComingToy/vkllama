@@ -84,8 +84,9 @@ VkTensor::elem_bytes () const
 VkResult
 VkTensor::create ()
 {
+  const size_t align = dev_->limits ().nonCoherentAtomSize;
   auto bytes = elem_bytes () * w_ * h_ * c_;
-  bytes = (bytes + 63) / 64 * 64;
+  bytes = (bytes + align - 1) / align * align;
   {
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                       nullptr,
@@ -128,7 +129,8 @@ size_t
 VkTensor::bytes () const
 {
   auto bytes = elem_bytes () * w_ * h_ * c_;
-  bytes = (bytes + 63) / 64 * 64;
+  const auto align = dev_->limits ().nonCoherentAtomSize;
+  bytes = (bytes + align - 1) / align * align;
   return bytes;
 }
 

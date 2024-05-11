@@ -74,14 +74,18 @@ TEST_P (TestElementwise, test_elementwise)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submiting commands";
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
-      output_buf.data (), out.channels (), out.height (), out.width ());
-  Tensor<3> input0_tensor
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
-  Tensor<3> input1_tensor
-      = TensorMap<3> (input1->second.data (), input1->first.channels (),
-                      input1->first.height (), input1->first.width ());
+  Tensor<3> vk_output_tensor
+      = TensorMap<3> (output_buf.data (), (Eigen::Index)out.channels (),
+                      (Eigen::Index)out.height (), (Eigen::Index)out.width ());
+  Tensor<3> input0_tensor = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
+
+  Tensor<3> input1_tensor = TensorMap<3> (
+      input1->second.data (), (Eigen::Index)input1->first.channels (),
+      (Eigen::Index)input1->first.height (),
+      (Eigen::Index)input1->first.width ());
 
   Tensor<3> output_tensor;
   if (params.op_type == 0)

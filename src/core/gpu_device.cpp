@@ -15,7 +15,6 @@ GPUDevice::GPUDevice (int dev)
 VkResult
 GPUDevice::init ()
 {
-
   auto ret = create_instance_ ();
   if (ret != VK_SUCCESS)
     return ret;
@@ -29,6 +28,7 @@ GPUDevice::init ()
   ret = vmaCreateAllocator (&createInfo, &allocator_);
   return ret;
 }
+
 GPUDevice::~GPUDevice ()
 {
   vmaDestroyAllocator (allocator_);
@@ -93,11 +93,7 @@ GPUDevice::create_instance_ ()
                                        "vkllama.cpp",
                                        1,
                                        version_ };
-  const char *enabledLayers[] = {
-#ifndef NDEBUG
-    "VK_LAYER_KHRONOS_validation"
-#endif
-  };
+  const char *enabledLayers[] = { "VK_LAYER_KHRONOS_validation" };
 
   const char *exts[] = {
 #if __APPLE__
