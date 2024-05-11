@@ -19,10 +19,7 @@ Pipeline::Pipeline (GPUDevice *device, const uint8_t *spv,
       descriptorSetLayout_ (VK_NULL_HANDLE), descriptorPool_ (VK_NULL_HANDLE),
       descriptorSet_ (VK_NULL_HANDLE), pipelineLayout_ (VK_NULL_HANDLE),
       pipeline_ (VK_NULL_HANDLE), x_ (0), y_ (0), z_ (0),
-#ifdef __VKLLAMA_DEBUG__
-      queryPool_ (VK_NULL_HANDLE),
-#endif
-      descriptor_update_template_ (VK_NULL_HANDLE)
+      queryPool_ (VK_NULL_HANDLE), descriptor_update_template_ (VK_NULL_HANDLE)
 {
 }
 
@@ -34,9 +31,7 @@ Pipeline::~Pipeline ()
   vkDestroyDescriptorSetLayout (device_->device (), descriptorSetLayout_,
                                 nullptr);
   vkDestroyDescriptorPool (device_->device (), descriptorPool_, nullptr);
-#ifdef __VKLLAMA_DEBUG__
   vkDestroyQueryPool (device_->device (), queryPool_, nullptr);
-#endif
   vkDestroyDescriptorUpdateTemplate (device_->device (),
                                      descriptor_update_template_, nullptr);
 }
@@ -62,13 +57,11 @@ Pipeline::init ()
       return ret;
     }
 
-#ifdef __VKLLAMA_DEBUG__
   ret = create_query_pool_ ();
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
-#endif
 
   ret = create_pipeline_ (specialization_);
   if (ret != VK_SUCCESS)
@@ -260,7 +253,6 @@ Pipeline::create_descriptor_update_template_ ()
                                            &descriptor_update_template_);
 }
 
-#ifdef __VKLLAMA_DEBUG__
 VkResult
 Pipeline::create_query_pool_ ()
 {
@@ -274,7 +266,6 @@ Pipeline::create_query_pool_ ()
   return vkCreateQueryPool (device_->device (), &createInfo, nullptr,
                             &queryPool_);
 }
-#endif
 
 VkResult
 Pipeline::update_bindings (std::vector<VkTensor> bindings)
@@ -377,28 +368,23 @@ Pipeline::vklayout ()
   return pipelineLayout_;
 }
 
-#ifdef __VKLLAMA_DEBUG__
 VkQueryPool &
 Pipeline::vkquerypool ()
 {
   return queryPool_;
 }
-#endif
 
 uint64_t
 Pipeline::time ()
 {
-#ifdef __VKLLAMA_DEBUG__
+
   std::vector<uint64_t> time_stamps (2);
   vkGetQueryPoolResults (device_->device (), queryPool_, 0, 2,
                          time_stamps.size () * sizeof (uint64_t),
                          time_stamps.data (), sizeof (uint64_t),
                          VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-  return time_stamps[1] - time_stamps[0];
-#else
-  return 0;
-#endif
 
+  return time_stamps[1] - time_stamps[0];
 }
 
 VkResult
