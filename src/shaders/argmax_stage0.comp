@@ -11,9 +11,14 @@ layout (push_constant) uniform constants
   uint W;
 };
 
+struct Pair
+{
+  uint i;
+  float v;
+};
+
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
-layout (binding = 1) writeonly buffer OutputTensor0 { uint output0[]; };
-layout (binding = 2) writeonly buffer OutputTensor1 { float output1[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { Pair output0[]; };
 
 // block size [32, 4, 1]
 shared float smem_values[4][32];
@@ -88,7 +93,7 @@ main (void)
     {
       uint out_idx
           = glb_tid_z * H * group_num_x + glb_tid_y * group_num_x + gid_x;
-      output0[out_idx] = smem_indice[local_tid_y][0];
-      output1[out_idx] = smem_values[local_tid_y][0];
+      output0[out_idx].i = smem_indice[local_tid_y][0];
+      output0[out_idx].v = smem_values[local_tid_y][0];
     }
 }
