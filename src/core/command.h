@@ -71,7 +71,12 @@ public:
   VkResult
   submit_and_wait ()
   {
-    return submit_and_wait_ ();
+    auto ret = VK_SUCCESS;
+    if ((ret = submit ()) != VK_SUCCESS)
+      {
+        return ret;
+      }
+    return wait ();
   }
 
   template <typename T>
@@ -247,6 +252,52 @@ public:
     return record_pipeline (pipeline, bindings, indices, constants);
   }
 
+  VkResult
+  wait ()
+  {
+    uint64_t timeout = 60ul * 1000000000ul; // 60s
+    auto ret = vkWaitForFences (dev_->device (), 1, &fence_, true, timeout);
+    if (ret != VK_SUCCESS)
+      {
+        return ret;
+      }
+    ret = vkResetFences (dev_->device (), 1, &fence_);
+    if (ret != VK_SUCCESS)
+      {
+        return ret;
+      }
+
+    VkResult defer_result = VK_SUCCESS;
+    ret = VK_SUCCESS;
+
+    for (auto &fn : defer_task_)
+      {
+        if ((defer_result = fn ()) != VK_SUCCESS)
+          {
+            ret = defer_result;
+          }
+      }
+
+    defer_task_.clear ();
+    return ret;
+  }
+
+  VkResult
+  submit ()
+  {
+    VkSubmitInfo sumbitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                nullptr,
+                                0,
+                                nullptr,
+                                nullptr,
+                                1,
+                                &commandBuffer_,
+                                0,
+                                nullptr };
+
+    return vkQueueSubmit (queue_, 1, &sumbitInfo, fence_);
+  }
+
 private:
   template <typename T>
   VkResult
@@ -330,56 +381,6 @@ private:
   end_ ()
   {
     return vkEndCommandBuffer (commandBuffer_);
-  }
-
-  VkResult
-  submit_and_wait_ ()
-  {
-    VkSubmitInfo sumbitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                                nullptr,
-                                0,
-                                nullptr,
-                                nullptr,
-                                1,
-                                &commandBuffer_,
-                                0,
-                                nullptr };
-
-    auto ret = vkQueueSubmit (queue_, 1, &sumbitInfo, fence_);
-    if (ret != VK_SUCCESS)
-      {
-        return ret;
-      }
-
-#if 1
-    uint64_t timeout = 60ul * 1000000000ul; // 60s
-    ret = vkWaitForFences (dev_->device (), 1, &fence_, true, timeout);
-    if (ret != VK_SUCCESS)
-      {
-        return ret;
-      }
-    ret = vkResetFences (dev_->device (), 1, &fence_);
-    if (ret != VK_SUCCESS)
-      {
-        return ret;
-      }
-#else
-    vkQueueWaitIdle (queue_);
-#endif
-
-    VkResult defer_result = VK_SUCCESS;
-    ret = VK_SUCCESS;
-
-    for (auto &fn : defer_task_)
-      {
-        if ((defer_result = fn ()) != VK_SUCCESS)
-          {
-            ret = defer_result;
-          }
-      }
-
-    defer_task_.clear ();
-    return ret;
   }
 
   GPUDevice *dev_;
