@@ -90,7 +90,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
     }
 
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  output.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
   return VK_SUCCESS;
 }
 

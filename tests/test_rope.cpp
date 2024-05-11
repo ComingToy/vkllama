@@ -151,12 +151,20 @@ TEST_P (TestRope, test_rope)
   auto rope_vulkan_output_key
       = TensorMap<3> (output_key_buf.data (), input_query_host.dimensions ());
 
-  Tensor<0> mse0
-      = (rope_output_query - rope_vulkan_output_query).pow (2.0f).mean ();
-  Tensor<0> mse1
-      = (rope_output_key - rope_vulkan_output_key).pow (2.0f).mean ();
-  ASSERT_LT (*mse0.data (), 1e-4);
-  ASSERT_LT (*mse1.data (), 1e-4);
+  Tensor<3> err (rope_output_query.dimensions ());
+  err.setConstant (1e-3);
+
+  _Tensor<int, 0> diff
+      = ((rope_output_key - rope_vulkan_output_key).abs () > err)
+            .cast<int> ()
+            .sum ();
+  ASSERT_EQ (*diff.data (), 0);
+
+  _Tensor<int, 0> diff_q
+      = ((rope_output_query - rope_vulkan_output_query).abs () > err)
+            .cast<int> ()
+            .sum ();
+  ASSERT_EQ (*diff_q.data (), 0);
 }
 
 std::vector<TestRopeParams> params = {

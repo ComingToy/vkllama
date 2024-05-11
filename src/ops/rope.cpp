@@ -64,17 +64,29 @@ Rope::init () noexcept
       return ret;
     }
 
-  Pipeline::ShaderInfo shaderInfo = { 0, 6, 3, 16, 16, 1 };
-  pipeline_.reset (new Pipeline (dev_, __get_rope_comp_spv_code (),
-                                 __get_rope_comp_spv_size (), {}, shaderInfo));
+  Pipeline::ShaderInfo shader_info_k = { 0, 4, 3, 16, 16, 1 };
+  Pipeline::ShaderInfo shader_info_q = { 0, 4, 3, 16, 16, 1 };
+  pipeline_k_.reset (new Pipeline (dev_, __get_rope_comp_spv_code (),
+                                   __get_rope_comp_spv_size (), {},
+                                   shader_info_k));
 
-  return pipeline_->init ();
+  pipeline_q_.reset (new Pipeline (dev_, __get_rope_comp_spv_code (),
+                                   __get_rope_comp_spv_size (), {},
+                                   shader_info_q));
+
+  if ((ret = pipeline_k_->init ()) != VK_SUCCESS
+      || (ret = pipeline_q_->init ()) != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  return VK_SUCCESS;
 }
 
 uint64_t
 Rope::time () noexcept
 {
-  return pipeline_->time ();
+  return std::max (pipeline_k_->time (), pipeline_q_->time ());
 }
 
 VkResult
@@ -100,10 +112,16 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
-  uint32_t groupx = (query.width () / 2 + 15) / 16 * 16,
-           groupy = (query.height () + 15) / 16 * 16,
-           groupz = query.channels ();
-  ret = pipeline_->set_group (groupx, groupy, groupz);
+  uint32_t groupx = (query.width () / 2 + 15) / 16,
+           groupy = (query.height () + 15) / 16, groupz = query.channels ();
+
+  ret = pipeline_k_->set_group (groupx, groupy, groupz);
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  ret = pipeline_q_->set_group (groupx, groupy, groupz);
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -114,8 +132,14 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
   Pipeline::ConstantType W = { .u32 = (uint32_t)query.width () };
 
   ret = command_->record_pipeline (
-      *pipeline_, { query, key, freqc_, freqs_, out_query, out_key },
-      { C, H, W });
+      *pipeline_q_, { query, freqc_, freqs_, out_query }, { C, H, W });
+  if (ret != VK_SUCCESS)
+    {
+      return ret;
+    }
+
+  ret = command_->record_pipeline (
+      *pipeline_k_, { key, freqc_, freqs_, out_key }, { C, H, W });
   if (ret != VK_SUCCESS)
     {
       return ret;

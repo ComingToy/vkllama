@@ -68,7 +68,7 @@ Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
     }
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   return VK_SUCCESS;
 }
