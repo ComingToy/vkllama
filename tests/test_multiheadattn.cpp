@@ -134,7 +134,8 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
 {
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
-  auto input0 = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
+  auto input0
+      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
 
   std::vector<VkTensor> wk, wq, wv;
@@ -143,21 +144,21 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
   std::vector<float> wo_bufs;
 
   {
-    auto pwo
-        = random_tensor<float> (gpu_, command_, params.C, params.HDIM * params.HEADS,
-                         input0->first.width ());
+    auto pwo = random_tensor<float> (gpu_, command_, params.C,
+                                     params.HDIM * params.HEADS,
+                                     input0->first.width ());
     ASSERT_TRUE (pwo) << "failed at create tensor";
     wo = pwo->first;
     wo_bufs.swap (pwo->second);
 
     for (int i = 0; i < params.HEADS; ++i)
       {
-        auto k
-            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
-        auto q
-            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
-        auto v
-            = random_tensor<float> (gpu_, command_, params.C, params.W, params.HDIM);
+        auto k = random_tensor<float> (gpu_, command_, params.C, params.W,
+                                       params.HDIM);
+        auto q = random_tensor<float> (gpu_, command_, params.C, params.W,
+                                       params.HDIM);
+        auto v = random_tensor<float> (gpu_, command_, params.C, params.W,
+                                       params.HDIM);
 
         ASSERT_TRUE (k && q && v) << "failed at create tensor";
         wk.push_back (k->first);
@@ -185,16 +186,17 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
-                      output.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      output_buf.data (), (Eigen::Index)output.channels (),
+      (Eigen::Index)output.height (), (Eigen::Index)output.width ());
   // std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
   //           << std::endl;
 
   // std::vector<Tensor<3> > K (wk.size ()), Q (wq.size ()), V (wv.size ());
-  Tensor<3> input_tensor
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
+  Tensor<3> input_tensor = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
 
   auto [freqc, freqs] = precompute_freq (input0->first.height (), params.HDIM);
   Tensor<3> eigen_output_tensor;
@@ -202,14 +204,17 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
     std::vector<Tensor<3> > heads;
     for (int i = 0; i < params.HEADS; ++i)
       {
-        auto k = TensorMap<3> (wk_bufs[i].data (), wk[i].channels (),
-                               wk[i].height (), wk[i].width ());
+        auto k = TensorMap<3> (
+            wk_bufs[i].data (), (Eigen::Index)wk[i].channels (),
+            (Eigen::Index)wk[i].height (), (Eigen::Index)wk[i].width ());
 
-        auto q = TensorMap<3> (wq_bufs[i].data (), wq[i].channels (),
-                               wq[i].height (), wq[i].width ());
+        auto q = TensorMap<3> (
+            wq_bufs[i].data (), (Eigen::Index)wq[i].channels (),
+            (Eigen::Index)wq[i].height (), (Eigen::Index)wq[i].width ());
 
-        auto v = TensorMap<3> (wv_bufs[i].data (), wv[i].channels (),
-                               wv[i].height (), wv[i].width ());
+        auto v = TensorMap<3> (
+            wv_bufs[i].data (), (Eigen::Index)wv[i].channels (),
+            (Eigen::Index)wv[i].height (), (Eigen::Index)wv[i].width ());
 
         auto K = eigen_tensor_matmul (input_tensor, k, 0);
         auto Q = eigen_tensor_matmul (input_tensor, q, 0);
@@ -285,8 +290,9 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
         tmp = concated_head;
       }
 
-    Tensor<3> wo_tensor = TensorMap<3> (wo_bufs.data (), wo.channels (),
-                                        wo.height (), wo.width ());
+    Tensor<3> wo_tensor
+        = TensorMap<3> (wo_bufs.data (), (Eigen::Index)wo.channels (),
+                        (Eigen::Index)wo.height (), (Eigen::Index)wo.width ());
 
     // std::cerr << "mean of concated_head = " << concated_head.mean ()
     //           << ", wo mean: " << wo_tensor.mean () << std::endl;

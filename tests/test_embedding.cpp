@@ -69,9 +69,9 @@ TEST_P (TestEmbedding, test_embedding)
   _Tensor<uint32_t, 2> eigen_indices_tensor
       = _TensorMap<uint32_t, 2> (indices->second.data (), params.H, params.W);
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (vk_output_buf.data (), vk_output.channels (),
-                      vk_output.height (), vk_output.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      vk_output_buf.data (), (Eigen::Index)vk_output.channels (),
+      (Eigen::Index)vk_output.height (), (Eigen::Index)vk_output.width ());
   Tensor<3> eigen_output_tensor (vk_output_tensor.dimensions ());
 
   for (int i = 0; i < eigen_output_tensor.dimension (0); ++i)

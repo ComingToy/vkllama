@@ -74,11 +74,13 @@ TEST_P (TestArgOp, test_argop)
       << "failed at submit commands";
 
   _Tensor<uint32_t, 2> vk_output_tensor = _TensorMap<uint32_t, 2> (
-      output_buf.data (), output.channels (), output.height ());
+      output_buf.data (), (Eigen::Index)output.channels (),
+      (Eigen::Index)output.height ());
 
-  Tensor<3> input0_tensor
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
+  Tensor<3> input0_tensor = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
 
   _Tensor<uint32_t, 2> eigen_output_tensor;
   if (op_type == 0)

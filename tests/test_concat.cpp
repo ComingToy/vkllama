@@ -47,7 +47,8 @@ TEST_P (TestConcat, test_concat)
 
   for (auto const w : params.W)
     {
-      auto input = random_tensor<float> (gpu_, command_, params.C, params.H, w);
+      auto input
+          = random_tensor<float> (gpu_, command_, params.C, params.H, w);
       ASSERT_TRUE (input) << "failed at create tensor";
       input_tensors.push_back (input->first);
       input_bufs.push_back (std::move (input->second));
@@ -73,8 +74,9 @@ TEST_P (TestConcat, test_concat)
   for (int i = 0; i < input_eigen_tensors.size (); ++i)
     {
       auto const &t = input_tensors[i];
-      input_eigen_tensors[i] = TensorMap<3> (
-          input_bufs[i].data (), t.channels (), t.height (), t.width ());
+      input_eigen_tensors[i]
+          = TensorMap<3> (input_bufs[i].data (), (Eigen::Index)t.channels (),
+                          (Eigen::Index)t.height (), (Eigen::Index)t.width ());
     }
 
   Tensor<3> tmp = input_eigen_tensors[0];
@@ -87,9 +89,9 @@ TEST_P (TestConcat, test_concat)
 
   // Tensor<3> eigen_output_tensor = concat_expr;
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
-                      output.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      output_buf.data (), (Eigen::Index)output.channels (),
+      (Eigen::Index)output.height (), (Eigen::Index)output.width ());
   Tensor<0> mse = (vk_output_tensor - eigen_output_tensor).pow (2).mean ();
 #if 0
   for (auto i = 0; i < input_eigen_tensors.size (); ++i)

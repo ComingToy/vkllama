@@ -23,11 +23,19 @@ py_repositories()
 
 load("@rules_python//python:pip.bzl", "pip_parse")
 pip_parse(
-   name = "pip_deps",
+   name = "python_libs",
    requirements_lock = "//tools:requirements.txt",
 )
-load("@pip_deps//:requirements.bzl", "install_deps")
-install_deps()
+load("@python_libs//:requirements.bzl", python_libs_install_deps="install_deps")
+python_libs_install_deps()
+
+pip_parse(
+   name = "python_macos_libs",
+   requirements_lock = "//tools:requirements.macos.txt",
+)
+load("@python_macos_libs//:requirements.bzl", python_macos_libs_install_deps="install_deps")
+python_macos_libs_install_deps()
+
 
 http_archive(
     name = "hedron_compile_commands",

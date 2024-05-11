@@ -67,13 +67,14 @@ TEST_P (TestSoftmax, test_softmax)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), output.channels (), output.height (),
-                      output.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      output_buf.data (), (Eigen::Index)output.channels (),
+      (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> input_tensor
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
+  Tensor<3> input_tensor = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
   Tensor<3> output_tensor (input_tensor.dimensions ());
   Eigen::array<Eigen::Index, 1> dims = { 2 };
 

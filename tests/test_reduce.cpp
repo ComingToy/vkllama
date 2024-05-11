@@ -46,7 +46,8 @@ TEST_P (TestReduce, test_reduce)
   const auto op_type = params.op_type;
 
   ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
-  auto input0 = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
+  auto input0
+      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
 
   ASSERT_TRUE (input0) << "failed at create tensor";
 
@@ -67,12 +68,14 @@ TEST_P (TestReduce, test_reduce)
   ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
       << "failed at submit commands";
 
-  Tensor<2> vk_output_tensor = TensorMap<2> (
-      output_buf.data (), output.channels (), output.height ());
+  Tensor<2> vk_output_tensor
+      = TensorMap<2> (output_buf.data (), (Eigen::Index)output.channels (),
+                      (Eigen::Index)output.height ());
 
-  Tensor<3> input0_tensor
-      = TensorMap<3> (input0->second.data (), input0->first.channels (),
-                      input0->first.height (), input0->first.width ());
+  Tensor<3> input0_tensor = TensorMap<3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
 
   Tensor<2> output_tensor;
   Eigen::array<Eigen::Index, 1> dims = { 2 };

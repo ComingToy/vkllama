@@ -27,6 +27,9 @@ cc_library(
         'argop.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
-    copts = ['-std=c++17'],
+    copts = select({
+            '//:debug_build': ['-std=c++17', '-D__VKLLAMA_DEBUG__'],
+            '//conditions:default': ['-std=c++17']
+    }),
     visibility = ['//visibility:public']
 )
