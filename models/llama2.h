@@ -9,6 +9,7 @@
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/rms_norm.h"
+#include <__chrono/duration.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -531,6 +532,7 @@ public:
   std::vector<uint32_t>
   operator() (std::vector<uint32_t> const &toks)
   {
+    auto t0 = std::chrono::high_resolution_clock::now ();
     input_command_->begin ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
     if (vktoks.create () != VK_SUCCESS)
@@ -578,6 +580,7 @@ public:
       }
     output_command_->submit ();
 
+    auto t1 = std::chrono::high_resolution_clock::now ();
     input_command_->wait ();
     for (auto *c : block_commands_)
       {
@@ -588,7 +591,24 @@ public:
       {
         throw std::runtime_error ("failed at submit");
       }
+#ifdef __VKLLAMA_LOG_COST
+    auto t2 = std::chrono::high_resolution_clock::now ();
+    auto record_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t1 - t0)
+              .count ();
+    auto wait_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t2 - t1)
+              .count ();
 
+    auto total_cost
+        = std::chrono::duration_cast<std::chrono::milliseconds> (t2 - t0)
+              .count ();
+
+    fprintf (
+        stderr,
+        "record cost = %lldms,  wait cost = %lldms, total cost = %lldms\n",
+        record_cost, wait_cost, total_cost);
+#endif
     return buf;
   }
 
