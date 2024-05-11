@@ -531,7 +531,6 @@ public:
   std::vector<uint32_t>
   operator() (std::vector<uint32_t> const &toks)
   {
-    auto t1 = std::chrono::high_resolution_clock::now ();
     input_command_->begin ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
     if (vktoks.create () != VK_SUCCESS)
@@ -579,7 +578,6 @@ public:
       }
     output_command_->submit ();
 
-    auto t2 = std::chrono::high_resolution_clock::now ();
     input_command_->wait ();
     for (auto *c : block_commands_)
       {
@@ -591,22 +589,6 @@ public:
         throw std::runtime_error ("failed at submit");
       }
 
-    auto t3 = std::chrono::high_resolution_clock::now ();
-
-    auto host_cost
-        = std::chrono::duration_cast<std::chrono::milliseconds> (t2 - t1)
-              .count ();
-    auto sharder_cost
-        = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t2)
-              .count ();
-    auto infer_cost
-        = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t1)
-              .count ();
-
-    fprintf (
-        stderr,
-        "host time cost: %ldms, device time cost: %ldms, total cost: %ldms\n",
-        host_cost, sharder_cost, infer_cost);
     return buf;
   }
 

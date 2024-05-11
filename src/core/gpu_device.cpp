@@ -6,8 +6,6 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#define NDEBUG
-
 GPUDevice::GPUDevice (int dev)
     : physicalDev_ (VK_NULL_HANDLE), device_ (VK_NULL_HANDLE), dev_ (dev),
       version_ (0), support_descriptor_templ_update_ (false)

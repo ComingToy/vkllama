@@ -227,17 +227,13 @@ public:
 
     vkCmdBindDescriptorSets (commandBuffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                              layout, 0, 1, &descriptset, 0, nullptr);
-#ifdef __VKLLAMA_DEBUG__
     vkCmdResetQueryPool (commandBuffer_, pipeline.vkquerypool (), 0, 2);
     vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          pipeline.vkquerypool (), 0);
-#endif
     vkCmdDispatch (commandBuffer_, pipeline.group_x (), pipeline.group_y (),
                    pipeline.group_z ());
-#ifdef __VKLLAMA_DEBUG__
     vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                          pipeline.vkquerypool (), 1);
-#endif
     return VK_SUCCESS;
   }
 

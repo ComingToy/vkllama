@@ -35,9 +35,7 @@ public:
   VkPipeline &vkpileine ();
   VkDescriptorSet &vkdescriptorset ();
   VkPipelineLayout &vklayout ();
-#ifdef __VKLLAMA_DEBUG__
   VkQueryPool &vkquerypool ();
-#endif
   uint64_t time ();
 
   uint32_t group_x () const;
@@ -65,18 +63,14 @@ private:
   int x_;
   int y_;
   int z_;
-#ifdef __VKLLAMA_DEBUG__
   VkQueryPool queryPool_;
-#endif
   VkDescriptorUpdateTemplate descriptor_update_template_;
 
   VkResult create_shader_module_ ();
   VkResult create_pipeline_layout_ ();
   VkResult create_descriptor_set_ ();
   VkResult create_pipeline_ (std::vector<ConstantType> const &);
-#ifdef __VKLLAMA_DEBUG__
   VkResult create_query_pool_ ();
-#endif
   VkResult create_descriptor_update_template_ ();
   VkResult set_bindings_ (std::vector<VkTensor> bindings);
   VkResult set_bindings_ (std::vector<VkTensor> bindings,
