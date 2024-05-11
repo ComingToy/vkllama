@@ -97,9 +97,9 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
     }
 
   m_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  m_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  m_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
   exps_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  exps_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  exps_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   out_ = VkTensor::like (a);
   ret = out_.create ();
@@ -127,7 +127,7 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
     }
 
   sum_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  sum_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  sum_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   group_x = (a.width () + 31) / 32;
   group_y = (a.height () + 3) / 4;
@@ -144,7 +144,7 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
     }
 
   out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
   b = out_;
   return VK_SUCCESS;
 }

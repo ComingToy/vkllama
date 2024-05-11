@@ -84,7 +84,7 @@ public:
       }
 
     stage0_output_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-    stage0_output_.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+    stage0_output_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
     Pipeline::ConstantType mean_scale;
     if (op_type_ == 3)
@@ -106,7 +106,7 @@ public:
       }
 
     b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-    b.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
+    b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     return VK_SUCCESS;
   }
 
