@@ -9,7 +9,6 @@
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/rms_norm.h"
-#include <__chrono/duration.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
