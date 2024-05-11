@@ -44,7 +44,7 @@ main (const int argc, const char *argv[])
       std::transform (
           prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
           [] (const int tok) { return static_cast<uint32_t> (tok); });
-      for (int i = 0; i < 512; ++i)
+      for (int i = 0; i < 128; ++i)
         {
           auto output = model (toks);
           if ((int)output.back () == sp.eos_id ())

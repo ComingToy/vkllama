@@ -39,7 +39,7 @@ def parse_block(block_idx, constants):
 
 
 def parse_input(constants):
-    embeddings = constants['llama2_model/159991682']
+    embeddings = constants['llama2_model/184290062']
     weight = constants['llama2_model/StatefulPartitionedCall/rms_norm/mul_1/ReadVariableOp']
     return [llama2.Variable(name=f'input/embeddings', shape=embeddings.shape, f32_values=embeddings.reshape(-1)), llama2.Variable(name='input/rms_norm/weight', shape=weight.shape, f32_values=weight.reshape(-1))]
 
