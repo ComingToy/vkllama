@@ -25,7 +25,8 @@ private:
   std::vector<float> freqc_host_;
   std::vector<float> freqs_host_;
 
-  std::unique_ptr<Pipeline> pipeline_;
+  std::unique_ptr<Pipeline> pipeline_k_;
+  std::unique_ptr<Pipeline> pipeline_q_;
 };
 
 #endif
