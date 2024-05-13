@@ -478,8 +478,8 @@ public:
     if constexpr (__is_vector<T>::value)
       {
         auto *array = &kv->value.array;
-        if constexpr (array->type
-                      != __to_gguf_meta_value_type<typename T::value_type> ())
+        if (array->type
+            != __to_gguf_meta_value_type<typename T::value_type> ())
           {
             return -1;
           }
@@ -487,7 +487,7 @@ public:
         gguf_metadata_elem_t *elem = (gguf_metadata_elem_t *)array->array;
         for (decltype (array->len) i = 0; i < array->len; ++i)
           {
-            T v;
+            typename T::value_type v;
             auto size = parse_value_ (elem, v);
             result.push_back (v);
             elem = (gguf_metadata_elem_t *)((uint8_t *)elem + size);
