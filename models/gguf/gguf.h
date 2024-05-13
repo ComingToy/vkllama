@@ -1,6 +1,19 @@
 #ifndef __VKLLAMA_GGUF_H__
 #define __VKLLAMA_GGUF_H__
+#include <algorithm>
+#include <errno.h>
+#include <fcntl.h>
+#include <iterator>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <string>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #define __PACKED __attribute__ ((packed))
 enum ggml_type : uint32_t
@@ -99,8 +112,6 @@ union gguf_metadata_elem_t
   gguf_string_t string;
 } __PACKED;
 
-extern uint64_t __gguf_elem_size[13];
-
 union gguf_metadata_value_t
 {
   gguf_metadata_elem_t value;
@@ -129,7 +140,6 @@ struct gguf_metadata_kv_t
   // The type of the value.
   // Must be one of the `gguf_metadata_value_type` values.
   gguf_metadata_value_type value_type;
-  // The value.
   gguf_metadata_value_t value;
 } __PACKED;
 
@@ -223,4 +233,392 @@ struct gguf_file_t
 } __PACKED;
 
 extern gguf_header_t *map_gguf_file (int fd);
+
+inline gguf_header_t *
+map_gguf_file (int fd)
+{
+  struct stat stat;
+  auto ret = ::fstat (fd, &stat);
+  if (ret < 0)
+    {
+      return nullptr;
+    }
+
+  auto *mapped_data
+      = ::mmap (nullptr, stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (mapped_data == MAP_FAILED)
+    {
+      return nullptr;
+    }
+
+  return reinterpret_cast<gguf_header_t *> (mapped_data);
+}
+
+template <typename T> struct __is_vector
+{
+  static constexpr bool value = false;
+};
+
+template <typename T, typename _Alloc>
+struct __is_vector<std::vector<T, _Alloc> >
+{
+  static constexpr bool value = true;
+};
+
+template <typename T>
+constexpr gguf_metadata_value_type
+__to_gguf_meta_value_type ()
+{
+  static_assert (
+      std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value
+          || std::is_same<T, uint32_t>::value
+          || std::is_same<T, uint64_t>::value || std::is_same<T, int8_t>::value
+          || std::is_same<T, int16_t>::value || std::is_same<T, int32_t>::value
+          || std::is_same<T, int64_t>::value || std::is_same<T, bool>::value
+          || std::is_same<T, std::string>::value
+          || std::is_same<T, float>::value || std::is_same<T, double>::value
+          || __is_vector<T>::value,
+      "unsupported type");
+
+  if constexpr (std::is_same<T, int8_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_INT8;
+    }
+
+  if constexpr (std::is_same<T, int16_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_INT16;
+    }
+
+  if constexpr (std::is_same<T, int32_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_INT32;
+    }
+
+  if constexpr (std::is_same<T, int64_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_INT64;
+    }
+
+  if constexpr (std::is_same<T, uint8_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_UINT8;
+    }
+
+  if constexpr (std::is_same<T, uint16_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_UINT16;
+    }
+
+  if constexpr (std::is_same<T, uint32_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_UINT32;
+    }
+
+  if constexpr (std::is_same<T, uint64_t>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_UINT64;
+    }
+
+  if constexpr (std::is_same<T, float>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_FLOAT32;
+    }
+
+  if constexpr (std::is_same<T, double>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_FLOAT64;
+    }
+
+  if constexpr (std::is_same<T, bool>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_BOOL;
+    }
+
+  if constexpr (std::is_same<T, std::string>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_STRING;
+    }
+
+  if constexpr (__is_vector<T>::value)
+    {
+      return GGUF_METADATA_VALUE_TYPE_ARRAY;
+    }
+}
+
+class GGUF
+{
+public:
+  uint64_t __gguf_elem_size[13] = { sizeof (uint8_t),
+                                    sizeof (int8_t),
+                                    sizeof (uint16_t),
+                                    sizeof (int16_t),
+                                    sizeof (uint32_t),
+                                    sizeof (int32_t),
+                                    sizeof (float),
+                                    sizeof (bool),
+                                    0,
+                                    0,
+                                    sizeof (uint64_t),
+                                    sizeof (int64_t),
+                                    sizeof (double) };
+
+  const char *__gguf_type_name[13]
+      = { "GGUF_METADATA_VALUE_TYPE_UINT8",   "GGUF_METADATA_VALUE_TYPE_INT8",
+          "GGUF_METADATA_VALUE_TYPE_UINT16",  "GGUF_METADATA_VALUE_TYPE_INT16",
+          "GGUF_METADATA_VALUE_TYPE_UINT32",  "GGUF_METADATA_VALUE_TYPE_INT32",
+          "GGUF_METADATA_VALUE_TYPE_FLOAT32", "GGUF_METADATA_VALUE_TYPE_BOOL",
+          "GGUF_METADATA_VALUE_TYPE_STRING",  "GGUF_METADATA_VALUE_TYPE_ARRAY",
+          "GGUF_METADATA_VALUE_TYPE_UINT64",  "GGUF_METADATA_VALUE_TYPE_INT64",
+          "GGUF_METADATA_VALUE_TYPE_FLOAT64" };
+
+  GGUF (std::string const &path) : path_ (path) {}
+  int
+  init ()
+  {
+    fd_ = ::open (path_.c_str (), O_RDONLY);
+    if (fd_ < 0)
+      {
+        return fd_;
+      }
+
+    gguf_ = map_gguf_file (fd_);
+
+    if (!gguf_)
+      {
+        return -1;
+      }
+    if (gguf_->magic != 0x46554747)
+      {
+        return -1;
+      }
+
+    fprintf (stderr,
+             "magic: 0x%x\nversion: %u\ntensor_count: %lu\nmetadata_kv_count: "
+             "%lu\n",
+             gguf_->magic, gguf_->version, gguf_->tensor_count,
+             gguf_->metadata_kv_count);
+
+    struct gguf_metadata_kv_t *metadata = gguf_->metadata_kv;
+    for (decltype (gguf_->metadata_kv_count) i = 0;
+         i < gguf_->metadata_kv_count; ++i)
+      {
+        std::string key (metadata->key.string, metadata->key.len);
+        auto *value
+            = (__gguf_value_view *)(reinterpret_cast<uint8_t *> (metadata)
+                                    + sizeof (gguf_string_t)
+                                    + metadata->key.len);
+        metadata_kv_[key] = value;
+
+        auto value_type = value->value_type;
+        if (value_type != GGUF_METADATA_VALUE_TYPE_ARRAY)
+          {
+            size_t offset = 0;
+            if (value_type == GGUF_METADATA_VALUE_TYPE_STRING)
+              {
+                auto *string = &value->value.value.string;
+                offset = sizeof (gguf_string_t) + string->len;
+              }
+            else
+              {
+                offset = __gguf_elem_size[value_type];
+              }
+            metadata
+                = (struct gguf_metadata_kv_t *)((uint8_t *)value
+                                                + sizeof (
+                                                    gguf_metadata_value_type)
+                                                + offset);
+          }
+        else
+          {
+            auto *array = &value->value.array;
+            size_t offset = 0;
+            if (array->type == GGUF_METADATA_VALUE_TYPE_STRING)
+              {
+                gguf_string_t *elems = (gguf_string_t *)array->array;
+                for (int i = 0; i < array->len; ++i)
+                  {
+                    size_t elem_size = sizeof (*elems) + elems->len;
+                    offset += elem_size;
+                    elems = (gguf_string_t *)((uint8_t *)elems + elem_size);
+                  }
+              }
+            else
+              {
+                offset = __gguf_elem_size[array->type] * array->len;
+              }
+
+            metadata
+                = (struct gguf_metadata_kv_t *)((uint8_t *)value
+                                                + sizeof (
+                                                    gguf_metadata_value_type)
+                                                + sizeof (*array) + offset);
+          }
+      }
+
+    return 0;
+  }
+
+  template <typename T>
+  int
+  get (std::string const &key, T &result)
+  {
+    auto pos = metadata_kv_.find (key);
+    if (pos == metadata_kv_.cend ())
+      {
+        return -1;
+      }
+
+    auto *kv = pos->second;
+    if (__to_gguf_meta_value_type<T> () != kv->value_type)
+      {
+        return -1;
+      }
+
+    if constexpr (__is_vector<T>::value)
+      {
+        auto *array = &kv->value.array;
+        if constexpr (array->type
+                      != __to_gguf_meta_value_type<typename T::value_type> ())
+          {
+            return -1;
+          }
+
+        gguf_metadata_elem_t *elem = (gguf_metadata_elem_t *)array->array;
+        for (decltype (array->len) i = 0; i < array->len; ++i)
+          {
+            T v;
+            auto size = parse_value_ (elem, v);
+            result.push_back (v);
+            elem = (gguf_metadata_elem_t *)((uint8_t *)elem + size);
+          }
+
+        return 0;
+      }
+
+    parse_value_<T> (&kv->value.value, result);
+    return 0;
+  }
+
+  std::vector<std::pair<std::string, gguf_metadata_value_type> >
+  get_all_metadata_keys ()
+  {
+    std::vector<std::pair<std::string, gguf_metadata_value_type> > keys;
+
+    for (auto &kv : metadata_kv_)
+      {
+        auto value_type = kv.second->value_type;
+        keys.push_back ({ kv.first, value_type });
+      }
+    return keys;
+  }
+
+private:
+  gguf_header_t *gguf_;
+  std::string const path_;
+  int fd_;
+
+  struct __gguf_value_view
+  {
+    gguf_metadata_value_type value_type;
+    gguf_metadata_value_t value;
+  } __PACKED;
+
+  std::unordered_map<std::string, __gguf_value_view *> metadata_kv_;
+  template <typename T>
+  size_t
+  parse_value_ (gguf_metadata_elem_t *value, T &result)
+  {
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_INT8)
+      {
+        result = value->int8;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_INT8];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_INT16)
+      {
+        result = value->int16;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_INT16];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_INT32)
+      {
+        result = value->int32;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_INT32];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_INT64)
+      {
+        result = value->int64;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_INT64];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_UINT8)
+      {
+        result = value->uint8;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_UINT8];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_UINT16)
+      {
+        result = value->uint16;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_UINT16];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_UINT32)
+      {
+        result = value->uint32;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_UINT32];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_UINT64)
+      {
+        result = value->uint64;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_UINT64];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_UINT64)
+      {
+        result = value->uint8;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_UINT64];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_BOOL)
+      {
+        result = value->bool_;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_BOOL];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_FLOAT32)
+      {
+        result = value->float32;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_FLOAT32];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_FLOAT64)
+      {
+        result = value->float64;
+        return __gguf_elem_size[GGUF_METADATA_VALUE_TYPE_FLOAT64];
+      }
+
+    if constexpr (__to_gguf_meta_value_type<T> ()
+                  == GGUF_METADATA_VALUE_TYPE_STRING)
+      {
+        result = std::string (value->string.string, value->string.len);
+        return sizeof (value->string) + value->string.len;
+      }
+  }
+};
 #endif

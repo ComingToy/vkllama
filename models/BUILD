@@ -9,7 +9,7 @@ cc_library(
 
 cc_library(
     name = 'gguf',
-    srcs = ['gguf/gguf.cpp'],
+    srcs = [],
     hdrs = ['gguf/gguf.h'],
     deps = [],
     copts = ['-std=c++17'],
