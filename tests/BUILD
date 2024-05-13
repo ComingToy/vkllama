@@ -117,3 +117,10 @@ cc_binary(
     copts = ["-std=c++17"],
     deps = ["//models:llama2", "//src:vkllama", "@sentencepiece//:sentencepiece"],
 )
+
+cc_binary(
+    name="test_gguf",
+    srcs=["test_gguf.cpp"],
+    copts=["-std=c++17"],
+    deps = ["//models:gguf"]
+)
