@@ -396,31 +396,10 @@ public:
     command_.begin ();
   }
 
-  template <typename T>
-  VkResult
-  upload (T const *from, const size_t n, VkTensor &to)
-  {
-    return command_.upload (from, n, to);
-  }
-
-  template <typename T>
-  VkResult
-  download (VkTensor &from, T *to, const size_t n)
-  {
-    return command_.download (from, to, n);
-  }
-
-  VkResult
-  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
-                   std::vector<Pipeline::ConstantType> const &constants)
-  {
-    return command_.record_pipeline (pipeline, bindings, constants);
-  }
-
   ~CommandScope ()
   {
     command_.end ();
-    command_.submit_and_wait ();
+    command_.submit();
   }
 
 private:
