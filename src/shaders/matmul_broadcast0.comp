@@ -16,6 +16,8 @@ layout(push_constant) uniform constants
 } pushed_constants;
 
 // block size = [16, 16] = 256
+// per block compute 32x32 result, per thread compute result = 32x32/256 = 2x2
+// 1 thread move 32*K/256 data
 shared float tileA[32][8];
 shared float tileB[8][32];
 
