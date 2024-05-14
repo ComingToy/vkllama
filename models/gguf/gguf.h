@@ -533,7 +533,7 @@ public:
     uint32_t align;
     if (get ("general.alignment", align) != 0)
       {
-        return 0;
+        align = 1;
       }
 
     auto *tensor_name = (struct gguf_string_t *)metadata;
