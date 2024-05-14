@@ -19,7 +19,8 @@ public:
                       std::vector<VkTensor> const &Wk,
                       std::vector<VkTensor> const &Wq,
                       std::vector<VkTensor> const &Wv, VkTensor const Wo,
-                      const int maxlen, const int dim);
+                      const int maxlen, const int dim,
+                      const bool transposed_weight = false);
   VkResult operator() (VkTensor X, VkTensor &output) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
@@ -44,5 +45,6 @@ private:
   std::vector<VkTensor> tmp_tensors_;
   int maxlen_;
   int dim_;
+  bool transposed_weight_;
 };
 #endif

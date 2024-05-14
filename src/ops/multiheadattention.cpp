@@ -15,9 +15,10 @@ MultiHeadAttention::MultiHeadAttention (GPUDevice *dev, Command *command,
                                         std::vector<VkTensor> const &Wq,
                                         std::vector<VkTensor> const &Wv,
                                         const VkTensor Wo, const int maxlen,
-                                        const int dim)
+                                        const int dim,
+                                        const bool transposed_weight)
     : Op (dev, command), wk_ (Wk), wq_ (Wq), wv_ (Wv), wo_ (Wo),
-      maxlen_ (maxlen), dim_ (dim)
+      maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight)
 {
 }
 
@@ -30,7 +31,8 @@ MultiHeadAttention::init () noexcept
     }
 
   VkResult ret = VK_SUCCESS;
-  out_matmul_ = std::make_unique<MatMul> (dev_, command_, wo_, 0, 0);
+  out_matmul_ = std::make_unique<MatMul> (dev_, command_, wo_, 0, 0,
+                                          transposed_weight_);
   if ((ret = out_matmul_->init ()) != VK_SUCCESS)
     {
       return ret;
@@ -40,9 +42,12 @@ MultiHeadAttention::init () noexcept
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
-      auto k_matmul = std::make_unique<MatMul> (dev_, command_, wk_[i], 0, 0);
-      auto q_matmul = std::make_unique<MatMul> (dev_, command_, wq_[i], 0, 0);
-      auto v_matmul = std::make_unique<MatMul> (dev_, command_, wv_[i], 0, 0);
+      auto k_matmul = std::make_unique<MatMul> (dev_, command_, wk_[i], 0, 0,
+                                                transposed_weight_);
+      auto q_matmul = std::make_unique<MatMul> (dev_, command_, wq_[i], 0, 0,
+                                                transposed_weight_);
+      auto v_matmul = std::make_unique<MatMul> (dev_, command_, wv_[i], 0, 0,
+                                                transposed_weight_);
       auto weighted_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
       auto rope = std::make_unique<Rope> (dev_, command_, maxlen_, dim_);
       auto attn_score = std::make_unique<MatMul> (dev_, command_, 0, 0, 1);
@@ -94,7 +99,8 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
           || wk.width () != wq.width () || wq.channels () != wv.channels ()
           || wq.height () != wv.height () || wq.width () != wv.width ()
           || wv.channels () != input.channels ()
-          || wv.height () != input.width ())
+          || (!transposed_weight_ && wv.height () != input.width ())
+          || (transposed_weight_ && wv.width () != input.width ()))
         {
           return VK_ERROR_FORMAT_NOT_SUPPORTED;
         }
