@@ -429,6 +429,29 @@ public:
 
   struct __gguf_tensor_view
   {
+    // > Do PyTorch and ggml store values differently? I also noticed that in
+    // llama.cpp, when converting the model, dimensions are reversed, but data
+    // is left untouched -- looks related. Any details/explanations would be
+    // very velcome :)
+    //
+    // ref: https://github.com/ggerganov/ggml/issues/21 In
+    // other words, ggml stores tensor dimensions with an array of numbers of
+    // elements called ne1. This means that ne[0] is the number of elements in
+    // the first dimension (i.e. elements in a row2), ne[1] is the number of
+    // elements in the second dimension (i.e. elements in a column), and so on.
+
+    // What might be confusing initially is that a 2D tensor (ndims = 2) with
+    // dimensions set as ne = { 3, 4 }3 has 3 elements in a row, which means it
+    // has 3 columns, and it also has 4 elements in a column which means it has
+    // 4 rows4. This is reversed when compared to the (number of rows, number
+    // of columns) notation that PyTorch might be using. (I don't have much
+    // experience with PyTorch, but it seems that way in the docs)
+
+    // Arguably, ggml's way might be better (or at least more consistent) at
+    // representing dimensions of a tensor (at least in C) than PyTorch's way,
+    // since it seems easier to refer to dimensions relative to 0 than
+    // dimensions relative to the last dimension (again, at least in C, unlike
+    // in Python where the -1 index is the last dimension).
     const __gguf_tensor_info_view *info;
     void *data;
   };
