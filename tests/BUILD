@@ -122,5 +122,5 @@ cc_binary(
     name="test_gguf",
     srcs=["test_gguf.cpp"],
     copts=["-std=c++17"],
-    deps = ["//models:gguf"]
+    deps = ["//models:llama2"]
 )
