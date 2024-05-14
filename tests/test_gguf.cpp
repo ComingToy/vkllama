@@ -55,6 +55,12 @@ GGUF_METADATA_VALUE_TYPE_STRING*/
     }
 
   {
+    uint32_t vocab_size;
+    gguf.get ("llama.vocab_size", vocab_size);
+    fprintf (stderr, "llama.vocab_size: %u\n", vocab_size);
+  }
+
+  {
     std::string v;
     gguf.get ("general.architecture", v);
     fprintf (stderr, "general.architecture: %s\n", v.c_str ());
