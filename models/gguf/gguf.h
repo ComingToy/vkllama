@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_GGUF_H__
 #define __VKLLAMA_GGUF_H__
 #include <algorithm>
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <iterator>
@@ -419,10 +420,17 @@ public:
 
   struct __gguf_tensor_info_view
   {
-    gguf_tensor_info_t *info;
+    const gguf_tensor_info_t *info;
     uint32_t ndim;
-    uint64_t *dims;
+    const uint64_t *dims;
     ggml_type dtype;
+    uint64_t offset;
+  };
+
+  struct __gguf_tensor_view
+  {
+    const __gguf_tensor_info_view *info;
+    void *data;
   };
 
   GGUF (std::string const &path) : gguf_ (nullptr), path_ (path), fd_ (-1) {}
@@ -522,6 +530,12 @@ public:
       }
 
     // parse tensor infos
+    uint32_t align;
+    if (get ("general.alignment", align) != 0)
+      {
+        return 0;
+      }
+
     auto *tensor_name = (struct gguf_string_t *)metadata;
     for (decltype (gguf_->tensor_count) i = 0; i < gguf_->tensor_count; ++i)
       {
@@ -534,11 +548,13 @@ public:
         uint32_t ndim = tensor_info->n_dimensions;
         uint64_t *dims = nullptr;
         ggml_type dtype = GGML_TYPE_F32;
+        uint64_t offset = 0;
 
         if (tensor_info->n_dimensions == 1)
           {
             dims = tensor_info->dims1.dimensions;
             dtype = tensor_info->dims1.type;
+            offset = tensor_info->dims1.offset;
             tensor_name
                 = (gguf_string_t *)((uint8_t *)tensor_info
                                     + sizeof (tensor_info->dims1)
@@ -548,6 +564,7 @@ public:
           {
             dims = tensor_info->dims2.dimensions;
             dtype = tensor_info->dims2.type;
+            offset = tensor_info->dims2.offset;
             tensor_name
                 = (gguf_string_t *)((uint8_t *)tensor_info
                                     + sizeof (tensor_info->dims2)
@@ -557,6 +574,7 @@ public:
           {
             dims = tensor_info->dims3.dimensions;
             dtype = tensor_info->dims3.type;
+            offset = tensor_info->dims3.offset;
             tensor_name
                 = (gguf_string_t *)((uint8_t *)tensor_info
                                     + sizeof (tensor_info->dims3)
@@ -564,25 +582,39 @@ public:
           }
         else if (tensor_info->n_dimensions == 4)
           {
-            dims = tensor_info->dims3.dimensions;
-            dtype = tensor_info->dims3.type;
+            dims = tensor_info->dims4.dimensions;
+            dtype = tensor_info->dims4.type;
+            offset = tensor_info->dims4.offset;
             tensor_name
                 = (gguf_string_t *)((uint8_t *)tensor_info
                                     + sizeof (tensor_info->dims4)
                                     + sizeof (tensor_info->n_dimensions));
           }
 
-        tensor_infos_[name] = { tensor_info, ndim, dims, dtype };
+        if (align_offset (offset, align) != offset)
+          {
+            return -1;
+          }
+
+        tensor_infos_[name] = { tensor_info, ndim, dims, dtype, offset };
+      }
+
+    const uint8_t *data = (uint8_t *)tensor_name;
+    for (auto const &kv : tensor_infos_)
+      {
+        auto const &name = kv.first;
+        auto const &info = kv.second;
+        tensor_views_[name] = { &info, (void *)(data + info.offset) };
       }
 
     return 0;
   }
 
-  const __gguf_tensor_info_view *
-  get_tensor_info (std::string const &name)
+  const __gguf_tensor_view *
+  get_tensor (std::string const &name)
   {
-    auto pos = tensor_infos_.find (name);
-    if (pos != tensor_infos_.cend ())
+    auto pos = tensor_views_.find (name);
+    if (pos != tensor_views_.cend ())
       {
         return &pos->second;
       }
@@ -656,6 +688,7 @@ private:
 
   std::unordered_map<std::string, __gguf_value_view *> metadata_kv_;
   std::unordered_map<std::string, __gguf_tensor_info_view> tensor_infos_;
+  std::unordered_map<std::string, __gguf_tensor_view> tensor_views_;
   template <typename T>
   size_t
   parse_value_ (gguf_metadata_elem_t *value, T &result)
