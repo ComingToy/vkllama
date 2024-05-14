@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
+#include <vector>
 
 int
 main (const int argc, const char *argv[])
@@ -76,6 +77,32 @@ GGUF_METADATA_VALUE_TYPE_STRING*/
     gguf.get ("llama.embedding_length", v);
     fprintf (stderr, "llama.embedding_length: %u\n", v);
   }
+
+  {
+    auto tensor_infos = gguf.get_all_tensor_infos ();
+    for (auto const &kv : tensor_infos)
+      {
+        fprintf (stderr,
+                 "tensor name: %s, dtype: %s, shape = ", kv.first.c_str (),
+                 gguf.__ggml_type_name[kv.second.dtype]);
+        for (int i = 0; i < kv.second.ndim; ++i)
+          {
+            fprintf (stderr, "%lu ", kv.second.dims[i]);
+          }
+        fprintf (stderr, "\n");
+      }
+  }
+#if 0
+  {
+    std::vector<std::string> toks;
+    gguf.get ("tokenizer.ggml.tokens", toks);
+    fprintf (stderr, "tokenizer.ggml.tokens: ");
+    for (auto tok : toks)
+      {
+        fprintf (stderr, "%s\n", tok.c_str ());
+      }
+  }
+#endif
 
 #else
 #endif

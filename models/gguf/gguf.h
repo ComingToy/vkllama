@@ -11,6 +11,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <type_traits>
+#include <unistd.h>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -179,14 +180,39 @@ struct gguf_tensor_info_t
 {
   // The name of the tensor. It is a standard GGUF string, with the caveat that
   // it must be at most 64 bytes long.
-  gguf_string_t name;
+  // gguf_string_t name;
   // The number of dimensions in the tensor.
   // Currently at most 4, but this may change in the future.
   uint32_t n_dimensions;
   // The dimensions of the tensor.
-  uint64_t dimensions[4];
+  union
+  {
+    struct
+    {
+      uint64_t dimensions[4];
+      ggml_type type;
+      uint64_t offset;
+    } __PACKED dims4;
+    struct
+    {
+      uint64_t dimensions[3];
+      ggml_type type;
+      uint64_t offset;
+    } __PACKED dims3;
+    struct
+    {
+      uint64_t dimensions[2];
+      ggml_type type;
+      uint64_t offset;
+    } __PACKED dims2;
+    struct
+    {
+      uint64_t dimensions[1];
+      ggml_type type;
+      uint64_t offset;
+    } __PACKED dims1;
+  } __PACKED;
   // The type of the tensor.
-  ggml_type type;
   // The offset of the tensor's data in this file in bytes.
   //
   // This offset is relative to `tensor_data`, not to the start
@@ -196,7 +222,6 @@ struct gguf_tensor_info_t
   //
   // Must be a multiple of `ALIGNMENT`. That is, `align_offset(offset) ==
   // offset`.
-  uint64_t offset;
 } __PACKED;
 
 struct gguf_file_t
@@ -372,7 +397,47 @@ public:
           "GGUF_METADATA_VALUE_TYPE_UINT64",  "GGUF_METADATA_VALUE_TYPE_INT64",
           "GGUF_METADATA_VALUE_TYPE_FLOAT64" };
 
-  GGUF (std::string const &path) : path_ (path) {}
+  const char *__ggml_type_name[31] = {
+    "GGML_TYPE_F32",     "GGML_TYPE_F16",     "GGML_TYPE_Q4_0",
+    "GGML_TYPE_Q4_1",    "GGML_TYPE_Q4_2",    "GGML_TYPE_Q4_3",
+    "GGML_TYPE_Q5_0",    "GGML_TYPE_Q5_1",    "GGML_TYPE_Q8_0",
+    "GGML_TYPE_Q8_1",    "GGML_TYPE_Q2_K",    "GGML_TYPE_Q3_K",
+    "GGML_TYPE_Q4_K",    "GGML_TYPE_Q5_K",    "GGML_TYPE_Q6_K",
+    "GGML_TYPE_Q8_K",    "GGML_TYPE_IQ2_XXS", "GGML_TYPE_IQ2_XS",
+    "GGML_TYPE_IQ3_XXS", "GGML_TYPE_IQ1_S",   "GGML_TYPE_IQ4_NL",
+    "GGML_TYPE_IQ3_S",   "GGML_TYPE_IQ2_S",   "GGML_TYPE_IQ4_XS",
+    "GGML_TYPE_I8",      "GGML_TYPE_I16",     "GGML_TYPE_I32",
+    "GGML_TYPE_I64",     "GGML_TYPE_F64",     "GGML_TYPE_IQ1_M",
+    "GGML_TYPE_COUNT",
+  };
+
+  struct __gguf_value_view
+  {
+    gguf_metadata_value_type value_type;
+    gguf_metadata_value_t value;
+  } __PACKED;
+
+  struct __gguf_tensor_info_view
+  {
+    gguf_tensor_info_t *info;
+    uint32_t ndim;
+    uint64_t *dims;
+    ggml_type dtype;
+  };
+
+  GGUF (std::string const &path) : gguf_ (nullptr), path_ (path), fd_ (-1) {}
+  ~GGUF ()
+  {
+    if (gguf_)
+      {
+        // FIXME: unmap here
+      }
+
+    if (fd_ > 0)
+      {
+        ::close (fd_);
+      }
+  }
   int
   init ()
   {
@@ -456,7 +521,78 @@ public:
           }
       }
 
+    // parse tensor infos
+    auto *tensor_name = (struct gguf_string_t *)metadata;
+    for (decltype (gguf_->tensor_count) i = 0; i < gguf_->tensor_count; ++i)
+      {
+        std::string name (tensor_name->string, tensor_name->len);
+        auto *tensor_info
+            = (struct gguf_tensor_info_t *)((uint8_t *)tensor_name
+                                            + sizeof (gguf_string_t)
+                                            + tensor_name->len);
+
+        uint32_t ndim = tensor_info->n_dimensions;
+        uint64_t *dims = nullptr;
+        ggml_type dtype = GGML_TYPE_F32;
+
+        if (tensor_info->n_dimensions == 1)
+          {
+            dims = tensor_info->dims1.dimensions;
+            dtype = tensor_info->dims1.type;
+            tensor_name
+                = (gguf_string_t *)((uint8_t *)tensor_info
+                                    + sizeof (tensor_info->dims1)
+                                    + sizeof (tensor_info->n_dimensions));
+          }
+        else if (tensor_info->n_dimensions == 2)
+          {
+            dims = tensor_info->dims2.dimensions;
+            dtype = tensor_info->dims2.type;
+            tensor_name
+                = (gguf_string_t *)((uint8_t *)tensor_info
+                                    + sizeof (tensor_info->dims2)
+                                    + sizeof (tensor_info->n_dimensions));
+          }
+        else if (tensor_info->n_dimensions == 3)
+          {
+            dims = tensor_info->dims3.dimensions;
+            dtype = tensor_info->dims3.type;
+            tensor_name
+                = (gguf_string_t *)((uint8_t *)tensor_info
+                                    + sizeof (tensor_info->dims3)
+                                    + sizeof (tensor_info->n_dimensions));
+          }
+        else if (tensor_info->n_dimensions == 4)
+          {
+            dims = tensor_info->dims3.dimensions;
+            dtype = tensor_info->dims3.type;
+            tensor_name
+                = (gguf_string_t *)((uint8_t *)tensor_info
+                                    + sizeof (tensor_info->dims4)
+                                    + sizeof (tensor_info->n_dimensions));
+          }
+
+        tensor_infos_[name] = { tensor_info, ndim, dims, dtype };
+      }
+
     return 0;
+  }
+
+  const __gguf_tensor_info_view *
+  get_tensor_info (std::string const &name)
+  {
+    auto pos = tensor_infos_.find (name);
+    if (pos != tensor_infos_.cend ())
+      {
+        return &pos->second;
+      }
+    return nullptr;
+  }
+
+  const auto &
+  get_all_tensor_infos ()
+  {
+    return tensor_infos_;
   }
 
   template <typename T>
@@ -518,13 +654,8 @@ private:
   std::string const path_;
   int fd_;
 
-  struct __gguf_value_view
-  {
-    gguf_metadata_value_type value_type;
-    gguf_metadata_value_t value;
-  } __PACKED;
-
   std::unordered_map<std::string, __gguf_value_view *> metadata_kv_;
+  std::unordered_map<std::string, __gguf_tensor_info_view> tensor_infos_;
   template <typename T>
   size_t
   parse_value_ (gguf_metadata_elem_t *value, T &result)
