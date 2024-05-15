@@ -93,7 +93,7 @@ GGUF_METADATA_VALUE_TYPE_STRING*/
                  gguf.__ggml_type_name[kv.second.dtype]);
         for (int i = 0; i < kv.second.ndim; ++i)
           {
-            fprintf (stderr, "%lu ", kv.second.dims[i]);
+            fprintf (stderr, "%lu ", kv.second.dims[kv.second.ndim - i - 1]);
           }
         fprintf (stderr, "\n");
       }

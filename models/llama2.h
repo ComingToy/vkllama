@@ -106,10 +106,10 @@ public:
     attn_op_.reset (new MultiHeadAttention (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
-        transformer_params_.maxlen, transformer_params_.dim));
-    feedforward_op_.reset (
-        new FeedForward (gpu_, command_, feedforward_params_.w1,
-                         feedforward_params_.w2, feedforward_params_.w3));
+        transformer_params_.maxlen, transformer_params_.dim, true));
+    feedforward_op_.reset (new FeedForward (
+        gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
+        feedforward_params_.w3, true));
     norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1));
     norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2));
     add_op_.reset (new ElementWise (gpu_, command_, 0));
@@ -458,8 +458,8 @@ public:
               Wv.push_back (vkWv);
             }
 
-          VkTensor Wo (1, attn_output_weight->info->dims[0],
-                       attn_output_weight->info->dims[1], gpu_);
+          VkTensor Wo (1, attn_output_weight->info->dims[1],
+                       attn_output_weight->info->dims[0], gpu_);
           if ((ret = Wo.create ()) != VK_SUCCESS)
             {
               return ret;
@@ -473,13 +473,13 @@ public:
               return ret;
             }
 
-          VkTensor vkw1 (1, ffn_up_weight->info->dims[0],
-                         ffn_up_weight->info->dims[1], gpu_);
+          VkTensor vkw1 (1, ffn_up_weight->info->dims[1],
+                         ffn_up_weight->info->dims[0], gpu_);
 
-          VkTensor vkw2 (1, ffn_down_weight->info->dims[0],
-                         ffn_down_weight->info->dims[1], gpu_);
-          VkTensor vkw3 (1, ffn_gate_weight->info->dims[0],
-                         ffn_gate_weight->info->dims[1], gpu_);
+          VkTensor vkw2 (1, ffn_down_weight->info->dims[1],
+                         ffn_down_weight->info->dims[0], gpu_);
+          VkTensor vkw3 (1, ffn_gate_weight->info->dims[1],
+                         ffn_gate_weight->info->dims[0], gpu_);
           if ((ret = vkw1.create ()) != VK_SUCCESS
               || (ret = vkw2.create ()) != VK_SUCCESS
               || (ret = vkw3.create ()) != VK_SUCCESS)
@@ -488,8 +488,8 @@ public:
             }
 
           ret = command_->upload ((const float *)ffn_up_weight->data,
-                                  ffn_up_weight->info->dims[0]
-                                      * ffn_up_weight->info->dims[1],
+                                  ffn_gate_weight->info->dims[0]
+                                      * ffn_gate_weight->info->dims[1],
                                   vkw1);
           if (ret != VK_SUCCESS)
             {
@@ -506,8 +506,8 @@ public:
             }
 
           ret = command_->upload ((const float *)ffn_gate_weight->data,
-                                  ffn_gate_weight->info->dims[0]
-                                      * ffn_gate_weight->info->dims[1],
+                                  ffn_up_weight->info->dims[0]
+                                      * ffn_up_weight->info->dims[1],
                                   vkw3);
           if (ret != VK_SUCCESS)
             {
@@ -517,7 +517,7 @@ public:
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight };
           Llama2Block::TransformerParams transformer_params
-              = { Wk, Wq, Wv, Wo, 1024, 512 };
+              = { Wk, Wq, Wv, Wo, 1024, (int)head_dim };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 

@@ -1,5 +1,6 @@
 #include "models/llama2.h"
 #include "sentencepiece_processor.h"
+#include <cstdio>
 #include <iterator>
 #include <unistd.h>
 #include <vector>
@@ -40,11 +41,11 @@ main (const int argc, const char *argv[])
 
   for (int r = 0; r < 1; ++r)
     {
-      std::vector<uint32_t> toks = { (uint32_t)sp.bos_id () };
+      std::vector<uint32_t> toks;
       std::transform (
           prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
           [] (const int tok) { return static_cast<uint32_t> (tok); });
-      for (int i = 0; i < 128; ++i)
+      for (int i = 0; i < 10; ++i)
         {
           auto output = model (toks);
           if ((int)output.back () == sp.eos_id ())
@@ -52,6 +53,7 @@ main (const int argc, const char *argv[])
               break;
             }
           toks.push_back (output.back ());
+          fprintf (stderr, "output %d tokens\n", i);
         }
 
       std::vector<int> output;
