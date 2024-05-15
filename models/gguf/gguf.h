@@ -556,7 +556,7 @@ public:
     uint32_t align;
     if (get ("general.alignment", align) != 0)
       {
-        align = 1;
+        align = 32;
       }
 
     auto *tensor_name = (struct gguf_string_t *)metadata;
@@ -622,7 +622,10 @@ public:
         tensor_infos_[name] = { tensor_info, ndim, dims, dtype, offset };
       }
 
-    const uint8_t *data = (uint8_t *)tensor_name;
+    uint32_t data_offset = (uint8_t *)tensor_name - (uint8_t *)gguf_;
+    data_offset = align_offset (data_offset, align);
+
+    const uint8_t *data = (uint8_t *)gguf_ + data_offset;
     for (auto const &kv : tensor_infos_)
       {
         auto const &name = kv.first;
