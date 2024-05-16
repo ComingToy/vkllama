@@ -7,7 +7,8 @@
 class RMSNorm : public Op
 {
 public:
-  RMSNorm (GPUDevice *dev, Command *command, VkTensor weight);
+  RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
+           const float eps = 1e-3);
   VkResult operator() (VkTensor a, VkTensor &c) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;

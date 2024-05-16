@@ -16,11 +16,10 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
-  Model model;
-  auto ret = model.init (argv[1]);
-  if (ret != VK_SUCCESS)
+  GGUF gguf (argv[1]);
+  if (gguf.init () != 0)
     {
-      fprintf (stderr, "failed at init model\n");
+      fprintf (stderr, "failed at init gguf\n");
       return -1;
     }
 
@@ -32,12 +31,30 @@ main (const int argc, const char *argv[])
       return static_cast<int> (status.code ());
     }
 
-  std::vector<int> prompt;
-  sp.Encode (argv[3], &prompt);
+  std::vector<int> prompt_;
+  sp.Encode (argv[3], &prompt_);
+  std::cerr << "input tokens: ";
+  // std::vector<int> prompt = { 1,    1029, 29537, 1200, 325,   268,
+  //                             5242, 6848, 29584, 13,   29530, 29537 };
+  std::vector<int> prompt = { 1 };
+  prompt.insert (prompt.end (), prompt_.begin (), prompt_.end ());
+  for (auto t : prompt)
+    {
+      std::cerr << t << " ";
+    }
+  std::cerr << std::endl;
 
   // std::vector<uint32_t> toks (128);
   // std::generate (toks.begin (), toks.end (),
   //                [x = uint32_t (0)] () mutable { return ++x; });
+
+  Model model;
+  auto ret = model.init (gguf);
+  if (ret != VK_SUCCESS)
+    {
+      fprintf (stderr, "failed at init model\n");
+      return -1;
+    }
 
   for (int r = 0; r < 1; ++r)
     {
@@ -65,6 +82,13 @@ main (const int argc, const char *argv[])
       sp.Decode (output, &content);
       std::cerr << "prompt: " << argv[3] << std::endl
                 << "output: " << content << std::endl;
+
+      std::cerr << "output toks: ";
+      for (auto tok : output)
+        {
+          std::cerr << tok << " ";
+        }
+      std::cerr << std::endl;
     }
 
   return 0;

@@ -625,12 +625,16 @@ public:
     uint32_t data_offset = (uint8_t *)tensor_name - (uint8_t *)gguf_;
     data_offset = align_offset (data_offset, align);
 
-    const uint8_t *data = (uint8_t *)gguf_ + data_offset;
-    for (auto const &kv : tensor_infos_)
+    const uint8_t *data = (uint8_t *)gguf_;
+    for (auto &kv : tensor_infos_)
       {
         auto const &name = kv.first;
-        auto const &info = kv.second;
-        tensor_views_[name] = { &info, (void *)(data + info.offset) };
+        auto &info = kv.second;
+
+        uint32_t offset = (info.offset + data_offset);
+        fprintf (stderr, "tensor %s offset = %u\n", name.c_str (), offset);
+        info.offset = offset;
+        tensor_views_[name] = { &info, (void *)(data + offset) };
       }
 
     return 0;
