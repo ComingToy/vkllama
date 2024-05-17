@@ -23,15 +23,21 @@ py_repositories()
 
 load("@rules_python//python:pip.bzl", "pip_parse")
 pip_parse(
-   name = "python_libs",
-   requirements_lock = "//tools:requirements.txt",
+    name = "python_libs",
+    requirements_lock = "//tools:requirements.txt",
+    extra_pip_args = [
+        "--index-url=https://pypi.tuna.tsinghua.edu.cn/simple",
+    ],
 )
 load("@python_libs//:requirements.bzl", python_libs_install_deps="install_deps")
 python_libs_install_deps()
 
 pip_parse(
-   name = "python_macos_libs",
-   requirements_lock = "//tools:requirements.macos.txt",
+    name = "python_macos_libs",
+    requirements_lock = "//tools:requirements.macos.txt",
+    extra_pip_args = [
+        "--index-url=https://pypi.tuna.tsinghua.edu.cn/simple",
+    ],
 )
 load("@python_macos_libs//:requirements.bzl", python_macos_libs_install_deps="install_deps")
 python_macos_libs_install_deps()

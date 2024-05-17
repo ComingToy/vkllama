@@ -1,9 +1,80 @@
 #include "models/llama2.h"
 #include "sentencepiece_processor.h"
 #include <cstdio>
+#include <cstring>
+#include <dirent.h>
+#include <fcntl.h>
 #include <iterator>
+#include <memory>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
+
+static std::unique_ptr<llama2::Variables>
+load_checkpoint_file (std::string const &fname)
+{
+  int fd = open (fname.c_str (), O_RDONLY);
+  if (fd < 0)
+    {
+      char buf[512];
+      strerror_r (errno, buf, sizeof (buf));
+      fprintf (stderr, "open checkpoitn %s failed: %s\n", fname.c_str (), buf);
+      return nullptr;
+    }
+
+  auto variables = std::make_unique<llama2::Variables> ();
+  if (!variables->ParseFromFileDescriptor (fd))
+    {
+      fprintf (stderr, "parse checkpoint %s failed.\n", fname.c_str ());
+      return nullptr;
+    }
+
+  return variables;
+}
+
+static std::vector<std::unique_ptr<llama2::Variables> >
+load_checkpoint (std::string const &path)
+{
+  DIR *dir = opendir (path.c_str ());
+  if (!dir)
+    {
+      fprintf (stderr, "open dir %s failed\n", path.c_str ());
+      return {};
+    }
+
+  std::vector<std::string> blocks;
+  struct dirent *d;
+  while ((d = readdir (dir)))
+    {
+      if (d->d_type != DT_REG)
+        continue;
+      blocks.push_back (path + "/" + d->d_name);
+    }
+
+  auto ret = closedir (dir);
+  if (ret)
+    {
+      fprintf (stderr, "close %s dir failed: %d\n", path.c_str (), ret);
+      return {};
+    }
+
+  std::vector<std::unique_ptr<llama2::Variables> > checkpoint;
+  for (auto const &block : blocks)
+    {
+      auto ckpt = load_checkpoint_file (block);
+      if (!ckpt)
+        {
+          fprintf (stderr, "load checkpoint %s failed\n", block.c_str ());
+          return {};
+        }
+
+      checkpoint.push_back (std::move (ckpt));
+    }
+
+  return checkpoint;
+}
 
 int
 main (const int argc, const char *argv[])
@@ -13,13 +84,6 @@ main (const int argc, const char *argv[])
       fprintf (stderr,
                "usage: %s <path to checkpoitns> <path to bpe> <prompt>\n",
                argv[0]);
-      return -1;
-    }
-
-  GGUF gguf (argv[1]);
-  if (gguf.init () != 0)
-    {
-      fprintf (stderr, "failed at init gguf\n");
       return -1;
     }
 
@@ -34,8 +98,6 @@ main (const int argc, const char *argv[])
   std::vector<int> prompt_;
   sp.Encode (argv[3], &prompt_);
   std::cerr << "input tokens: ";
-  // std::vector<int> prompt = { 1,    1029, 29537, 1200, 325,   268,
-  //                             5242, 6848, 29584, 13,   29530, 29537 };
   std::vector<int> prompt = { 1 };
   prompt.insert (prompt.end (), prompt_.begin (), prompt_.end ());
   for (auto t : prompt)
@@ -44,12 +106,22 @@ main (const int argc, const char *argv[])
     }
   std::cerr << std::endl;
 
-  // std::vector<uint32_t> toks (128);
-  // std::generate (toks.begin (), toks.end (),
-  //                [x = uint32_t (0)] () mutable { return ++x; });
+  std::unordered_map<std::string, const llama2::Variable *> state_dict;
+  auto checkpoint = load_checkpoint (argv[1]);
+  if (checkpoint.empty ())
+    {
+      return -1;
+    }
+  for (auto &variables : checkpoint)
+    {
+      for (const auto &var : variables->variables ())
+        {
+          state_dict[var.name ()] = &var;
+        }
+    }
 
   Model model;
-  auto ret = model.init (gguf);
+  auto ret = model.init (state_dict);
   if (ret != VK_SUCCESS)
     {
       fprintf (stderr, "failed at init model\n");

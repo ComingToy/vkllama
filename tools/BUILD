@@ -23,3 +23,15 @@ py_binary(
         }),
     
 )
+
+py_binary(
+    name='dump_torch_state_dict',
+    srcs=['dump_torch_state_dict.py'],
+    visibility = ["//visibility:public"],
+    deps = ["//models/proto:llama2_model_py_proto"] +
+        select({
+            '@platforms//os:macos': [macos_requirement('torch')],
+            '@platforms//os:linux': [requirement('torch')],
+        }),
+    
+)
