@@ -116,6 +116,8 @@ main (const int argc, const char *argv[])
     {
       for (const auto &var : variables->variables ())
         {
+          fprintf (stderr, "load variable %s from checkpoint\n",
+                   var.name ().c_str ());
           state_dict[var.name ()] = &var;
         }
     }
