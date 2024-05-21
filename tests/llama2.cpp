@@ -95,11 +95,9 @@ main (const int argc, const char *argv[])
       return static_cast<int> (status.code ());
     }
 
-  std::vector<int> prompt_;
-  sp.Encode (argv[3], &prompt_);
+  std::vector<int> prompt;
+  sp.Encode (std::string (argv[3]), &prompt);
   std::cerr << "input tokens: ";
-  std::vector<int> prompt = { 1 };
-  prompt.insert (prompt.end (), prompt_.begin (), prompt_.end ());
   for (auto t : prompt)
     {
       std::cerr << t << " ";
@@ -136,7 +134,7 @@ main (const int argc, const char *argv[])
       std::transform (
           prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
           [] (const int tok) { return static_cast<uint32_t> (tok); });
-      for (int i = 0; i < 10; ++i)
+      for (int i = 0; i < 20; ++i)
         {
           auto output = model (toks);
           if ((int)output.back () == sp.eos_id ())
@@ -156,13 +154,6 @@ main (const int argc, const char *argv[])
       sp.Decode (output, &content);
       std::cerr << "prompt: " << argv[3] << std::endl
                 << "output: " << content << std::endl;
-
-      std::cerr << "output toks: ";
-      for (auto tok : output)
-        {
-          std::cerr << tok << " ";
-        }
-      std::cerr << std::endl;
     }
 
   return 0;
