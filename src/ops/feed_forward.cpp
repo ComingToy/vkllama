@@ -60,14 +60,7 @@ FeedForward::time () noexcept
 VkResult
 FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
 {
-  t2_ = VkTensor (X.channels (), X.height (), w1_.width (), dev_,
-                  VkTensor::FP32, false);
-
   VkResult ret = VK_SUCCESS;
-  if ((ret = t2_.create ()) != VK_SUCCESS)
-    {
-      return ret;
-    }
 
   if ((ret = up_op_->operator() (X, t0_)) != VK_SUCCESS)
     {
@@ -84,13 +77,21 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
   t1_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t1_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
+  t2_ = VkTensor::like (t0_);
+
+  if ((ret = t2_.create ()) != VK_SUCCESS)
+    {
+      return ret;
+    }
+
   uint32_t groupx = (t2_.channels () * t2_.height () * t2_.width () + 15) / 16;
   if ((ret = pipeline3_->set_group (groupx, 1, 1)) != VK_SUCCESS)
     {
       return ret;
     }
 
-  Pipeline::ConstantType elems = { .i = static_cast<int> (t2_.size ()) };
+  Pipeline::ConstantType elems
+      = { .u32 = static_cast<uint32_t> (t2_.size ()) };
   command_->record_pipeline (*pipeline3_, { t0_, t1_, t2_ }, { elems });
   t2_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t2_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);

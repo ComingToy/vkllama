@@ -111,8 +111,10 @@ public:
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
         feedforward_params_.w3, true));
-    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1));
-    norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2));
+    norm_op_.reset (
+        new RMSNorm (gpu_, command_, rmsnorm_params_.weight1, 1e-6));
+    norm_op2_.reset (
+        new RMSNorm (gpu_, command_, rmsnorm_params_.weight2, 1e-6));
     add_op_.reset (new ElementWise (gpu_, command_, 0));
     add_op2_.reset (new ElementWise (gpu_, command_, 0));
 
@@ -213,7 +215,7 @@ public:
         return ret;
       }
 
-    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_));
+    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_, 1e-6));
     if ((ret = norm_op_->init ()) != VK_SUCCESS)
       {
         return ret;
@@ -570,7 +572,6 @@ public:
     VkTensor X = (*input_layer_) (vktoks);
 
     std::vector<float> emb_buf (X.size ());
-    command_->download (X, emb_buf.data (), emb_buf.size ());
 
     std::vector<VkTensor> tmps;
     tmps.push_back (X);
@@ -581,20 +582,11 @@ public:
         auto *block = blocks_[i];
         X = (*block) (X);
         tmps.push_back (X);
-        block_bufs[i].resize (X.size ());
-        command_->download (X, block_bufs[i].data (), block_bufs[i].size ());
       }
 
     VkTensor output = (*output_layer_) (X);
     std::vector<float> logits (output.size ());
     command_->download (output, logits.data (), logits.size ());
-#if 0
-    ret = output_command_->download (output, buf.data (), buf.size ());
-    if (ret != VK_SUCCESS)
-      {
-        throw std::runtime_error ("failed at downloadding outputs");
-      }
-#endif
 
     command_->end ();
     command_->submit ();

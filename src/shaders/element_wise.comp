@@ -18,7 +18,7 @@ main(void)
 {
     uint tid = gl_GlobalInvocationID.x;
 
-    if (tid > N) {
+    if (tid >= N) {
         return;
     }
 
