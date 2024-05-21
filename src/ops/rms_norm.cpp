@@ -3,11 +3,12 @@
 #include "src/core/pipeline.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
-RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight)
+RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
+                  const float eps_)
     : Op (dev, command), weight_ (weight)
 {
   Pipeline::ConstantType power = { .f = 2.0f };
-  Pipeline::ConstantType eps = { .f = 1e-3 };
+  Pipeline::ConstantType eps = { .f = eps_ };
   Pipeline::ShaderInfo info = { 2, 3, 3, 1, 32, 32 };
   pipeline_.reset (new Pipeline (dev_, __get_rms_norm_comp_spv_code (),
                                  __get_rms_norm_comp_spv_size (),

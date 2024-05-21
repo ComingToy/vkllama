@@ -18,7 +18,6 @@
 #include <memory>
 #include <numeric>
 #include <stdexcept>
-#include <unordered_map>
 #include <vector>
 
 class InputLayer
@@ -111,10 +110,8 @@ public:
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
         feedforward_params_.w3, true));
-    norm_op_.reset (
-        new RMSNorm (gpu_, command_, rmsnorm_params_.weight1, 1e-6));
-    norm_op2_.reset (
-        new RMSNorm (gpu_, command_, rmsnorm_params_.weight2, 1e-6));
+    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1));
+    norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2));
     add_op_.reset (new ElementWise (gpu_, command_, 0));
     add_op2_.reset (new ElementWise (gpu_, command_, 0));
 
@@ -215,7 +212,7 @@ public:
         return ret;
       }
 
-    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_, 1e-6));
+    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_));
     if ((ret = norm_op_->init ()) != VK_SUCCESS)
       {
         return ret;
@@ -239,6 +236,8 @@ public:
       {
         throw std::runtime_error ("failed at forwarding MatMul op");
       }
+
+    return matmul_output_;
 
     VkTensor out;
     if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
@@ -280,28 +279,35 @@ public:
   }
 
   VkResult
-  init (std::unordered_map<std::string, const llama2::Variable *> &variables)
+  init (GGUF &gguf)
   {
     gpu_ = new GPUDevice ();
     gpu_->init ();
     command_ = new Command (gpu_);
     command_->init ();
 
-    uint32_t head_count = 32;
-    uint32_t block_count = 26;
+    uint32_t head_count;
+    uint32_t head_count_kv;
+    uint32_t block_count;
+    if (gguf.get ("llama.attention.head_count", head_count) != 0
+        || gguf.get ("llama.attention.head_count_kv", head_count_kv) != 0
+        || gguf.get ("llama.block_count", block_count) != 0)
+      {
+        return VK_ERROR_UNKNOWN;
+      }
 
     command_->begin ();
     // input layer
     {
-      const auto *embeddings = variables["model.embed_tokens.weight"];
-      const auto *output_weight = variables["lm_head.weight"];
-      const auto *norm_weight = variables["model.norm.weight"];
+      const auto *embeddings = gguf.get_tensor ("token_embd.weight");
+      const auto *output_weight = gguf.get_tensor ("output.weight");
+      const auto *norm_weight = gguf.get_tensor ("output_norm.weight");
 
-      VkTensor vkembeddings (1, embeddings->shape (0), embeddings->shape (1),
-                             gpu_);
-      VkTensor vkoutput_weight (1, output_weight->shape (0),
-                                output_weight->shape (1), gpu_);
-      VkTensor vknorm_weight (1, 1, norm_weight->shape (0), gpu_);
+      VkTensor vkembeddings (1, embeddings->info->dims[1],
+                             embeddings->info->dims[0], gpu_);
+      VkTensor vkoutput_weight (1, output_weight->info->dims[1],
+                                output_weight->info->dims[0], gpu_);
+      VkTensor vknorm_weight (1, 1, norm_weight->info->dims[0], gpu_);
 
       VkResult ret = VK_SUCCESS;
       if ((ret = vkembeddings.create ()) != VK_SUCCESS
@@ -311,23 +317,25 @@ public:
           return ret;
         }
 
-      ret = command_->upload (embeddings->f32_values ().data (),
-                              embeddings->f32_values_size (), vkembeddings);
+      ret = command_->upload (
+          (const float *)embeddings->data,
+          embeddings->info->dims[0] * embeddings->info->dims[1], vkembeddings);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = command_->upload (output_weight->f32_values ().data (),
-                              output_weight->f32_values_size (),
+      ret = command_->upload ((const float *)output_weight->data,
+                              output_weight->info->dims[0]
+                                  * output_weight->info->dims[1],
                               vkoutput_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = command_->upload (norm_weight->f32_values ().data (),
-                              norm_weight->f32_values_size (), vknorm_weight);
+      ret = command_->upload ((const float *)norm_weight->data,
+                              norm_weight->info->dims[0], vknorm_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
@@ -335,6 +343,11 @@ public:
 
       {
         uint32_t UNK = 0;
+        if (gguf.get ("tokenizer.ggml.padding_token_id", UNK) != 0)
+          {
+            return VK_ERROR_UNKNOWN;
+          }
+
         input_layer_ = new InputLayer (gpu_, command_, vkembeddings, UNK);
       }
 
@@ -354,42 +367,32 @@ public:
       char vname[512];
       for (uint32_t b = 0; b < block_count; ++b)
         {
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.input_layernorm.weight", b);
-          auto const *attn_norm_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_norm.weight", b);
+          auto const *attn_norm_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.k_proj.weight", b);
-          auto attn_k_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_k.weight", b);
+          auto attn_k_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.q_proj.weight", b);
-          auto attn_q_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_q.weight", b);
+          auto attn_q_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.v_proj.weight", b);
-          auto attn_v_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_v.weight", b);
+          auto attn_v_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.o_proj.weight", b);
-          const auto *attn_output_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_output.weight", b);
+          const auto *attn_output_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.post_attention_layernorm.weight", b);
-          const auto *ffn_norm_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_norm.weight", b);
+          const auto *ffn_norm_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.up_proj.weight", b);
-          const auto *ffn_up_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_up.weight", b);
+          const auto *ffn_up_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.down_proj.weight", b);
-          const auto *ffn_down_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_down.weight", b);
+          const auto *ffn_down_weight = gguf.get_tensor (vname);
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.gate_proj.weight", b);
-
-          const auto *ffn_gate_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_gate.weight", b);
+          const auto *ffn_gate_weight = gguf.get_tensor (vname);
 
           if (!attn_norm_weight || !attn_k_weight || !attn_q_weight
               || !attn_v_weight || !attn_output_weight || !ffn_norm_weight
@@ -398,10 +401,11 @@ public:
               return VK_ERROR_UNKNOWN;
             }
 
-          VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight->shape (0),
+          VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight->info->dims[0],
                                         gpu_);
 
-          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight->shape (0), gpu_);
+          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight->info->dims[0],
+                                       gpu_);
 
           VkResult ret = VK_SUCCESS;
           if ((ret = vk_attn_norm_weight.create ()) != VK_SUCCESS
@@ -410,16 +414,16 @@ public:
               return ret;
             }
 
-          ret = command_->upload (attn_norm_weight->f32_values ().data (),
-                                  attn_norm_weight->f32_values_size (),
+          ret = command_->upload ((const float *)attn_norm_weight->data,
+                                  attn_norm_weight->info->dims[0],
                                   vk_attn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_norm_weight->f32_values ().data (),
-                                  ffn_norm_weight->f32_values_size (),
+          ret = command_->upload ((const float *)ffn_norm_weight->data,
+                                  ffn_norm_weight->info->dims[0],
                                   vk_ffn_norm_weight);
           if (ret != VK_SUCCESS)
             {
@@ -427,8 +431,8 @@ public:
             }
 
           std::vector<VkTensor> Wk, Wq, Wv;
-          size_t head_dim = attn_k_weight->shape (0) / head_count;
-          size_t input_dim = attn_k_weight->shape (1);
+          size_t head_dim = attn_k_weight->info->dims[0] / head_count;
+          size_t input_dim = attn_k_weight->info->dims[1];
           size_t head_weight_size = head_dim * input_dim;
 
           for (int h = 0; h < head_count; ++h)
@@ -445,14 +449,11 @@ public:
                 }
 
               const float *wk_weight_data
-                  = attn_k_weight->f32_values ().data ()
-                    + head_weight_size * h;
+                  = (const float *)attn_k_weight->data + head_weight_size * h;
               const float *wq_weight_data
-                  = attn_q_weight->f32_values ().data ()
-                    + head_weight_size * h;
+                  = (const float *)attn_q_weight->data + head_weight_size * h;
               const float *wv_weight_data
-                  = attn_v_weight->f32_values ().data ()
-                    + head_weight_size * h;
+                  = (const float *)attn_v_weight->data + head_weight_size * h;
 
               ret = command_->upload (wk_weight_data, head_weight_size, vkWk);
               if (ret != VK_SUCCESS)
@@ -477,27 +478,29 @@ public:
               Wv.push_back (vkWv);
             }
 
-          VkTensor Wo (1, attn_output_weight->shape (0),
-                       attn_output_weight->shape (1), gpu_);
+          VkTensor Wo (1, attn_output_weight->info->dims[1],
+                       attn_output_weight->info->dims[0], gpu_);
           if ((ret = Wo.create ()) != VK_SUCCESS)
             {
               return ret;
             }
-          ret = command_->upload (attn_output_weight->f32_values ().data (),
-                                  attn_output_weight->f32_values_size (), Wo);
+          ret = command_->upload ((const float *)attn_output_weight->data,
+                                  attn_output_weight->info->dims[0]
+                                      * attn_output_weight->info->dims[1],
+                                  Wo);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          VkTensor vkw1 (1, ffn_gate_weight->shape (0),
-                         ffn_gate_weight->shape (1), gpu_);
+          VkTensor vkw1 (1, ffn_gate_weight->info->dims[1],
+                         ffn_gate_weight->info->dims[0], gpu_);
 
-          VkTensor vkw2 (1, ffn_down_weight->shape (0),
-                         ffn_down_weight->shape (1), gpu_);
+          VkTensor vkw2 (1, ffn_down_weight->info->dims[1],
+                         ffn_down_weight->info->dims[0], gpu_);
 
-          VkTensor vkw3 (1, ffn_up_weight->shape (0), ffn_up_weight->shape (1),
-                         gpu_);
+          VkTensor vkw3 (1, ffn_up_weight->info->dims[1],
+                         ffn_up_weight->info->dims[0], gpu_);
           if ((ret = vkw1.create ()) != VK_SUCCESS
               || (ret = vkw2.create ()) != VK_SUCCESS
               || (ret = vkw3.create ()) != VK_SUCCESS)
@@ -505,22 +508,28 @@ public:
               return ret;
             }
 
-          ret = command_->upload (ffn_gate_weight->f32_values ().data (),
-                                  ffn_gate_weight->f32_values_size (), vkw1);
+          ret = command_->upload ((const float *)ffn_gate_weight->data,
+                                  ffn_gate_weight->info->dims[0]
+                                      * ffn_gate_weight->info->dims[1],
+                                  vkw1);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_down_weight->f32_values ().data (),
-                                  ffn_down_weight->f32_values_size (), vkw2);
+          ret = command_->upload ((const float *)ffn_down_weight->data,
+                                  ffn_down_weight->info->dims[0]
+                                      * ffn_down_weight->info->dims[1],
+                                  vkw2);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_up_weight->f32_values ().data (),
-                                  ffn_up_weight->f32_values_size (), vkw3);
+          ret = command_->upload ((const float *)ffn_up_weight->data,
+                                  ffn_up_weight->info->dims[0]
+                                      * ffn_up_weight->info->dims[1],
+                                  vkw3);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -570,6 +579,7 @@ public:
     VkTensor X = (*input_layer_) (vktoks);
 
     std::vector<float> emb_buf (X.size ());
+    command_->download (X, emb_buf.data (), emb_buf.size ());
 
     std::vector<VkTensor> tmps;
     tmps.push_back (X);
@@ -580,11 +590,20 @@ public:
         auto *block = blocks_[i];
         X = (*block) (X);
         tmps.push_back (X);
+        block_bufs[i].resize (X.size ());
+        command_->download (X, block_bufs[i].data (), block_bufs[i].size ());
       }
 
     VkTensor output = (*output_layer_) (X);
-    std::vector<uint32_t> buf (output.size ());
-    command_->download (output, buf.data (), buf.size ());
+    std::vector<float> logits (output.size ());
+    command_->download (output, logits.data (), logits.size ());
+#if 0
+    ret = output_command_->download (output, buf.data (), buf.size ());
+    if (ret != VK_SUCCESS)
+      {
+        throw std::runtime_error ("failed at downloadding outputs");
+      }
+#endif
 
     command_->end ();
     command_->submit ();
@@ -592,6 +611,26 @@ public:
     auto t1 = std::chrono::high_resolution_clock::now ();
     command_->wait ();
 
+    size_t dim = logits.size () / toks.size ();
+    std::vector<uint32_t> buf;
+    for (int h = 0; h < toks.size (); ++h)
+      {
+        int i = 0;
+        float v = logits[h * dim];
+        float sum = .0;
+        for (int w = 0; w < dim; ++w)
+          {
+            sum += logits[h * dim + w];
+            if (logits[h * dim + w] > v)
+              {
+                i = w;
+                v = logits[h * dim + w];
+              }
+          }
+        fprintf (stderr, "mean of %d logits: %f, argmax = %d\n", h,
+                 sum / (float)dim, i);
+        buf.push_back (i);
+      }
 #ifdef __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
     auto record_cost
