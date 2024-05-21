@@ -240,8 +240,6 @@ public:
         throw std::runtime_error ("failed at forwarding MatMul op");
       }
 
-    return matmul_output_;
-
     VkTensor out;
     if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
       {
@@ -585,8 +583,8 @@ public:
       }
 
     VkTensor output = (*output_layer_) (X);
-    std::vector<float> logits (output.size ());
-    command_->download (output, logits.data (), logits.size ());
+    std::vector<uint32_t> buf (output.size ());
+    command_->download (output, buf.data (), buf.size ());
 
     command_->end ();
     command_->submit ();
@@ -594,26 +592,6 @@ public:
     auto t1 = std::chrono::high_resolution_clock::now ();
     command_->wait ();
 
-    size_t dim = logits.size () / toks.size ();
-    std::vector<uint32_t> buf;
-    for (int h = 0; h < toks.size (); ++h)
-      {
-        int i = 0;
-        float v = logits[h * dim];
-        float sum = .0;
-        for (int w = 0; w < dim; ++w)
-          {
-            sum += logits[h * dim + w];
-            if (logits[h * dim + w] > v)
-              {
-                i = w;
-                v = logits[h * dim + w];
-              }
-          }
-        fprintf (stderr, "mean of %d logits: %f, argmax = %d\n", h,
-                 sum / (float)dim, i);
-        buf.push_back (i);
-      }
 #ifdef __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
     auto record_cost
