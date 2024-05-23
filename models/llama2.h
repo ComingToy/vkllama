@@ -264,7 +264,10 @@ private:
 class Model
 {
 public:
-  Model () : gpu_ (nullptr), command_ (nullptr) {}
+  Model ()
+      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr)
+  {
+  }
 
   ~Model ()
   {
@@ -275,7 +278,12 @@ public:
         delete block;
       }
 
-    delete command_;
+    delete input_command_;
+    delete output_command_;
+    for (auto c : block_commands_)
+      {
+        delete c;
+      }
     delete gpu_;
   }
 
@@ -283,14 +291,25 @@ public:
   init (std::unordered_map<std::string, const llama2::Variable *> &variables)
   {
     gpu_ = new GPUDevice ();
-    gpu_->init ();
-    command_ = new Command (gpu_);
-    command_->init ();
+    auto ret = gpu_->init ();
+    if (ret != VK_SUCCESS)
+      {
+        return ret;
+      }
+
+    input_command_ = new Command (gpu_);
+    output_command_ = new Command (gpu_);
+    if ((ret = input_command_->init ()) != VK_SUCCESS
+        || (ret = output_command_->init ()) != VK_SUCCESS)
+      {
+        return ret;
+      }
 
     uint32_t head_count = 32;
     uint32_t block_count = 26;
 
-    command_->begin ();
+    input_command_->begin ();
+    output_command_->begin ();
     // input layer
     {
       const auto *embeddings = variables["model.embed_tokens.weight"];
@@ -311,23 +330,25 @@ public:
           return ret;
         }
 
-      ret = command_->upload (embeddings->f32_values ().data (),
-                              embeddings->f32_values_size (), vkembeddings);
+      ret = input_command_->upload (embeddings->f32_values ().data (),
+                                    embeddings->f32_values_size (),
+                                    vkembeddings);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = command_->upload (output_weight->f32_values ().data (),
-                              output_weight->f32_values_size (),
-                              vkoutput_weight);
+      ret = output_command_->upload (output_weight->f32_values ().data (),
+                                     output_weight->f32_values_size (),
+                                     vkoutput_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = command_->upload (norm_weight->f32_values ().data (),
-                              norm_weight->f32_values_size (), vknorm_weight);
+      ret = input_command_->upload (norm_weight->f32_values ().data (),
+                                    norm_weight->f32_values_size (),
+                                    vknorm_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
@@ -335,17 +356,22 @@ public:
 
       {
         uint32_t UNK = 0;
-        input_layer_ = new InputLayer (gpu_, command_, vkembeddings, UNK);
+        input_layer_
+            = new InputLayer (gpu_, input_command_, vkembeddings, UNK);
       }
 
-      output_layer_
-          = new OutputLayer (gpu_, command_, vkoutput_weight, vknorm_weight);
+      output_layer_ = new OutputLayer (gpu_, output_command_, vkoutput_weight,
+                                       vknorm_weight);
 
       if ((ret = input_layer_->init ()) != VK_SUCCESS
           || (ret = output_layer_->init ()) != VK_SUCCESS)
         {
           return ret;
         }
+      input_command_->end ();
+      output_command_->end ();
+      input_command_->submit ();
+      output_command_->submit ();
     }
 
     // blocks
@@ -354,6 +380,7 @@ public:
       char vname[512];
       for (uint32_t b = 0; b < block_count; ++b)
         {
+
           ::snprintf (vname, sizeof (vname),
                       "model.layers.%u.input_layernorm.weight", b);
           auto const *attn_norm_weight = variables[vname];
@@ -398,6 +425,14 @@ public:
               return VK_ERROR_UNKNOWN;
             }
 
+          auto command = new Command (gpu_);
+          if ((ret = command->init ()) != VK_SUCCESS
+              || (ret = command->begin ()) != VK_SUCCESS)
+            {
+              return ret;
+            }
+          block_commands_.push_back (command);
+
           VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight->shape (0),
                                         gpu_);
 
@@ -410,17 +445,17 @@ public:
               return ret;
             }
 
-          ret = command_->upload (attn_norm_weight->f32_values ().data (),
-                                  attn_norm_weight->f32_values_size (),
-                                  vk_attn_norm_weight);
+          ret = command->upload (attn_norm_weight->f32_values ().data (),
+                                 attn_norm_weight->f32_values_size (),
+                                 vk_attn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_norm_weight->f32_values ().data (),
-                                  ffn_norm_weight->f32_values_size (),
-                                  vk_ffn_norm_weight);
+          ret = command->upload (ffn_norm_weight->f32_values ().data (),
+                                 ffn_norm_weight->f32_values_size (),
+                                 vk_ffn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -454,19 +489,19 @@ public:
                   = attn_v_weight->f32_values ().data ()
                     + head_weight_size * h;
 
-              ret = command_->upload (wk_weight_data, head_weight_size, vkWk);
+              ret = command->upload (wk_weight_data, head_weight_size, vkWk);
               if (ret != VK_SUCCESS)
                 {
                   return ret;
                 }
 
-              ret = command_->upload (wq_weight_data, head_weight_size, vkWq);
+              ret = command->upload (wq_weight_data, head_weight_size, vkWq);
               if (ret != VK_SUCCESS)
                 {
                   return ret;
                 }
 
-              ret = command_->upload (wv_weight_data, head_weight_size, vkWv);
+              ret = command->upload (wv_weight_data, head_weight_size, vkWv);
               if (ret != VK_SUCCESS)
                 {
                   return ret;
@@ -483,8 +518,8 @@ public:
             {
               return ret;
             }
-          ret = command_->upload (attn_output_weight->f32_values ().data (),
-                                  attn_output_weight->f32_values_size (), Wo);
+          ret = command->upload (attn_output_weight->f32_values ().data (),
+                                 attn_output_weight->f32_values_size (), Wo);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -505,22 +540,22 @@ public:
               return ret;
             }
 
-          ret = command_->upload (ffn_gate_weight->f32_values ().data (),
-                                  ffn_gate_weight->f32_values_size (), vkw1);
+          ret = command->upload (ffn_gate_weight->f32_values ().data (),
+                                 ffn_gate_weight->f32_values_size (), vkw1);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_down_weight->f32_values ().data (),
-                                  ffn_down_weight->f32_values_size (), vkw2);
+          ret = command->upload (ffn_down_weight->f32_values ().data (),
+                                 ffn_down_weight->f32_values_size (), vkw2);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command_->upload (ffn_up_weight->f32_values ().data (),
-                                  ffn_up_weight->f32_values_size (), vkw3);
+          ret = command->upload (ffn_up_weight->f32_values ().data (),
+                                 ffn_up_weight->f32_values_size (), vkw3);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -533,7 +568,7 @@ public:
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 
-          auto *block = new Llama2Block (gpu_, command_, transformer_params,
+          auto *block = new Llama2Block (gpu_, command, transformer_params,
                                          feedfward_params, rmsnorm_params);
 
           if ((ret = block->init ()) != VK_SUCCESS)
@@ -542,12 +577,18 @@ public:
             }
 
           blocks_.push_back (block);
+          command->end ();
+          command->submit ();
         }
     }
 
-    command_->end ();
-    command_->submit ();
-    command_->wait ();
+    input_command_->wait ();
+    output_command_->wait ();
+    for (auto c : block_commands_)
+      {
+        c->wait ();
+      }
+
     return VK_SUCCESS;
   }
 
@@ -555,42 +596,49 @@ public:
   operator() (std::vector<uint32_t> const &toks)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
-    command_->begin ();
-    VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32);
+    VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32, true);
     if (vktoks.create () != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at creating vktoks");
       }
-    auto ret = command_->upload (toks.data (), toks.size (), vktoks);
-    if (ret != VK_SUCCESS)
-      {
-        throw std::runtime_error ("failed at uploading toks");
-      }
 
+    memcpy (vktoks.host (), toks.data (), sizeof (uint32_t) * toks.size ());
+    vktoks.flush ();
+
+    input_command_->begin ();
     VkTensor X = (*input_layer_) (vktoks);
-
-    std::vector<float> emb_buf (X.size ());
+    input_command_->end ();
+    input_command_->submit ();
 
     std::vector<VkTensor> tmps;
     tmps.push_back (X);
 
-    std::vector<std::vector<float> > block_bufs (blocks_.size ());
     for (int i = 0; i < blocks_.size (); ++i)
       {
+        auto *command = block_commands_[i];
+        command->begin ();
         auto *block = blocks_[i];
         X = (*block) (X);
         tmps.push_back (X);
+        command->end ();
+        command->submit ();
       }
 
+    output_command_->begin ();
     VkTensor output = (*output_layer_) (X);
     std::vector<uint32_t> buf (output.size ());
-    command_->download (output, buf.data (), buf.size ());
+    output_command_->download (output, buf.data (), buf.size ());
 
-    command_->end ();
-    command_->submit ();
+    output_command_->end ();
+    output_command_->submit ();
 
     auto t1 = std::chrono::high_resolution_clock::now ();
-    command_->wait ();
+    input_command_->wait ();
+    for (auto *c : block_commands_)
+      {
+        c->wait ();
+      }
+    output_command_->wait ();
 
 #ifdef __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
@@ -615,10 +663,9 @@ public:
 
 private:
   GPUDevice *gpu_;
-  // Command *input_command_;
-  // std::vector<Command *> block_commands_;
-  // Command *output_command_;
-  Command *command_;
+  Command *input_command_;
+  std::vector<Command *> block_commands_;
+  Command *output_command_;
   InputLayer *input_layer_;
   OutputLayer *output_layer_;
   std::vector<Llama2Block *> blocks_;
