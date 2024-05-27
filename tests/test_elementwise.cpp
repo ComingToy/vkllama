@@ -2,6 +2,7 @@
 #include "core/command.h"
 #include "core/float.h"
 #include "core/gpu_device.h"
+#include "ops/cast.h"
 #include "ops/elementwise.h"
 #include "tests/test_common.h"
 #include "gtest/gtest.h"
@@ -54,32 +55,19 @@ TEST_P (TestElementwise, test_elementwise)
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   float alpha = random_number (-2.0f, 2.0f);
 
-  VkTensor input0_fp16 (input0->first.channels (), input0->first.height (),
-                        input0->first.width (), gpu_, VkTensor::FP16, true);
-
-  VkTensor input1_fp16 (input1->first.channels (), input1->first.height (),
-                        input1->first.width (), gpu_, VkTensor::FP16, true);
-
-  ASSERT_EQ (input0_fp16.create (), VK_SUCCESS)
-      << "failed at create fp16 input";
-
-  ASSERT_EQ (input1_fp16.create (), VK_SUCCESS)
-      << "failed at create fp16 input";
-
-  auto *input0_buf = (__vkllama_fp16_t *)input0_fp16.host ();
-  auto *input1_buf = (__vkllama_fp16_t *)input1_fp16.host ();
+  VkTensor input0_fp16;
+  VkTensor input1_fp16;
+  Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  ASSERT_EQ (cast_input_op0.init (), VK_SUCCESS);
+  ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
+  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
 
   if (params.dtype == 1)
     {
-
-      for (size_t i = 0; i < input0->second.size (); ++i)
-        {
-          input0_buf[i].u16 = __fp32_to_fp16 (input0->second[i]);
-          input1_buf[i].u16 = __fp32_to_fp16 (input1->second[i]);
-        }
-
-      input0_fp16.flush ();
-      input1_fp16.flush ();
+      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16), VK_SUCCESS);
     }
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
@@ -89,7 +77,7 @@ TEST_P (TestElementwise, test_elementwise)
       << "failed at init elementwise op";
 
   VkTensor out;
-  std::vector<float> output_buf;
+  VkTensor out_fp16;
   if (params.dtype == 0)
     {
       if (params.constant_b)
@@ -101,48 +89,31 @@ TEST_P (TestElementwise, test_elementwise)
           ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
                      VK_SUCCESS);
         }
-      output_buf.resize (out.size ());
-
-      ASSERT_EQ (
-          command_->download (out, output_buf.data (), output_buf.size ()),
-          VK_SUCCESS)
-          << "failed at download output tensor";
-
-      ASSERT_EQ (command_->end (), VK_SUCCESS)
-          << "failed at edndding commands";
-      ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
-          << "failed at submiting commands";
     }
   else
     {
       if (params.constant_b)
         {
-          ASSERT_EQ (elementwise_op (input0_fp16, alpha, out), VK_SUCCESS);
+          ASSERT_EQ (elementwise_op (input0_fp16, alpha, out_fp16),
+                     VK_SUCCESS);
         }
       else
         {
-          ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out),
+          ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out_fp16),
                      VK_SUCCESS);
         }
 
-      std::vector<__vkllama_fp16_t> output_buf_fp16 (out.size ());
-      ASSERT_EQ (command_->download (out, output_buf_fp16.data (),
-                                     output_buf_fp16.size ()),
-                 VK_SUCCESS)
-          << "failed at download output tensor";
-      ASSERT_EQ (command_->end (), VK_SUCCESS)
-          << "failed at edndding commands";
-      ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
-          << "failed at submiting commands";
-
-      std::vector<float> output_buf_fp32 (output_buf_fp16.size ());
-
-      for (size_t i = 0; i < output_buf_fp16.size (); ++i)
-        {
-          output_buf_fp32[i] = __fp16_to_fp32 (output_buf_fp16[i].u16);
-        }
-      output_buf.swap (output_buf_fp32);
+      ASSERT_EQ (cast_output_op (out_fp16, out), VK_SUCCESS);
     }
+
+  std::vector<float> output_buf (out.size ());
+  ASSERT_EQ (command_->download (out, output_buf.data (), output_buf.size ()),
+             VK_SUCCESS)
+      << "failed at download output tensor";
+
+  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at edndding commands";
+  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+      << "failed at submiting commands";
 
   Tensor<3> vk_output_tensor
       = TensorMap<3> (output_buf.data (), (Eigen::Index)out.channels (),

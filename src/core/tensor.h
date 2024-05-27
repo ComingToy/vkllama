@@ -11,9 +11,9 @@
 class VkTensor
 {
 public:
-  typedef enum
+  typedef enum : int
   {
-    FP32,
+    FP32 = 0,
     FP16,
     UINT32
   } DType;
