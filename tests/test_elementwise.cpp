@@ -1,9 +1,11 @@
 #include "Eigen/Eigen"
 #include "core/command.h"
+#include "core/float.h"
 #include "core/gpu_device.h"
 #include "ops/elementwise.h"
 #include "tests/test_common.h"
 #include "gtest/gtest.h"
+#include <cstdio>
 #include <vector>
 
 namespace
@@ -15,6 +17,7 @@ struct TestElementwiseParams
   const int W;
   const int op_type;
   const bool constant_b;
+  const int dtype; // 0: fp32, 1: fp16
 };
 
 class TestElementwise : public ::testing::TestWithParam<TestElementwiseParams>
@@ -51,28 +54,95 @@ TEST_P (TestElementwise, test_elementwise)
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   float alpha = random_number (-2.0f, 2.0f);
 
-  ElementWise elementwise_op (gpu_, command_, params.op_type);
+  VkTensor input0_fp16 (input0->first.channels (), input0->first.height (),
+                        input0->first.width (), gpu_, VkTensor::FP16, true);
+
+  VkTensor input1_fp16 (input1->first.channels (), input1->first.height (),
+                        input1->first.width (), gpu_, VkTensor::FP16, true);
+
+  ASSERT_EQ (input0_fp16.create (), VK_SUCCESS)
+      << "failed at create fp16 input";
+
+  ASSERT_EQ (input1_fp16.create (), VK_SUCCESS)
+      << "failed at create fp16 input";
+
+  auto *input0_buf = (__vkllama_fp16_t *)input0_fp16.host ();
+  auto *input1_buf = (__vkllama_fp16_t *)input1_fp16.host ();
+
+  if (params.dtype == 1)
+    {
+
+      for (size_t i = 0; i < input0->second.size (); ++i)
+        {
+          input0_buf[i].u16 = __fp32_to_fp16 (input0->second[i]);
+          input1_buf[i].u16 = __fp32_to_fp16 (input1->second[i]);
+        }
+
+      input0_fp16.flush ();
+      input1_fp16.flush ();
+    }
+
+  ElementWise elementwise_op (gpu_, command_, params.op_type,
+                              params.dtype == 0 ? VkTensor::FP32
+                                                : VkTensor::FP16);
   ASSERT_EQ (elementwise_op.init (), VK_SUCCESS)
       << "failed at init elementwise op";
 
   VkTensor out;
-  if (params.constant_b)
+  std::vector<float> output_buf;
+  if (params.dtype == 0)
     {
-      ASSERT_EQ (elementwise_op (input0->first, alpha, out), VK_SUCCESS);
+      if (params.constant_b)
+        {
+          ASSERT_EQ (elementwise_op (input0->first, alpha, out), VK_SUCCESS);
+        }
+      else
+        {
+          ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
+                     VK_SUCCESS);
+        }
+      output_buf.resize (out.size ());
+
+      ASSERT_EQ (
+          command_->download (out, output_buf.data (), output_buf.size ()),
+          VK_SUCCESS)
+          << "failed at download output tensor";
+
+      ASSERT_EQ (command_->end (), VK_SUCCESS)
+          << "failed at edndding commands";
+      ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+          << "failed at submiting commands";
     }
   else
     {
-      ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
-                 VK_SUCCESS);
-    }
+      if (params.constant_b)
+        {
+          ASSERT_EQ (elementwise_op (input0_fp16, alpha, out), VK_SUCCESS);
+        }
+      else
+        {
+          ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out),
+                     VK_SUCCESS);
+        }
 
-  std::vector<float> output_buf (out.size ());
-  ASSERT_EQ (command_->download (out, output_buf.data (), output_buf.size ()),
-             VK_SUCCESS)
-      << "failed at download output tensor";
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at edndding commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
-      << "failed at submiting commands";
+      std::vector<__vkllama_fp16_t> output_buf_fp16 (out.size ());
+      ASSERT_EQ (command_->download (out, output_buf_fp16.data (),
+                                     output_buf_fp16.size ()),
+                 VK_SUCCESS)
+          << "failed at download output tensor";
+      ASSERT_EQ (command_->end (), VK_SUCCESS)
+          << "failed at edndding commands";
+      ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+          << "failed at submiting commands";
+
+      std::vector<float> output_buf_fp32 (output_buf_fp16.size ());
+
+      for (size_t i = 0; i < output_buf_fp16.size (); ++i)
+        {
+          output_buf_fp32[i] = __fp16_to_fp32 (output_buf_fp16[i].u16);
+        }
+      output_buf.swap (output_buf_fp32);
+    }
 
   Tensor<3> vk_output_tensor
       = TensorMap<3> (output_buf.data (), (Eigen::Index)out.channels (),
@@ -133,14 +203,49 @@ TEST_P (TestElementwise, test_elementwise)
         }
     }
 
-  Tensor<0> mse = (output_tensor - vk_output_tensor).pow (2.0f).mean ();
-  ASSERT_LT (*mse.data (), 1e-4);
+  Tensor<3> err (vk_output_tensor.dimensions ());
+
+  auto delta = params.dtype ? 1e-2 : 1e-3;
+#if 0
+  for (size_t i = 0; i < vk_output_tensor.size (); ++i)
+    {
+      auto e = fabs (output_tensor (i) - vk_output_tensor (i));
+      if (e < delta)
+        {
+          continue;
+        }
+
+      fprintf (
+          stderr,
+          "index %zu inpu0 = %f, input1 = %f, lhs = %f, rhs = %f, err = %f\n",
+          i, input0->second[i], params.constant_b ? alpha : input1->second[i],
+          output_tensor (i), vk_output_tensor (i), e);
+    }
+#endif
+
+  err.setConstant (delta);
+  _Tensor<int, 0> diff
+      = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
+
+  ASSERT_EQ (*diff.data (), 0);
 }
 
+#if 1
 std::vector<TestElementwiseParams> params
-    = { { 3, 1023, 512, 0, 0 }, { 3, 1023, 511, 1, 0 }, { 3, 1023, 511, 2, 0 },
-        { 3, 1023, 511, 3, 0 }, { 3, 1023, 511, 0, 1 }, { 3, 1023, 511, 1, 1 },
-        { 3, 1023, 511, 2, 1 }, { 3, 1023, 511, 3, 1 } };
+    = { { 3, 1023, 512, 0, 0, 0 }, { 3, 1023, 511, 1, 0, 0 },
+        { 3, 1023, 511, 2, 0, 0 }, { 3, 1023, 511, 3, 0, 0 },
+        { 3, 1023, 511, 0, 1, 0 }, { 3, 1023, 511, 1, 1, 0 },
+        { 3, 1023, 511, 2, 1, 0 }, { 3, 1023, 511, 3, 1, 0 },
+
+        { 3, 1023, 512, 0, 0, 1 }, { 3, 1023, 511, 1, 0, 1 },
+        { 3, 1023, 511, 2, 0, 1 }, { 3, 1023, 511, 3, 0, 1 },
+        { 3, 1023, 511, 0, 1, 1 }, { 3, 1023, 511, 1, 1, 1 },
+        { 3, 1023, 511, 2, 1, 1 }, { 3, 1023, 511, 3, 1, 1 } };
+#else
+
+std::vector<TestElementwiseParams> params
+    = { { 3, 1023, 511, 0, 1, 1 }, { 3, 1023, 511, 1, 1, 1 } };
+#endif
 
 INSTANTIATE_TEST_SUITE_P (test_elementwise, TestElementwise,
                           testing::ValuesIn (params));

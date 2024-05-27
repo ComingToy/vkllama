@@ -2,6 +2,7 @@
 #define __VKLLAMA_TENSOR__
 
 #include "gpu_device.h"
+#include "src/core/float.h"
 #include <atomic>
 #include <set>
 #include <type_traits>
@@ -13,6 +14,7 @@ public:
   typedef enum
   {
     FP32,
+    FP16,
     UINT32
   } DType;
 
@@ -21,6 +23,10 @@ public:
     if (std::is_same<T, float>::value)
       {
         return FP32;
+      }
+    else if (std::is_same<T, __vkllama_fp16_t>::value)
+      {
+        return FP16;
       }
     else
       {
@@ -64,7 +70,6 @@ private:
   int c_;
   int h_;
   int w_;
-  size_t bytes_;
 
   GPUDevice *dev_;
   bool visable_;

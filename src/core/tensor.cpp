@@ -75,6 +75,10 @@ VkTensor::elem_bytes () const
     {
       return sizeof (uint32_t);
     }
+  else if (dtype_ == FP16)
+    {
+      return sizeof (uint16_t);
+    }
   else
     {
       return 0;
