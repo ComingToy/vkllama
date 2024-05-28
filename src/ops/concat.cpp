@@ -9,8 +9,9 @@
 #include <memory>
 #include <vector>
 
-Concat::Concat (GPUDevice *gpu, Command *command, const int num)
-    : Op (gpu, command), num_ (num)
+Concat::Concat (GPUDevice *gpu, Command *command, const int num,
+                VkTensor::DType const dtype)
+    : Op (gpu, command), num_ (num), dtype_ (dtype)
 {
 }
 
@@ -22,9 +23,17 @@ Concat::init () noexcept
     {
       Pipeline::ShaderInfo info = { 0, 2, 5, 16, 16, 1 };
       std::vector<Pipeline::ConstantType> specs;
-      auto pipeline = std::make_unique<Pipeline> (
-          dev_, __get_concat_axis2_comp_spv_code (),
-          __get_concat_axis2_comp_spv_size (), specs, info);
+
+      const auto *spv_code = dtype_ == VkTensor::FP32
+                                 ? __get_concat_axis2_comp_spv_code ()
+                                 : __get_concat_axis2_fp16_comp_spv_code ();
+
+      const auto spv_size = dtype_ == VkTensor::FP32
+                                ? __get_concat_axis2_comp_spv_size ()
+                                : __get_concat_axis2_fp16_comp_spv_size ();
+
+      auto pipeline
+          = std::make_unique<Pipeline> (dev_, spv_code, spv_size, specs, info);
 
       auto ret = pipeline->init ();
       if (ret != VK_SUCCESS)
@@ -47,6 +56,12 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
       return VK_ERROR_UNKNOWN;
     }
 
+  if (std::any_of (inputs.cbegin (), inputs.end (),
+                   [this] (auto const &t) { return t.dtype () != dtype_; }))
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   auto const &ref = inputs[0];
   size_t w = 0;
   for (auto &inp : inputs)
@@ -59,7 +74,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
       w += inp.width ();
     }
 
-  output = VkTensor (ref.channels (), ref.height (), w, dev_);
+  output = VkTensor (ref.channels (), ref.height (), w, dev_, dtype_);
   auto ret = output.create ();
   if (ret != VK_SUCCESS)
     {
