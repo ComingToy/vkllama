@@ -10,16 +10,28 @@
 template <int op_type> class ArgOp : public Op
 {
 public:
-  ArgOp (GPUDevice *gpu, Command *command) : Op (gpu, command) {}
+  ArgOp (GPUDevice *gpu, Command *command,
+         const VkTensor::DType dtype = VkTensor::FP32)
+      : Op (gpu, command), dtype_ (dtype)
+  {
+  }
+
   VkResult
   init () noexcept override
   {
     Pipeline::ShaderInfo info0 = { 1, 2, 3, 32, 4, 1 };
     Pipeline::ShaderInfo info1 = { 1, 2, 3, 1, 128, 1 };
 
-    pipeline0_.reset (new Pipeline (dev_, __get_argmax_stage0_comp_spv_code (),
-                                    __get_argmax_stage0_comp_spv_size (),
+    const auto *spv_code0 = dtype_ == VkTensor::FP32
+                                ? __get_argmax_stage0_comp_spv_code ()
+                                : __get_argmax_stage0_fp16_comp_spv_code ();
+    auto spv_size0 = dtype_ == VkTensor::FP32
+                         ? __get_argmax_stage0_comp_spv_size ()
+                         : __get_argmax_stage0_fp16_comp_spv_size ();
+
+    pipeline0_.reset (new Pipeline (dev_, spv_code0, spv_size0,
                                     { { .i = op_type } }, info0));
+
     pipeline1_.reset (new Pipeline (dev_, __get_argmax_stage1_comp_spv_code (),
                                     __get_argmax_stage1_comp_spv_size (),
                                     { { .i = op_type } }, info1));
@@ -36,6 +48,11 @@ public:
   VkResult
   operator() (VkTensor in, VkTensor &out) noexcept
   {
+    if (in.dtype () != dtype_)
+      {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      }
+
     out = VkTensor (in.channels (), in.height (), 1, dev_, VkTensor::UINT32);
     auto ret = out.create ();
     if (ret != VK_SUCCESS)
@@ -108,6 +125,7 @@ private:
   std::unique_ptr<Pipeline> pipeline0_;
   std::unique_ptr<Pipeline> pipeline1_;
   VkTensor stage0_output_;
+  VkTensor::DType dtype_;
 };
 
 using ArgMax = ArgOp<0>;

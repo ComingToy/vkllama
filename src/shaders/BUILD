@@ -24,6 +24,9 @@ glsl_shader(
         "embedding.comp",
         "argmax_stage0.comp",
         "argmax_stage1.comp",
+        "argmax_stage0_fp16.comp",
+        "cast_fp32_to_fp16.comp",
+        "cast_fp16_to_fp32.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]

@@ -21,7 +21,7 @@ Cast::init () noexcept
   else if (from_ == VkTensor::FP16 && to_ == VkTensor::FP32)
     {
       spv_code = __get_cast_fp16_to_fp32_comp_spv_code ();
-      spv_size = __get_cast_fp32_to_fp16_comp_spv_size ();
+      spv_size = __get_cast_fp16_to_fp32_comp_spv_size ();
     }
   else
     {
