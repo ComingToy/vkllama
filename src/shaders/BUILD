@@ -23,6 +23,7 @@ glsl_shader(
         "concat_axis2.comp",
         "concat_axis2_fp16.comp",
         "embedding.comp",
+        "embedding_fp16.comp",
         "argmax_stage0.comp",
         "argmax_stage1.comp",
         "argmax_stage0_fp16.comp",
