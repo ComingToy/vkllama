@@ -6,6 +6,7 @@ glsl_shader(
     shaders = [
         "vec_mul_add.comp", 
         "rms_norm.comp",
+        "rms_norm_fp16.comp",
         "element_wise.comp",
         "element_wise_fp16.comp",
         "element_wise_constant.comp",
