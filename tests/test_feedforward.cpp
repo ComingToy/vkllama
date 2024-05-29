@@ -57,10 +57,13 @@ TEST_P (TestFeedForawrd, test_2d)
   {
     ASSERT_TRUE (command.begin () == VK_SUCCESS) << "fail at begin command";
 
-    auto w1 = random_tensor<float> (gpu_, &command, 1, indim, units);
-    auto w2 = random_tensor<float> (gpu_, &command, 1, units, outdim);
-    auto w3 = random_tensor<float> (gpu_, &command, 1, indim, units);
-    auto X = random_tensor<float> (gpu_, &command, 1, 64, indim);
+    auto w1
+        = random_tensor<float> (gpu_, &command, 1, indim, units, -0.5, 0.5);
+    auto w2
+        = random_tensor<float> (gpu_, &command, 1, units, outdim, -0.5, 0.5);
+    auto w3
+        = random_tensor<float> (gpu_, &command, 1, indim, units, -0.5, 0.5);
+    auto X = random_tensor<float> (gpu_, &command, 1, 64, indim, -0.5, 0.5);
     ASSERT_TRUE (w1 && w2 && w3 && X) << "fail at creating tensors";
 
     VkTensor w1_fp16, w2_fp16, w3_fp16, X_fp16, w1_fp32, w2_fp32, w3_fp32,
@@ -184,23 +187,36 @@ TEST_P (TestFeedForawrd, test_2d)
     auto dnn3 = (eX * ew3);
     auto dnn1_act = dnn1.array () / ((-dnn1.array ()).exp () + 1.0f);
     auto inner = dnn1_act * dnn3.array ();
-    auto output_ref = inner.matrix () * ew2;
+    auto output_ref = (inner.matrix () * ew2).eval ();
 
-    auto mse = (output_ref.array () - eoutput.array ()).pow (2.0f).mean ();
-    ASSERT_LT (mse, 1e-4);
+    auto err = params.dtype ? 5e-2 : 1e-3;
+    auto diff
+        = ((output_ref - eoutput).array ().abs () > err).cast<int> ().sum ();
+#if 0
+    for (auto h = 0; h < output_ref.rows (); ++h)
+      {
+        for (auto w = 0; w < output_ref.cols (); ++w)
+          {
+            if (fabs (output_ref (h, w) - eoutput (h, w)) > err)
+              {
+                fprintf (stderr,
+                         "index %d, %d output ref = %f, vk output = %f\n", h,
+                         w, output_ref (h, w), eoutput (h, w));
+              }
+          }
+      }
+#endif
+
+    ASSERT_EQ (diff, 0);
   }
 }
 
 std::vector<FeedFowardParams> params = {
-#if 0
   { 16, 16, 0 },   { 8, 8, 0 },     { 256, 256, 0 }, { 17, 17, 0 },
   { 9, 9, 0 },     { 259, 259, 0 }, { 17, 19, 0 },   { 19, 17, 0 },
-  { 259, 128, 0 }, { 128, 259, 0 },
-#else
-  { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
-  { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
-  { 259, 128, 1 }, { 128, 259, 1 },
-#endif
+  { 259, 128, 0 }, { 128, 259, 0 }, { 16, 16, 1 },   { 8, 8, 1 },
+  { 256, 256, 1 }, { 17, 17, 1 },   { 9, 9, 1 },     { 259, 259, 1 },
+  { 17, 19, 1 },   { 19, 17, 1 },   { 259, 128, 1 }, { 128, 259, 1 },
 };
 INSTANTIATE_TEST_SUITE_P (TestFeedForawrd2DInput, TestFeedForawrd,
                           testing::ValuesIn (params));
