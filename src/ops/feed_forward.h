@@ -12,7 +12,8 @@ class FeedForward : public Op
 {
 public:
   FeedForward (GPUDevice *, Command *, VkTensor, VkTensor, VkTensor,
-               const bool transposed_weight = false);
+               const bool transposed_weight = false,
+               const VkTensor::DType dtype = VkTensor::FP32);
   VkResult operator() (VkTensor X, VkTensor &output) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
@@ -29,6 +30,7 @@ private:
   std::unique_ptr<MatMul> down_op_;
   std::unique_ptr<MatMul> gate_op_;
   std::unique_ptr<Pipeline> pipeline3_;
+  VkTensor::DType dtype_;
 
   bool transposed_weight_;
 };

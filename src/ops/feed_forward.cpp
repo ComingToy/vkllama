@@ -8,14 +8,18 @@
 
 FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
                           VkTensor w2, VkTensor w3,
-                          const bool transposed_weight)
-    : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3),
+                          const bool transposed_weight,
+                          const VkTensor::DType dtype)
+    : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
 {
 
-  gate_op_.reset (new MatMul (dev_, command_, w1_, 1, 0, transposed_weight_));
-  down_op_.reset (new MatMul (dev_, command_, w2_, 0, 0, transposed_weight_));
-  up_op_.reset (new MatMul (dev_, command_, w3_, 0, 0, transposed_weight_));
+  gate_op_.reset (
+      new MatMul (dev_, command_, w1_, 1, 0, transposed_weight_, dtype_));
+  down_op_.reset (
+      new MatMul (dev_, command_, w2_, 0, 0, transposed_weight_, dtype_));
+  up_op_.reset (
+      new MatMul (dev_, command_, w3_, 0, 0, transposed_weight_, dtype_));
 
   Pipeline::ShaderInfo shaderInfo = { 2, 3, 3, 16, 16, 1 };
 
@@ -25,14 +29,25 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
   shaderInfo.local_y = 1;
 
   Pipeline::ConstantType op_type = { .i = 2 };
-  pipeline3_.reset (new Pipeline (dev_, __get_element_wise_comp_spv_code (),
-                                  __get_element_wise_comp_spv_size (),
-                                  { op_type }, shaderInfo));
+  const auto *spv_code = dtype_ == VkTensor::FP32
+                             ? __get_element_wise_comp_spv_code ()
+                             : __get_element_wise_fp16_comp_spv_code ();
+  const auto spv_size = dtype_ == VkTensor::FP32
+                            ? __get_element_wise_comp_spv_size ()
+                            : __get_element_wise_fp16_comp_spv_size ();
+
+  pipeline3_.reset (
+      new Pipeline (dev_, spv_code, spv_size, { op_type }, shaderInfo));
 }
 
 VkResult
 FeedForward::init () noexcept
 {
+  if (w1_.dtype () != w2_.dtype () || w2_.dtype () != w3_.dtype ()
+      || dtype_ != w1_.dtype ())
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
 
   VkResult ret = VK_SUCCESS;
   if ((ret = up_op_->init ()) != VK_SUCCESS
@@ -60,6 +75,11 @@ FeedForward::time () noexcept
 VkResult
 FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
 {
+  if (X.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   VkResult ret = VK_SUCCESS;
 
   if ((ret = up_op_->operator() (X, t0_)) != VK_SUCCESS)
