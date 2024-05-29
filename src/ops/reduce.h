@@ -13,8 +13,9 @@
 class Reduce : public Op
 {
 public:
-  Reduce (GPUDevice *gpu, Command *command, int op_type)
-      : Op (gpu, command), op_type_ (op_type)
+  Reduce (GPUDevice *gpu, Command *command, int op_type,
+          VkTensor::DType const dtype = VkTensor::FP32)
+      : Op (gpu, command), op_type_ (op_type), dtype_ (dtype)
   {
   }
 
@@ -24,14 +25,26 @@ public:
     Pipeline::ShaderInfo stage0Info = { 1, 2, 3, 64, 4, 1 };
     Pipeline::ShaderInfo stage1Info = { 1, 2, 5, 1, 64, 1 };
 
-    Pipeline::ConstantType op_type = { .i = op_type_ == 3 ? 0 : op_type_ };
-    stage0_.reset (new Pipeline (dev_, __get_reduce_stage0_comp_spv_code (),
-                                 __get_reduce_stage0_comp_spv_size (),
-                                 { op_type }, stage0Info));
+    const auto *spv_code = dtype_ == VkTensor::FP16
+                               ? __get_reduce_stage0_fp16_comp_spv_code ()
+                               : __get_reduce_stage0_comp_spv_code ();
+    const auto spv_size = dtype_ == VkTensor::FP16
+                              ? __get_reduce_stage0_fp16_comp_spv_size ()
+                              : __get_reduce_stage0_comp_spv_size ();
 
-    stage1_.reset (new Pipeline (dev_, __get_reduce_stage1_comp_spv_code (),
-                                 __get_reduce_stage1_comp_spv_size (),
-                                 { op_type }, stage1Info));
+    const auto *spv_code1 = dtype_ == VkTensor::FP16
+                                ? __get_reduce_stage1_fp16_comp_spv_code ()
+                                : __get_reduce_stage1_comp_spv_code ();
+    const auto spv_size1 = dtype_ == VkTensor::FP16
+                               ? __get_reduce_stage1_fp16_comp_spv_size ()
+                               : __get_reduce_stage1_comp_spv_size ();
+
+    Pipeline::ConstantType op_type = { .i = op_type_ == 3 ? 0 : op_type_ };
+    stage0_.reset (
+        new Pipeline (dev_, spv_code, spv_size, { op_type }, stage0Info));
+
+    stage1_.reset (
+        new Pipeline (dev_, spv_code1, spv_size1, { op_type }, stage1Info));
 
     VkResult ret = stage0_->init ();
     if (ret != VK_SUCCESS)
@@ -51,7 +64,12 @@ public:
   VkResult
   operator() (VkTensor a, VkTensor &b)
   {
-    b = VkTensor (a.channels (), a.height (), 1, dev_);
+    if (a.dtype () != dtype_)
+      {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      }
+
+    b = VkTensor (a.channels (), a.height (), 1, dev_, dtype_);
     VkResult ret = b.create ();
     if (ret != VK_SUCCESS)
       {
@@ -115,6 +133,7 @@ private:
   std::unique_ptr<Pipeline> stage1_;
   const int op_type_;
   VkTensor stage0_output_;
+  const VkTensor::DType dtype_;
 };
 
 #endif
