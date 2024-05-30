@@ -1,53 +1,43 @@
 #version 450 core
-layout(local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
 
-layout(binding = 0) readonly buffer InputTensor0
+layout (binding = 0) readonly buffer InputTensor0 { float input_query[]; };
+
+layout (binding = 1) readonly buffer InputTensor2 { float rope_freqc[]; };
+layout (binding = 2) readonly buffer InputTensor3 { float rope_freqs[]; };
+
+layout (binding = 3) writeonly buffer OutputTensor0 { float output_kq[]; };
+
+layout (push_constant) uniform constants
 {
-    float input_query[];
+  uint C; // batch size
+  uint H; // seqlen
+  uint W; // token dim
 };
 
-layout(binding = 1) readonly buffer InputTensor2
+void
+main (void)
 {
-    float rope_freqc[];
-};
-layout(binding = 2) readonly buffer InputTensor3
-{
-    float rope_freqs[];
-};
+  uint tid_x = gl_GlobalInvocationID.x;
+  uint tid_y = gl_GlobalInvocationID.y;
+  uint tid_z = gl_GlobalInvocationID.z;
 
-layout(binding = 3) writeonly buffer OutputTensor0
-{
-    float output_kq[];
-};
-
-layout(push_constant) uniform constants
-{
-    uint C; // batch size
-    uint H; // seqlen
-    uint W; // token dim
-};
-
-void main(void)
-{
-    uint tid_x = gl_GlobalInvocationID.x;
-    uint tid_y = gl_GlobalInvocationID.y;
-    uint tid_z = gl_GlobalInvocationID.z;
-
-    if (tid_z >= C || tid_y >= H || tid_x >= 2 * W)
+  if (tid_z >= C || tid_y >= H || tid_x >= 2 * W)
     {
-        return;
+      return;
     }
 
-    float freqc = rope_freqc[tid_y * W/2 + tid_x];
-    float freqs = rope_freqs[tid_y * W/2 + tid_x];
+  float freqc = rope_freqc[tid_y * W / 2 + tid_x];
+  float freqs = rope_freqs[tid_y * W / 2 + tid_x];
 
-    uint src_idx = tid_z * H * W + tid_y * W + 2 * tid_x;
-    float q0 = input_query[src_idx];
-    float q1 = input_query[src_idx + 1];
+  uint src_idx = tid_z * H * W + tid_y * W + 2 * tid_x;
+  float q0 = input_query[src_idx];
+  float q1 = input_query[src_idx + 1];
 
-    float qr0 = q0 * freqc - q1 * freqs;
-    float qr1 = q0 * freqs + q1 * freqc;
+  float qr0 = q0 * freqc - q1 * freqs;
+  float qr1 = q0 * freqs + q1 * freqc;
 
-    output_kq[src_idx] = qr0;
-    output_kq[src_idx + 1] = qr1;
+  output_kq[src_idx] = qr0;
+  output_kq[src_idx + 1] = qr1;
 }

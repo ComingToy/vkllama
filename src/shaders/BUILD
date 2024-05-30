@@ -18,6 +18,7 @@ glsl_shader(
         "matmul_broadcast1_fp16.comp",
         "matmul_broadcast2_fp16.comp",
         "rope.comp",
+        "rope_fp16.comp",
         "reduce_stage0.comp",
         "reduce_stage0_fp16.comp",
         "reduce_stage1.comp",
