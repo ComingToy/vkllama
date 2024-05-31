@@ -5,20 +5,20 @@
 #include "src/ops/mat_mul.h"
 #include "src/ops/rope.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <utility>
 #include <vector>
 
-MultiHeadAttention::MultiHeadAttention (GPUDevice *dev, Command *command,
-                                        std::vector<VkTensor> const &Wk,
-                                        std::vector<VkTensor> const &Wq,
-                                        std::vector<VkTensor> const &Wv,
-                                        const VkTensor Wo, const int maxlen,
-                                        const int dim,
-                                        const bool transposed_weight)
+MultiHeadAttention::MultiHeadAttention (
+    GPUDevice *dev, Command *command, std::vector<VkTensor> const &Wk,
+    std::vector<VkTensor> const &Wq, std::vector<VkTensor> const &Wv,
+    const VkTensor Wo, const int maxlen, const int dim,
+    const bool transposed_weight, const VkTensor::DType dtype)
     : Op (dev, command), wk_ (Wk), wq_ (Wq), wv_ (Wv), wo_ (Wo),
-      maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight)
+      maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
+      dtype_ (dtype)
 {
 }
 
@@ -30,9 +30,20 @@ MultiHeadAttention::init () noexcept
       return VK_ERROR_UNKNOWN;
     }
 
+  if (std::any_of (wk_.cbegin (), wk_.cend (),
+                   [this] (auto &x) { return dtype_ != x.dtype (); })
+      || std::any_of (wq_.cbegin (), wq_.cend (),
+                      [this] (auto &x) { return x.dtype () != dtype_; })
+      || std::any_of (wv_.cbegin (), wv_.cend (),
+                      [this] (auto &x) { return x.dtype () != dtype_; })
+      || wo_.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   VkResult ret = VK_SUCCESS;
   out_matmul_ = std::make_unique<MatMul> (dev_, command_, wo_, 0, 0,
-                                          transposed_weight_);
+                                          transposed_weight_, dtype_);
   if ((ret = out_matmul_->init ()) != VK_SUCCESS)
     {
       return ret;
@@ -43,16 +54,21 @@ MultiHeadAttention::init () noexcept
   for (size_t i = 0; i < wq_.size (); ++i)
     {
       auto k_matmul = std::make_unique<MatMul> (dev_, command_, wk_[i], 0, 0,
-                                                transposed_weight_);
+                                                transposed_weight_, dtype_);
       auto q_matmul = std::make_unique<MatMul> (dev_, command_, wq_[i], 0, 0,
-                                                transposed_weight_);
+                                                transposed_weight_, dtype_);
       auto v_matmul = std::make_unique<MatMul> (dev_, command_, wv_[i], 0, 0,
-                                                transposed_weight_);
-      auto weighted_matmul = std::make_unique<MatMul> (dev_, command_, 0, 0);
-      auto rope = std::make_unique<Rope> (dev_, command_, maxlen_, dim_);
-      auto attn_score = std::make_unique<MatMul> (dev_, command_, 0, 0, 1);
-      auto elementwise = std::make_unique<ElementWise> (dev_, command_, 2);
-      auto softmax = std::make_unique<Softmax> (dev_, command_, true);
+                                                transposed_weight_, dtype_);
+      auto weighted_matmul
+          = std::make_unique<MatMul> (dev_, command_, 0, 0, 0, dtype_);
+
+      auto rope
+          = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
+      auto attn_score
+          = std::make_unique<MatMul> (dev_, command_, 0, 0, 1, dtype_);
+      auto elementwise
+          = std::make_unique<ElementWise> (dev_, command_, 2, dtype_);
+      auto softmax = std::make_unique<Softmax> (dev_, command_, true, dtype_);
 
       if ((ret = k_matmul->init ()) != VK_SUCCESS
           || (ret = q_matmul->init ()) != VK_SUCCESS
@@ -89,6 +105,11 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
   std::vector<VkTensor> ks, qs, vs, sacled_attns, softmax_attns;
   VkTensor input = X;
   tmp_tensors_.clear ();
+
+  if (X.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
