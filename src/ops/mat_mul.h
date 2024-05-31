@@ -8,10 +8,12 @@ class MatMul : public Op
 {
 public:
   MatMul (GPUDevice *dev, Command *command, VkTensor weight, const int act = 0,
-          const int broadcast_type = 0, const bool transpose_b = false);
+          const int broadcast_type = 0, const bool transpose_b = false,
+          const VkTensor::DType dtype = VkTensor::FP32);
 
   MatMul (GPUDevice *dev, Command *command, const int act = 0,
-          const int broadcast_type = 0, const bool transpose_b = false);
+          const int broadcast_type = 0, const bool transpose_b = false,
+          const VkTensor::DType dtype = VkTensor::FP32);
 
   VkResult operator() (VkTensor a, VkTensor &c) noexcept;
   VkResult operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept;
@@ -24,6 +26,7 @@ private:
   const int broadcast_type_;
   const int act_;
   const bool transpose_b_;
+  VkTensor::DType dtype_;
 };
 
 #endif

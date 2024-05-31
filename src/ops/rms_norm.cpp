@@ -4,20 +4,32 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 
 RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
-                  const float eps_)
-    : Op (dev, command), weight_ (weight)
+                  const float eps_, const VkTensor::DType dtype)
+    : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
   Pipeline::ConstantType power = { .f = 2.0f };
   Pipeline::ConstantType eps = { .f = eps_ };
   Pipeline::ShaderInfo info = { 2, 3, 3, 1, 32, 32 };
-  pipeline_.reset (new Pipeline (dev_, __get_rms_norm_comp_spv_code (),
-                                 __get_rms_norm_comp_spv_size (),
-                                 { power, eps }, info));
+
+  const auto *spv_code = dtype_ == VkTensor::FP16
+                             ? __get_rms_norm_fp16_comp_spv_code ()
+                             : __get_rms_norm_comp_spv_code ();
+  const auto spv_size = dtype_ == VkTensor::FP16
+                            ? __get_rms_norm_fp16_comp_spv_size ()
+                            : __get_rms_norm_comp_spv_size ();
+
+  pipeline_.reset (
+      new Pipeline (dev_, spv_code, spv_size, { power, eps }, info));
 }
 
 VkResult
 RMSNorm::init () noexcept
 {
+  if (weight_.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)
     {
@@ -40,8 +52,13 @@ RMSNorm::time () noexcept
 VkResult
 RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
 {
-  output = VkTensor (x.channels (), x.height (), x.width (), dev_,
-                     VkTensor::FP32, false);
+  if (x.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  output
+      = VkTensor (x.channels (), x.height (), x.width (), dev_, dtype_, false);
   auto ret = output.create ();
   if (ret != VK_SUCCESS)
     {

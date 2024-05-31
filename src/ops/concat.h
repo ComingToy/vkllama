@@ -8,7 +8,8 @@
 class Concat : public Op
 {
 public:
-  Concat (GPUDevice *gpu, Command *command, const int num);
+  Concat (GPUDevice *gpu, Command *command, const int num,
+          VkTensor::DType const dtype = VkTensor::FP32);
   VkResult init () noexcept override;
   VkResult operator() (std::vector<VkTensor> const &inputs,
                        VkTensor &output) noexcept;
@@ -17,5 +18,6 @@ public:
 private:
   const int num_;
   std::vector<std::unique_ptr<Pipeline> > pipelines_;
+  VkTensor::DType dtype_;
 };
 #endif

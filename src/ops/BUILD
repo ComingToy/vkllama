@@ -11,6 +11,7 @@ cc_library(
         'concat.cpp',
 		'embedding.cpp',
 	    'multiheadattention.cpp',
+	    'cast.cpp',
     ],
     hdrs = [
         'op.h',
@@ -25,6 +26,7 @@ cc_library(
 		'embedding.h',
 	    'multiheadattention.h',
         'argop.h',
+        'cast.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
     copts = select({

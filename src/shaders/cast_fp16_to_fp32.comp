@@ -1,0 +1,22 @@
+#version 450 core
+#extension GL_EXT_shader_16bit_storage : require
+
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+layout (push_constant) uniform constants { uint N; };
+
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { float output0[]; };
+
+void
+main (void)
+{
+  uint tid = gl_GlobalInvocationID.x;
+  if (tid >= N)
+    {
+      return;
+    }
+
+  output0[tid] = float (input0[tid]);
+}

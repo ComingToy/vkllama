@@ -1,14 +1,17 @@
 #include "gpu_device.h"
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
 GPUDevice::GPUDevice (int dev)
     : physicalDev_ (VK_NULL_HANDLE), device_ (VK_NULL_HANDLE), dev_ (dev),
-      version_ (0), support_descriptor_templ_update_ (false)
+      version_ (0), support_descriptor_templ_update_ (false),
+      support_16bit_storage_ (false)
 {
 }
 
@@ -93,9 +96,9 @@ GPUDevice::create_instance_ ()
                                        "vkllama.cpp",
                                        1,
                                        version_ };
-  const char *enabledLayers[] = { 
+  const char *enabledLayers[] = {
 #ifdef __VKLLAMA_DEBUG__
-	  "VK_LAYER_KHRONOS_validation"
+    "VK_LAYER_KHRONOS_validation"
 #endif
   };
 
@@ -212,29 +215,53 @@ GPUDevice::init_device_ ()
   };
 
   {
-    std::string descriptor_template_update
-        = "VK_KHR_descriptor_update_template";
-    for (auto const &ext : physicalDevExts_)
+    std::set<std::string> supported_exts;
+
+    std::transform (physicalDevExts_.cbegin (), physicalDevExts_.cend (),
+                    std::inserter (supported_exts, supported_exts.end ()),
+                    [] (auto const &feat) { return feat.extensionName; });
+
+    if (supported_exts.count (VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME)
+        > 0)
       {
-        if (descriptor_template_update == ext.extensionName)
-          {
-            support_descriptor_templ_update_ = true;
-            devExts.push_back (ext.extensionName);
-            break;
-          }
+        devExts.push_back (VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME);
+        support_descriptor_templ_update_ = true;
+      }
+
+    if (supported_exts.count (VK_KHR_16BIT_STORAGE_EXTENSION_NAME) > 0)
+      {
+        devExts.push_back (VK_KHR_16BIT_STORAGE_EXTENSION_NAME);
+        support_16bit_storage_ = true;
       }
   }
 
-  VkDeviceCreateInfo devCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                       nullptr,
-                                       0,
-                                       (uint32_t)queueCreateInfos.size (),
-                                       queueCreateInfos.data (),
-                                       0,
-                                       nullptr,
-                                       (uint32_t)devExts.size (),
-                                       devExts.data (),
-                                       &physicalFeats_ };
+  VkPhysicalDevice16BitStorageFeatures feat_16bit
+      = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES };
+  {
+    // extention feats
+    if (support_16bit_storage_)
+      {
+
+        VkPhysicalDeviceFeatures2 feats
+            = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &feat_16bit };
+
+        vkGetPhysicalDeviceFeatures2 (physicalDev_, &feats);
+        support_16bit_storage_ = feat_16bit.storageBuffer16BitAccess
+                                 && feat_16bit.storagePushConstant16;
+      }
+  }
+
+  VkDeviceCreateInfo devCreateInfo
+      = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+          support_16bit_storage_ ? &feat_16bit : nullptr,
+          0,
+          (uint32_t)queueCreateInfos.size (),
+          queueCreateInfos.data (),
+          0,
+          nullptr,
+          (uint32_t)devExts.size (),
+          devExts.data (),
+          &physicalFeats_ };
 
   return vkCreateDevice (physicalDev_, &devCreateInfo, nullptr, &device_);
 }

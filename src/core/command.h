@@ -117,7 +117,7 @@ public:
             {
               return ret;
             }
-          ::memcpy (to, from.host (), from.size () * sizeof (float));
+          ::memcpy (to, from.host (), from.size () * sizeof (T));
           return VK_SUCCESS;
         });
         return VK_SUCCESS;
@@ -399,7 +399,7 @@ public:
   ~CommandScope ()
   {
     command_.end ();
-    command_.submit();
+    command_.submit ();
   }
 
 private:

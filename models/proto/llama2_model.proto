@@ -6,16 +6,15 @@ enum DType
     UINT32 = 0;
     FLOAT32 = 1;
     INT32 = 2;
+    FLOAT16 = 3;
 }
 
 message Variable 
 {
     string name = 1;
-    DType dtype = 2;
-    repeated int32 shape=3;
-    repeated float f32_values = 4;
-    repeated uint32 u32_values = 5;
-    repeated int32 int32_values = 6;
+    repeated int32 shape=2;
+    DType dtype = 3;
+    bytes data = 4;
 };
 
 message Variables

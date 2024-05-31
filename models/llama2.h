@@ -3,6 +3,7 @@
 #include "models/gguf/gguf.h"
 #include "models/proto/llama2_model.pb.h"
 #include "src/core/command.h"
+#include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
 #include "src/ops/elementwise.h"
@@ -12,6 +13,7 @@
 #include "src/ops/rms_norm.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <fcntl.h>
 #include <map>
@@ -33,7 +35,8 @@ public:
   VkResult
   init ()
   {
-    embedding_op_.reset (new Embedding (gpu_, command_, vocab_, UNK_));
+    embedding_op_.reset (
+        new Embedding (gpu_, command_, vocab_, UNK_, VkTensor::FP16));
     auto ret = embedding_op_->init ();
     if (ret != VK_SUCCESS)
       {
@@ -107,16 +110,19 @@ public:
     attn_op_.reset (new MultiHeadAttention (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
-        transformer_params_.maxlen, transformer_params_.dim, true));
+        transformer_params_.maxlen, transformer_params_.dim, true,
+        VkTensor::FP16));
+
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
-        feedforward_params_.w3, true));
-    norm_op_.reset (
-        new RMSNorm (gpu_, command_, rmsnorm_params_.weight1, 1e-6));
-    norm_op2_.reset (
-        new RMSNorm (gpu_, command_, rmsnorm_params_.weight2, 1e-6));
-    add_op_.reset (new ElementWise (gpu_, command_, 0));
-    add_op2_.reset (new ElementWise (gpu_, command_, 0));
+        feedforward_params_.w3, true, VkTensor::FP16));
+
+    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1, 1e-6,
+                                 VkTensor::FP16));
+    norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2,
+                                  1e-6, VkTensor::FP16));
+    add_op_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
+    add_op2_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
 
     auto ret = attn_op_->init ();
     if (ret != VK_SUCCESS || (ret = feedforward_op_->init ()) != VK_SUCCESS
@@ -208,20 +214,22 @@ public:
   VkResult
   init ()
   {
-    matmul_op_.reset (new MatMul (gpu_, command_, wo_, 0, 0, true));
+    matmul_op_.reset (
+        new MatMul (gpu_, command_, wo_, 0, 0, true, VkTensor::FP16));
     auto ret = matmul_op_->init ();
     if (ret != VK_SUCCESS)
       {
         return ret;
       }
 
-    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_, 1e-6));
+    norm_op_.reset (
+        new RMSNorm (gpu_, command_, norm_weight_, 1e-6, VkTensor::FP16));
     if ((ret = norm_op_->init ()) != VK_SUCCESS)
       {
         return ret;
       }
 
-    argmax_op_.reset (new ArgMax (gpu_, command_));
+    argmax_op_.reset (new ArgMax (gpu_, command_, VkTensor::FP16));
     return argmax_op_->init ();
   }
 
@@ -317,10 +325,12 @@ public:
       const auto *norm_weight = variables["model.norm.weight"];
 
       VkTensor vkembeddings (1, embeddings->shape (0), embeddings->shape (1),
-                             gpu_);
+                             gpu_, VkTensor::FP16);
       VkTensor vkoutput_weight (1, output_weight->shape (0),
-                                output_weight->shape (1), gpu_);
-      VkTensor vknorm_weight (1, 1, norm_weight->shape (0), gpu_);
+                                output_weight->shape (1), gpu_,
+                                VkTensor::FP16);
+      VkTensor vknorm_weight (1, 1, norm_weight->shape (0), gpu_,
+                              VkTensor::FP16);
 
       VkResult ret = VK_SUCCESS;
       if ((ret = vkembeddings.create ()) != VK_SUCCESS
@@ -330,25 +340,28 @@ public:
           return ret;
         }
 
-      ret = input_command_->upload (embeddings->f32_values ().data (),
-                                    embeddings->f32_values_size (),
-                                    vkembeddings);
+      ret = input_command_->upload (
+          (__vkllama_fp16_t *)embeddings->data ().data (),
+          embeddings->data ().size () / sizeof (__vkllama_fp16_t),
+          vkembeddings);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = output_command_->upload (output_weight->f32_values ().data (),
-                                     output_weight->f32_values_size (),
-                                     vkoutput_weight);
+      ret = output_command_->upload (
+          (__vkllama_fp16_t *)output_weight->data ().data (),
+          output_weight->data ().size () / sizeof (__vkllama_fp16_t),
+          vkoutput_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = input_command_->upload (norm_weight->f32_values ().data (),
-                                    norm_weight->f32_values_size (),
-                                    vknorm_weight);
+      ret = input_command_->upload (
+          (__vkllama_fp16_t *)norm_weight->data ().data (),
+          norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
+          vknorm_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
@@ -434,9 +447,10 @@ public:
           block_commands_.push_back (command);
 
           VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight->shape (0),
-                                        gpu_);
+                                        gpu_, VkTensor::FP16);
 
-          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight->shape (0), gpu_);
+          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight->shape (0), gpu_,
+                                       VkTensor::FP16);
 
           VkResult ret = VK_SUCCESS;
           if ((ret = vk_attn_norm_weight.create ()) != VK_SUCCESS
@@ -445,17 +459,19 @@ public:
               return ret;
             }
 
-          ret = command->upload (attn_norm_weight->f32_values ().data (),
-                                 attn_norm_weight->f32_values_size (),
-                                 vk_attn_norm_weight);
+          ret = command->upload (
+              (__vkllama_fp16_t *)attn_norm_weight->data ().data (),
+              attn_norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              vk_attn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command->upload (ffn_norm_weight->f32_values ().data (),
-                                 ffn_norm_weight->f32_values_size (),
-                                 vk_ffn_norm_weight);
+          ret = command->upload (
+              (__vkllama_fp16_t *)ffn_norm_weight->data ().data (),
+              ffn_norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              vk_ffn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -468,9 +484,9 @@ public:
 
           for (int h = 0; h < head_count; ++h)
             {
-              VkTensor vkWk (1, head_dim, input_dim, gpu_);
-              VkTensor vkWq (1, head_dim, input_dim, gpu_);
-              VkTensor vkWv (1, head_dim, input_dim, gpu_);
+              VkTensor vkWk (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+              VkTensor vkWq (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+              VkTensor vkWv (1, head_dim, input_dim, gpu_, VkTensor::FP16);
 
               if ((ret = vkWk.create ()) != VK_SUCCESS
                   || (ret = vkWq.create ()) != VK_SUCCESS
@@ -479,14 +495,15 @@ public:
                   return ret;
                 }
 
-              const float *wk_weight_data
-                  = attn_k_weight->f32_values ().data ()
+              const __vkllama_fp16_t *wk_weight_data
+                  = (__vkllama_fp16_t *)attn_k_weight->data ().data ()
                     + head_weight_size * h;
-              const float *wq_weight_data
-                  = attn_q_weight->f32_values ().data ()
+              const __vkllama_fp16_t *wq_weight_data
+                  = (__vkllama_fp16_t *)attn_q_weight->data ().data ()
                     + head_weight_size * h;
-              const float *wv_weight_data
-                  = attn_v_weight->f32_values ().data ()
+
+              const __vkllama_fp16_t *wv_weight_data
+                  = (__vkllama_fp16_t *)attn_v_weight->data ().data ()
                     + head_weight_size * h;
 
               ret = command->upload (wk_weight_data, head_weight_size, vkWk);
@@ -513,26 +530,29 @@ public:
             }
 
           VkTensor Wo (1, attn_output_weight->shape (0),
-                       attn_output_weight->shape (1), gpu_);
+                       attn_output_weight->shape (1), gpu_, VkTensor::FP16);
           if ((ret = Wo.create ()) != VK_SUCCESS)
             {
               return ret;
             }
-          ret = command->upload (attn_output_weight->f32_values ().data (),
-                                 attn_output_weight->f32_values_size (), Wo);
+          ret = command->upload (
+              (__vkllama_fp16_t *)attn_output_weight->data ().data (),
+              attn_output_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              Wo);
+
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
           VkTensor vkw1 (1, ffn_gate_weight->shape (0),
-                         ffn_gate_weight->shape (1), gpu_);
+                         ffn_gate_weight->shape (1), gpu_, VkTensor::FP16);
 
           VkTensor vkw2 (1, ffn_down_weight->shape (0),
-                         ffn_down_weight->shape (1), gpu_);
+                         ffn_down_weight->shape (1), gpu_, VkTensor::FP16);
 
           VkTensor vkw3 (1, ffn_up_weight->shape (0), ffn_up_weight->shape (1),
-                         gpu_);
+                         gpu_, VkTensor::FP16);
           if ((ret = vkw1.create ()) != VK_SUCCESS
               || (ret = vkw2.create ()) != VK_SUCCESS
               || (ret = vkw3.create ()) != VK_SUCCESS)
@@ -540,22 +560,28 @@ public:
               return ret;
             }
 
-          ret = command->upload (ffn_gate_weight->f32_values ().data (),
-                                 ffn_gate_weight->f32_values_size (), vkw1);
+          ret = command->upload (
+              (__vkllama_fp16_t *)ffn_gate_weight->data ().data (),
+              ffn_gate_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              vkw1);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command->upload (ffn_down_weight->f32_values ().data (),
-                                 ffn_down_weight->f32_values_size (), vkw2);
+          ret = command->upload (
+              (__vkllama_fp16_t *)ffn_down_weight->data ().data (),
+              ffn_down_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              vkw2);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command->upload (ffn_up_weight->f32_values ().data (),
-                                 ffn_up_weight->f32_values_size (), vkw3);
+          ret = command->upload (
+              (__vkllama_fp16_t *)ffn_up_weight->data ().data (),
+              ffn_up_weight->data ().size () / sizeof (__vkllama_fp16_t),
+              vkw3);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -615,6 +641,7 @@ public:
 
     for (int i = 0; i < blocks_.size (); ++i)
       {
+        fprintf (stderr, "infer %d block\n", i);
         auto *command = block_commands_[i];
         command->begin ();
         auto *block = blocks_[i];

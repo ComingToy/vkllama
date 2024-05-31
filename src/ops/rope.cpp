@@ -8,11 +8,15 @@
 #include <utility>
 #include <vector>
 
-Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim)
-    : Op (dev, command), maxlen_ (maxlen), dim_ (dim)
+Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
+            const VkTensor::DType dtype)
+    : Op (dev, command), maxlen_ (maxlen), dim_ (dim), dtype_ (dtype)
 {
   freqc_host_.resize (maxlen_ * dim_ / 2);
   freqs_host_.resize (maxlen_ * dim_ / 2);
+
+  freqc_fp16_host_.resize (maxlen_ * dim_ / 2);
+  freqs_fp16_host_.resize (maxlen_ * dim_ / 2);
 }
 
 void
@@ -33,8 +37,13 @@ Rope::precompute_freq_ ()
       for (int k = 0; k < dim_ / 2; ++k)
         {
           auto f = freq[k] * static_cast<float> (i);
-          freqc_host_[i * dim_ / 2 + k] = std::cos (f);
-          freqs_host_[i * dim_ / 2 + k] = std::sin (f);
+          auto freqc = std::cos (f);
+          auto freqs = std::sin (f);
+          auto pos = i * dim_ / 2 + k;
+          freqs_host_[pos] = freqs;
+          freqs_fp16_host_[pos].u16 = __fp32_to_fp16 (freqs);
+          freqc_host_[pos] = freqc;
+          freqc_fp16_host_[pos].u16 = __fp32_to_fp16 (freqc);
         }
     }
 }
@@ -43,8 +52,8 @@ VkResult
 Rope::init () noexcept
 {
   precompute_freq_ ();
-  freqc_ = VkTensor (1, maxlen_, dim_, dev_);
-  freqs_ = VkTensor (1, maxlen_, dim_, dev_);
+  freqc_ = VkTensor (1, maxlen_, dim_, dev_, dtype_);
+  freqs_ = VkTensor (1, maxlen_, dim_, dev_, dtype_);
 
   VkResult ret = VK_SUCCESS;
   if ((ret = freqc_.create ()) != VK_SUCCESS
@@ -53,26 +62,55 @@ Rope::init () noexcept
       return ret;
     }
 
-  ret = command_->upload (freqc_host_.data (), freqc_host_.size (), freqc_);
-  if (ret != VK_SUCCESS)
+  if (dtype_ == VkTensor::FP32)
     {
-      return ret;
+      ret = command_->upload (freqc_host_.data (), freqc_host_.size (),
+                              freqc_);
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
+
+      ret = command_->upload (freqs_host_.data (), freqs_host_.size (),
+                              freqs_);
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
     }
-  ret = command_->upload (freqs_host_.data (), freqs_host_.size (), freqs_);
-  if (ret != VK_SUCCESS)
+  else
     {
-      return ret;
+      ret = command_->upload (freqc_fp16_host_.data (),
+                              freqc_fp16_host_.size (), freqc_);
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
+
+      ret = command_->upload (freqs_fp16_host_.data (),
+                              freqs_fp16_host_.size (), freqs_);
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
     }
 
   Pipeline::ShaderInfo shader_info_k = { 0, 4, 3, 16, 16, 1 };
   Pipeline::ShaderInfo shader_info_q = { 0, 4, 3, 16, 16, 1 };
-  pipeline_k_.reset (new Pipeline (dev_, __get_rope_comp_spv_code (),
-                                   __get_rope_comp_spv_size (), {},
-                                   shader_info_k));
 
-  pipeline_q_.reset (new Pipeline (dev_, __get_rope_comp_spv_code (),
-                                   __get_rope_comp_spv_size (), {},
-                                   shader_info_q));
+  const auto *spv_code = dtype_ == VkTensor::FP32
+                             ? __get_rope_comp_spv_code ()
+                             : __get_rope_fp16_comp_spv_code ();
+
+  const auto spv_size = dtype_ == VkTensor::FP32
+                            ? __get_rope_comp_spv_size ()
+                            : __get_rope_fp16_comp_spv_size ();
+
+  pipeline_k_.reset (
+      new Pipeline (dev_, spv_code, spv_size, {}, shader_info_k));
+
+  pipeline_q_.reset (
+      new Pipeline (dev_, spv_code, spv_size, {}, shader_info_q));
 
   if ((ret = pipeline_k_->init ()) != VK_SUCCESS
       || (ret = pipeline_q_->init ()) != VK_SUCCESS)
@@ -95,7 +133,8 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
 {
   if (query.width () != key.width () || query.height () != key.height ()
       || query.channels () != key.channels () || query.width () != dim_
-      || query.height () > maxlen_)
+      || query.height () > maxlen_ || query.dtype () != dtype_
+      || key.dtype () != dtype_)
     {
       return VK_ERROR_UNKNOWN;
     }

@@ -7,16 +7,17 @@
 
 MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
                 const int act, const int broadcast_type,
-                const bool transpose_b)
+                const bool transpose_b, const VkTensor::DType dtype)
     : Op (dev, command), weight_ (weight), broadcast_type_ (broadcast_type),
-      act_ (act), transpose_b_ (transpose_b)
+      act_ (act), transpose_b_ (transpose_b), dtype_ (dtype)
 {
 }
 
 MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
-                const int broadcast_type, const bool transpose_b)
+                const int broadcast_type, const bool transpose_b,
+                const VkTensor ::DType dtype)
     : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act),
-      transpose_b_ (transpose_b)
+      transpose_b_ (transpose_b), dtype_ (dtype)
 {
 }
 
@@ -28,22 +29,39 @@ MatMul::init () noexcept
   Pipeline::ConstantType transpose_b
       = { .i = static_cast<int> (transpose_b_) };
 
+  if (weight_.size () > 0 && weight_.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
   if (broadcast_type_ == 0)
     {
-      pcode = __get_matmul_broadcast0_comp_spv_code ();
-      code_size = __get_matmul_broadcast0_comp_spv_size ();
+      pcode = dtype_ == VkTensor::FP32
+                  ? __get_matmul_broadcast0_comp_spv_code ()
+                  : __get_matmul_broadcast0_fp16_comp_spv_code ();
+      code_size = dtype_ == VkTensor::FP32
+                      ? __get_matmul_broadcast0_comp_spv_size ()
+                      : __get_matmul_broadcast0_fp16_comp_spv_size ();
     }
   else if (broadcast_type_ == 1)
     {
-      pcode = __get_matmul_broadcast1_comp_spv_code ();
-      code_size = __get_matmul_broadcast1_comp_spv_size ();
+      pcode = dtype_ == VkTensor::FP32
+                  ? __get_matmul_broadcast1_comp_spv_code ()
+                  : __get_matmul_broadcast1_fp16_comp_spv_code ();
+      code_size = dtype_ == VkTensor::FP32
+                      ? __get_matmul_broadcast1_comp_spv_size ()
+                      : __get_matmul_broadcast1_fp16_comp_spv_size ();
     }
   else if (broadcast_type_ == 2)
     {
-      pcode = __get_matmul_broadcast2_comp_spv_code ();
-      code_size = __get_matmul_broadcast2_comp_spv_size ();
+      pcode = VkTensor::FP32 == dtype_
+                  ? __get_matmul_broadcast2_comp_spv_code ()
+                  : __get_matmul_broadcast2_fp16_comp_spv_code ();
+      code_size = dtype_ == VkTensor::FP32
+                      ? __get_matmul_broadcast2_comp_spv_size ()
+                      : __get_matmul_broadcast2_fp16_comp_spv_size ();
     }
   else
     {
@@ -80,7 +98,8 @@ MatMul::time () noexcept
 VkResult
 MatMul::operator() (VkTensor a, VkTensor &c) noexcept
 {
-  if (weight_.size () == 0)
+  if (weight_.size () == 0 || a.dtype () != weight_.dtype ()
+      || a.dtype () != dtype_)
     {
       return VK_ERROR_UNKNOWN;
     }
@@ -94,7 +113,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
   size_t out_h = a.height (),
          out_w = transpose_b_ ? weight_.height () : weight_.width ();
   c = VkTensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
-                dev_, VkTensor::FP32, false);
+                dev_, dtype_, false);
 
   auto ret = c.create ();
   if (ret != VK_SUCCESS)
@@ -126,7 +145,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
 VkResult
 MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
 {
-  if (b.size () == 0)
+  if (b.size () == 0 || a.dtype () != b.dtype () || a.dtype () != dtype_)
     {
       return VK_ERROR_UNKNOWN;
     }
@@ -139,7 +158,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
   c = VkTensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
-                VkTensor::FP32, false);
+                dtype_, false);
 
   auto ret = c.create ();
   if (ret != VK_SUCCESS)

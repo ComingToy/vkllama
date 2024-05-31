@@ -5,8 +5,8 @@
 #include <vector>
 
 Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
-                      const uint32_t UNK)
-    : Op (dev, command), vocab_ (vocab), UNK_ (UNK)
+                      const uint32_t UNK, const VkTensor::DType dtype)
+    : Op (dev, command), vocab_ (vocab), UNK_ (UNK), dtype_ (dtype)
 {
 }
 
@@ -15,9 +15,16 @@ Embedding::init () noexcept
 {
   Pipeline::ShaderInfo info = { 1, 3, 4, 16, 16, 1 };
   Pipeline::ConstantType unk = { .u32 = UNK_ };
-  pipeline_.reset (new Pipeline (dev_, __get_embedding_comp_spv_code (),
-                                 __get_embedding_comp_spv_size (), { unk },
-                                 info));
+
+  const auto *spv_code = dtype_ == VkTensor::FP32
+                             ? __get_embedding_comp_spv_code ()
+                             : __get_embedding_fp16_comp_spv_code ();
+
+  const auto spv_size = dtype_ == VkTensor::FP32
+                            ? __get_embedding_comp_spv_size ()
+                            : __get_embedding_fp16_comp_spv_size ();
+
+  pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, { unk }, info));
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)
     {
@@ -31,8 +38,7 @@ VkResult
 Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
 {
   if (vocab_.channels () != 1 || indices.channels () != 1
-      || indices.dtype () != VkTensor::UINT32
-      || vocab_.dtype () != VkTensor::FP32)
+      || indices.dtype () != VkTensor::UINT32 || vocab_.dtype () != dtype_)
     {
       return VK_ERROR_UNKNOWN;
     }

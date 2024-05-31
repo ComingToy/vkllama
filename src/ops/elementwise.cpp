@@ -1,10 +1,11 @@
 #include "src/ops/elementwise.h"
-#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/core/command.h"
 #include "src/core/gpu_device.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 
-ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type)
-    : Op (dev, command), type_ (type)
+ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
+                          VkTensor::DType dtype)
+    : Op (dev, command), type_ (type), dtype_ (dtype)
 {
 }
 
@@ -14,9 +15,16 @@ ElementWise::init () noexcept
   Pipeline::ShaderInfo info = { 1, 3, 1, 128, 1, 1 };
   Pipeline::ConstantType op_type = { .i = type_ };
 
-  pipeline0_.reset (new Pipeline (dev_, __get_element_wise_comp_spv_code (),
-                                  __get_element_wise_comp_spv_size (),
-                                  { op_type }, info));
+  const uint8_t *spv_code = dtype_ == VkTensor::FP16
+                                ? __get_element_wise_fp16_comp_spv_code ()
+                                : __get_element_wise_comp_spv_code ();
+
+  size_t spv_size = dtype_ == VkTensor::FP16
+                        ? __get_element_wise_fp16_comp_spv_size ()
+                        : __get_element_wise_comp_spv_size ();
+
+  pipeline0_.reset (
+      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
 
   auto ret = pipeline0_->init ();
   if (ret != VK_SUCCESS)
@@ -26,9 +34,16 @@ ElementWise::init () noexcept
 
   info.push_constant_count = 2;
   info.binding_count = 2;
-  pipeline1_.reset (new Pipeline (
-      dev_, __get_element_wise_constant_comp_spv_code (),
-      __get_element_wise_constant_comp_spv_size (), { op_type }, info));
+
+  spv_code = dtype_ == VkTensor::FP32
+                 ? __get_element_wise_constant_comp_spv_code ()
+                 : __get_element_wise_constant_fp16_comp_spv_code ();
+  spv_size = dtype_ == VkTensor::FP32
+                 ? __get_element_wise_constant_comp_spv_size ()
+                 : __get_element_wise_constant_fp16_comp_spv_size ();
+
+  pipeline1_.reset (
+      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
   return pipeline1_->init ();
 }
 
@@ -41,6 +56,11 @@ ElementWise::time () noexcept
 VkResult
 ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
 {
+  if (x.dtype () != y.dtype () || x.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   if (x.channels () != y.channels () || x.height () != y.height ()
       || x.width () != y.width ())
     {
@@ -75,6 +95,11 @@ ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
 VkResult
 ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
 {
+  if (x.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   out = VkTensor::like (x);
   VkResult ret = VK_SUCCESS;
   if ((ret = out.create ()) != VK_SUCCESS)

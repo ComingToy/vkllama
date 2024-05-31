@@ -40,5 +40,6 @@ private:
   VmaAllocator allocator_;
   uint32_t version_;
   bool support_descriptor_templ_update_;
+  bool support_16bit_storage_;
 };
 #endif
