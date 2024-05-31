@@ -241,11 +241,6 @@ GPUDevice::init_device_ ()
         support_shader_fp16_arithmetic_ = true;
         support_shader_int8_arithmetic_ = true;
       }
-
-    for (auto const &e : devExts)
-      {
-        fprintf (stderr, "enable device ext: %s\n", e);
-      }
   }
 
   VkPhysicalDeviceShaderFloat16Int8Features feat_fp16_int8
@@ -270,7 +265,7 @@ GPUDevice::init_device_ ()
 
     if (support_shader_fp16_arithmetic_)
       {
-        support_shader_int8_arithmetic_ = feat_fp16_int8.shaderFloat16;
+        support_shader_fp16_arithmetic_ = feat_fp16_int8.shaderFloat16;
       }
 
     if (support_shader_int8_arithmetic_)

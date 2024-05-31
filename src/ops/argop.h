@@ -4,6 +4,7 @@
 #include "src/core/command.h"
 #include "src/ops/op.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
 #include <memory>
 #include <vector>
 
@@ -22,18 +23,45 @@ public:
     Pipeline::ShaderInfo info0 = { 1, 2, 3, 32, 4, 1 };
     Pipeline::ShaderInfo info1 = { 1, 2, 3, 1, 128, 1 };
 
-    const auto *spv_code0 = dtype_ == VkTensor::FP32
-                                ? __get_argmax_stage0_comp_spv_code ()
-                                : __get_argmax_stage0_fp16_comp_spv_code ();
-    auto spv_size0 = dtype_ == VkTensor::FP32
-                         ? __get_argmax_stage0_comp_spv_size ()
-                         : __get_argmax_stage0_fp16_comp_spv_size ();
+    if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+      {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      }
+
+    const uint8_t *spv_code0 = nullptr;
+    size_t spv_size0 = 0;
+    const uint8_t *spv_code1 = nullptr;
+    size_t spv_size1 = 0;
+    if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+      {
+        spv_code0 = __get_argmax_stage0_fp16a_comp_spv_code ();
+        spv_size0 = __get_argmax_stage0_fp16a_comp_spv_size ();
+        spv_code1 = __get_argmax_stage1_fp16a_comp_spv_code ();
+        spv_size1 = __get_argmax_stage1_fp16a_comp_spv_size ();
+      }
+    else if (dtype_ == VkTensor::FP16)
+      {
+        spv_code0 = __get_argmax_stage0_fp16_comp_spv_code ();
+        spv_size0 = __get_argmax_stage0_fp16_comp_spv_size ();
+        spv_code1 = __get_argmax_stage1_comp_spv_code ();
+        spv_size1 = __get_argmax_stage1_comp_spv_size ();
+      }
+    else if (dtype_ == VkTensor::FP32)
+      {
+        spv_code0 = __get_argmax_stage0_comp_spv_code ();
+        spv_size0 = __get_argmax_stage0_comp_spv_size ();
+        spv_code1 = __get_argmax_stage1_comp_spv_code ();
+        spv_size1 = __get_argmax_stage1_comp_spv_size ();
+      }
+    else
+      {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      }
 
     pipeline0_.reset (new Pipeline (dev_, spv_code0, spv_size0,
                                     { { .i = op_type } }, info0));
 
-    pipeline1_.reset (new Pipeline (dev_, __get_argmax_stage1_comp_spv_code (),
-                                    __get_argmax_stage1_comp_spv_size (),
+    pipeline1_.reset (new Pipeline (dev_, spv_code1, spv_size1,
                                     { { .i = op_type } }, info1));
 
     auto ret = pipeline0_->init ();
