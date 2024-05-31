@@ -9,7 +9,8 @@ class Command;
 class Softmax : public Op
 {
 public:
-  Softmax (GPUDevice *dev, Command *command, bool seq_mask=false);
+  Softmax (GPUDevice *dev, Command *command, bool seq_mask = false,
+           VkTensor::DType const dtype = VkTensor::FP32);
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
   VkResult operator() (VkTensor a, VkTensor &b) noexcept;
@@ -27,5 +28,6 @@ private:
   VkTensor sum_;
   VkTensor out_;
   bool seq_mask_;
+  VkTensor::DType dtype_;
 };
 #endif

@@ -7,15 +7,16 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <vector>
 
-Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask)
-    : Op (dev, command), seq_mask_ (seq_mask)
+Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask,
+                  const VkTensor::DType dtype)
+    : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype)
 {
 }
 
 VkResult
 Softmax::init () noexcept
 {
-  reduce_.reset (new Reduce (dev_, command_, 1));
+  reduce_.reset (new Reduce (dev_, command_, 1, dtype_));
   auto ret = reduce_->init ();
   if (ret != VK_SUCCESS)
     {
@@ -27,17 +28,29 @@ Softmax::init () noexcept
   Pipeline::ShaderInfo info1 = { 0, 2, 3, 1, 32, 1 };
   Pipeline::ShaderInfo info2 = { 0, 3, 3, 32, 4, 1 };
 
-  softmax0_.reset (new Pipeline (dev_, __get_softmax_stage0_comp_spv_code (),
-                                 __get_softmax_stage0_comp_spv_size (),
-                                 { seq_mask }, info0));
+  const auto spv_code0 = dtype_ == VkTensor::FP32
+                             ? __get_softmax_stage0_comp_spv_code ()
+                             : __get_softmax_stage0_fp16_comp_spv_code ();
+  const auto spv_size0 = dtype_ == VkTensor::FP32
+                             ? __get_softmax_stage0_comp_spv_size ()
+                             : __get_softmax_stage0_fp16_comp_spv_size ();
+
+  softmax0_.reset (
+      new Pipeline (dev_, spv_code0, spv_size0, { seq_mask }, info0));
 
   softmax1_.reset (new Pipeline (dev_, __get_softmax_stage1_comp_spv_code (),
                                  __get_softmax_stage1_comp_spv_size (), {},
                                  info1));
 
-  softmax2_.reset (new Pipeline (dev_, __get_softmax_stage2_comp_spv_code (),
-                                 __get_softmax_stage2_comp_spv_size (), {},
-                                 info2));
+  const auto spv_code1 = dtype_ == VkTensor::FP32
+                             ? __get_softmax_stage2_comp_spv_code ()
+                             : __get_softmax_stage2_fp16_comp_spv_code ();
+
+  const auto spv_size1 = dtype_ == VkTensor::FP32
+                             ? __get_softmax_stage2_comp_spv_size ()
+                             : __get_softmax_stage2_fp16_comp_spv_size ();
+
+  softmax2_.reset (new Pipeline (dev_, spv_code1, spv_size1, {}, info2));
 
   if ((ret = softmax0_->init ()) != VK_SUCCESS
       || (ret = softmax1_->init ()) != VK_SUCCESS
@@ -59,6 +72,11 @@ Softmax::time () noexcept
 VkResult
 Softmax::operator() (VkTensor a, VkTensor &b) noexcept
 {
+  if (a.dtype () != dtype_)
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   auto ret = reduce_->operator() (a, bias_);
   if (ret != VK_SUCCESS)
     {
@@ -84,7 +102,7 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
       return ret;
     }
 
-  exps_ = VkTensor::like (a);
+  exps_ = VkTensor (a.channels (), a.height (), a.width (), dev_);
   if ((ret = exps_.create ()) != VK_SUCCESS)
     {
       return ret;
