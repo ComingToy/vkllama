@@ -9,7 +9,8 @@ def __add_variable(variables, state_dict, name):
         variable = variables.variables.add()
         variable.name = name
         variable.shape.extend(v.shape)
-        variable.f32_values[:] = v.reshape(-1).tolist()
+        variable.dtype = llama2.FLOAT16
+        variable.data = v.reshape(-1).numpy().tobytes()
 
 def main():
     if len(sys.argv) != 3:

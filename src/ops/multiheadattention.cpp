@@ -49,7 +49,8 @@ MultiHeadAttention::init () noexcept
       return ret;
     }
 
-  concat_ = std::make_unique<Concat> (dev_, command_, wq_.size ());
+  concat_
+      = std::make_unique<Concat> (dev_, command_, wq_.size (), VkTensor::FP16);
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
