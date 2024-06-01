@@ -13,6 +13,11 @@ Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
 VkResult
 Embedding::init () noexcept
 {
+  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
   ShaderConstants unk = { UNK_ };
 

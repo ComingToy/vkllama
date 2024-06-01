@@ -18,19 +18,25 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num,
 VkResult
 Concat::init () noexcept
 {
+  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  const auto *spv_code = dtype_ == VkTensor::FP32
+                             ? __get_concat_axis2_comp_spv_code ()
+                             : __get_concat_axis2_fp16_comp_spv_code ();
+
+  size_t spv_size = dtype_ == VkTensor::FP32
+                        ? __get_concat_axis2_comp_spv_size ()
+                        : __get_concat_axis2_fp16_comp_spv_size ();
+
   std::vector<std::unique_ptr<Pipeline> > pipelines;
+
   for (int i = 0; i < num_; ++i)
     {
       Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 5, 16, 16, 1 };
       ShaderConstants specs;
-
-      const auto *spv_code = dtype_ == VkTensor::FP32
-                                 ? __get_concat_axis2_comp_spv_code ()
-                                 : __get_concat_axis2_fp16_comp_spv_code ();
-
-      const auto spv_size = dtype_ == VkTensor::FP32
-                                ? __get_concat_axis2_comp_spv_size ()
-                                : __get_concat_axis2_fp16_comp_spv_size ();
 
       auto pipeline
           = std::make_unique<Pipeline> (dev_, spv_code, spv_size, specs, info);

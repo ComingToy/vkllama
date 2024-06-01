@@ -10,7 +10,7 @@ layout (constant_id = 0) const int op_type = 0;
 layout (push_constant) uniform constants
 {
   int N;
-  float alpha;
+  float16_t alpha;
 };
 
 layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
@@ -27,7 +27,7 @@ main (void)
     }
 
   float16_t v0 = input0[tid];
-  float16_t alpha_fp16 = float16_t (alpha);
+  float16_t alpha_fp16 = alpha;
   if (op_type == 0)
     {
       output0[tid] = (v0 + alpha_fp16);

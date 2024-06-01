@@ -24,6 +24,11 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
 VkResult
 MatMul::init () noexcept
 {
+  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
   Pipeline::ShaderInfo info = { 2, 3, 4 * sizeof (int), 16, 16, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
@@ -33,32 +38,48 @@ MatMul::init () noexcept
 
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
+
+  dev_->support_fp16_arithmetic ();
+#define __SPV_SELECTOR(__boradcast)                                           \
+  do                                                                          \
+    {                                                                         \
+      if (dtype_ == VkTensor::FP32)                                           \
+        {                                                                     \
+          pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();     \
+          code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size (); \
+        }                                                                     \
+      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())  \
+        {                                                                     \
+          pcode                                                               \
+              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_code (); \
+          code_size                                                           \
+              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_size (); \
+        }                                                                     \
+      else if (dtype_ == VkTensor::FP16)                                      \
+        {                                                                     \
+          pcode                                                               \
+              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_code ();  \
+          code_size                                                           \
+              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_size ();  \
+        }                                                                     \
+      else                                                                    \
+        {                                                                     \
+          return VK_ERROR_FORMAT_NOT_SUPPORTED;                               \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
   if (broadcast_type_ == 0)
     {
-      pcode = dtype_ == VkTensor::FP32
-                  ? __get_matmul_broadcast0_comp_spv_code ()
-                  : __get_matmul_broadcast0_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast0_comp_spv_size ()
-                      : __get_matmul_broadcast0_fp16_comp_spv_size ();
+      __SPV_SELECTOR (0);
     }
   else if (broadcast_type_ == 1)
     {
-      pcode = dtype_ == VkTensor::FP32
-                  ? __get_matmul_broadcast1_comp_spv_code ()
-                  : __get_matmul_broadcast1_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast1_comp_spv_size ()
-                      : __get_matmul_broadcast1_fp16_comp_spv_size ();
+      __SPV_SELECTOR (1);
     }
   else if (broadcast_type_ == 2)
     {
-      pcode = VkTensor::FP32 == dtype_
-                  ? __get_matmul_broadcast2_comp_spv_code ()
-                  : __get_matmul_broadcast2_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast2_comp_spv_size ()
-                      : __get_matmul_broadcast2_fp16_comp_spv_size ();
+      __SPV_SELECTOR (2);
     }
   else
     {
