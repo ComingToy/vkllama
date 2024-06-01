@@ -27,29 +27,47 @@ Softmax::init () noexcept
   Pipeline::ShaderInfo info1 = { 0, 2, 3 * sizeof (uint32_t), 1, 32, 1 };
   Pipeline::ShaderInfo info2 = { 0, 3, 3 * sizeof (uint32_t), 32, 4, 1 };
 
-  const auto spv_code0 = dtype_ == VkTensor::FP32
-                             ? __get_softmax_stage0_comp_spv_code ()
-                             : __get_softmax_stage0_fp16_comp_spv_code ();
-  const auto spv_size0 = dtype_ == VkTensor::FP32
-                             ? __get_softmax_stage0_comp_spv_size ()
-                             : __get_softmax_stage0_fp16_comp_spv_size ();
+  auto spv_code0 = dtype_ == VkTensor::FP32
+                       ? __get_softmax_stage0_comp_spv_code ()
+                       : __get_softmax_stage0_fp16_comp_spv_code ();
+  auto spv_size0 = dtype_ == VkTensor::FP32
+                       ? __get_softmax_stage0_comp_spv_size ()
+                       : __get_softmax_stage0_fp16_comp_spv_size ();
+
+  if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+    {
+      spv_code0 = __get_softmax_stage0_fp16a_comp_spv_code ();
+      spv_size0 = __get_softmax_stage0_fp16a_comp_spv_size ();
+    }
 
   softmax0_.reset (
       new Pipeline (dev_, spv_code0, spv_size0, { (int)seq_mask_ }, info0));
 
-  softmax1_.reset (new Pipeline (dev_, __get_softmax_stage1_comp_spv_code (),
-                                 __get_softmax_stage1_comp_spv_size (), {},
-                                 info1));
+  auto spv_code1 = __get_softmax_stage1_comp_spv_code ();
+  auto spv_size1 = __get_softmax_stage1_comp_spv_size ();
+  if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+    {
+      spv_code1 = __get_softmax_stage1_fp16a_comp_spv_code ();
+      spv_size1 = __get_softmax_stage1_fp16a_comp_spv_size ();
+    }
 
-  const auto spv_code1 = dtype_ == VkTensor::FP32
-                             ? __get_softmax_stage2_comp_spv_code ()
-                             : __get_softmax_stage2_fp16_comp_spv_code ();
+  softmax1_.reset (new Pipeline (dev_, spv_code1, spv_size1, {}, info1));
 
-  const auto spv_size1 = dtype_ == VkTensor::FP32
-                             ? __get_softmax_stage2_comp_spv_size ()
-                             : __get_softmax_stage2_fp16_comp_spv_size ();
+  auto spv_code2 = dtype_ == VkTensor::FP32
+                       ? __get_softmax_stage2_comp_spv_code ()
+                       : __get_softmax_stage2_fp16_comp_spv_code ();
 
-  softmax2_.reset (new Pipeline (dev_, spv_code1, spv_size1, {}, info2));
+  auto spv_size2 = dtype_ == VkTensor::FP32
+                       ? __get_softmax_stage2_comp_spv_size ()
+                       : __get_softmax_stage2_fp16_comp_spv_size ();
+
+  if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+    {
+      spv_code2 = __get_softmax_stage2_fp16a_comp_spv_code ();
+      spv_size2 = __get_softmax_stage2_fp16a_comp_spv_size ();
+    }
+
+  softmax2_.reset (new Pipeline (dev_, spv_code2, spv_size2, {}, info2));
 
   if ((ret = softmax0_->init ()) != VK_SUCCESS
       || (ret = softmax1_->init ()) != VK_SUCCESS
