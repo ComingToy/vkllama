@@ -217,7 +217,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
   Tensor<3> err (eigen_output.dimensions ());
-  err.setConstant (5e-2);
+  err.setConstant (1e-2);
   _Tensor<int, 0> diff
       = ((eigen_output - output_mapped).abs () > err).cast<int> ().sum ();
   ASSERT_EQ (*diff.data (), 0);
