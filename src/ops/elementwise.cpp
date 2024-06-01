@@ -140,7 +140,7 @@ ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
     }
 
   ShaderConstants constants = { (int)x.size () };
-  if (dtype_ == VkTensor::FP32)
+  if (dtype_ == VkTensor::FP32 || !dev_->support_fp16_arithmetic ())
     {
       constants.push_back (y);
     }
