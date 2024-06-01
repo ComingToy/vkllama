@@ -21,14 +21,9 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
   up_op_.reset (
       new MatMul (dev_, command_, w3_, 0, 0, transposed_weight_, dtype_));
 
-  Pipeline::ShaderInfo shaderInfo = { 2, 3, 3, 16, 16, 1 };
+  Pipeline::ShaderInfo shaderInfo = { 1, 3, sizeof (uint32_t), 16, 1, 1 };
 
-  shaderInfo.binding_count = 3;
-  shaderInfo.push_constant_count = 1;
-  shaderInfo.specialization_count = 1;
-  shaderInfo.local_y = 1;
-
-  Pipeline::ConstantType op_type = { .i = 2 };
+  ShaderConstants op_type = { 2 };
   const auto *spv_code = dtype_ == VkTensor::FP32
                              ? __get_element_wise_comp_spv_code ()
                              : __get_element_wise_fp16_comp_spv_code ();
@@ -37,7 +32,7 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
                             : __get_element_wise_fp16_comp_spv_size ();
 
   pipeline3_.reset (
-      new Pipeline (dev_, spv_code, spv_size, { op_type }, shaderInfo));
+      new Pipeline (dev_, spv_code, spv_size, op_type, shaderInfo));
 }
 
 VkResult
@@ -110,9 +105,8 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType elems
-      = { .u32 = static_cast<uint32_t> (t2_.size ()) };
-  command_->record_pipeline (*pipeline3_, { t0_, t1_, t2_ }, { elems });
+  command_->record_pipeline (*pipeline3_, { t0_, t1_, t2_ },
+                             { static_cast<uint32_t> (t2_.size ()) });
   t2_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t2_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 

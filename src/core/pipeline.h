@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_CPP_PIPELINE_H__
 #define __VKLLAMA_CPP_PIPELINE_H__
 #include "gpu_device.h"
+#include "shader_constants.h"
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -14,20 +15,12 @@ public:
   {
     int specialization_count;
     int binding_count;
-    int push_constant_count;
+	uint32_t push_constant_bytes;
     uint32_t local_x, local_y, local_z;
   };
 
-  union ConstantType
-  {
-    int32_t i;
-    float f;
-    uint32_t u32;
-  } __attribute__ ((packed));
-
   Pipeline (GPUDevice *device_, const uint8_t *spv, const size_t spv_size,
-            std::vector<ConstantType> const &specialization,
-            ShaderInfo const &info);
+            ShaderConstants const &specialization, ShaderInfo const &info);
 
   ~Pipeline ();
 
@@ -52,7 +45,7 @@ private:
   const uint8_t *spv_;
   const size_t spv_size_;
   ShaderInfo shaderInfo_;
-  std::vector<ConstantType> specialization_;
+  ShaderConstants specialization_;
 
   GPUDevice *device_;
   VkDescriptorSetLayout descriptorSetLayout_;
@@ -69,7 +62,7 @@ private:
   VkResult create_shader_module_ ();
   VkResult create_pipeline_layout_ ();
   VkResult create_descriptor_set_ ();
-  VkResult create_pipeline_ (std::vector<ConstantType> const &);
+  VkResult create_pipeline_ (ShaderConstants const &);
   VkResult create_query_pool_ ();
   VkResult create_descriptor_update_template_ ();
   VkResult set_bindings_ (std::vector<VkTensor> bindings);

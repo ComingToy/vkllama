@@ -11,7 +11,7 @@
 
 Pipeline::Pipeline (GPUDevice *device, const uint8_t *spv,
                     const size_t spv_size,
-                    std::vector<ConstantType> const &specialization,
+                    ShaderConstants const &specialization,
                     ShaderInfo const &info)
     : init_ (false), module_ (VK_NULL_HANDLE), spv_ (spv),
       spv_size_ (spv_size), shaderInfo_ (info),
@@ -116,7 +116,7 @@ Pipeline::create_pipeline_layout_ ()
   }
 
   {
-    uint32_t size = sizeof (ConstantType) * shaderInfo_.push_constant_count;
+    uint32_t size = shaderInfo_.push_constant_bytes;
     VkPushConstantRange range = { VK_SHADER_STAGE_COMPUTE_BIT, 0, size };
 
     VkPipelineLayoutCreateInfo createInfo
@@ -125,7 +125,7 @@ Pipeline::create_pipeline_layout_ ()
             0,
             1,
             &descriptorSetLayout_,
-            shaderInfo_.push_constant_count > 0 ? 1u : 0u,
+            shaderInfo_.push_constant_bytes > 0 ? 1u : 0u,
             &range };
     return vkCreatePipelineLayout (device_->device (), &createInfo, nullptr,
                                    &pipelineLayout_);
@@ -133,30 +133,30 @@ Pipeline::create_pipeline_layout_ ()
 }
 
 VkResult
-Pipeline::create_pipeline_ (std::vector<ConstantType> const &constants)
+Pipeline::create_pipeline_ (ShaderConstants const &constants)
 {
-  const int n = constants.size ();
+  const int n = constants.elem_num ();
   std::vector<VkSpecializationMapEntry> mapEntries;
   for (int i = 0; i < n - 3; ++i)
     {
-      uint32_t offset = i * sizeof (ConstantType);
-      uint32_t size = sizeof (ConstantType);
+      uint32_t offset = constants.offsets ()[i];
+      uint32_t size = constants.sizes ()[i];
+
       VkSpecializationMapEntry entry = { (uint32_t)i, offset, size };
       mapEntries.push_back (entry);
     }
 
-  for (int i = 0; i < 3; ++i)
+  for (int i = n - 3, k = 0; i < n; ++i, ++k)
     {
-      uint32_t id = 253 + i;
-      uint32_t offset
-          = i * sizeof (ConstantType) + (n - 3) * sizeof (ConstantType);
-      uint32_t size = sizeof (ConstantType);
+      uint32_t id = 253 + k;
+      uint32_t offset = constants.offsets ()[i];
+      uint32_t size = constants.sizes ()[i];
       mapEntries.push_back (VkSpecializationMapEntry{ id, offset, size });
     }
 
   VkSpecializationInfo specializationInfo
-      = { (uint32_t)mapEntries.size (), mapEntries.data (),
-          constants.size () * sizeof (ConstantType), constants.data () };
+      = { (uint32_t)mapEntries.size (), mapEntries.data (), constants.bytes (),
+          constants.data () };
 
   VkPipelineShaderStageCreateInfo shaderCreateInfo
       = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -403,12 +403,9 @@ Pipeline::limits_ ()
       return VK_ERROR_UNKNOWN;
     }
 
-  ConstantType local_x = { .u32 = shaderInfo_.local_x };
-  ConstantType local_y = { .u32 = shaderInfo_.local_y };
-  ConstantType local_z = { .u32 = shaderInfo_.local_z };
-  specialization_.push_back (local_x);
-  specialization_.push_back (local_y);
-  specialization_.push_back (local_z);
+  specialization_.push_back (shaderInfo_.local_x);
+  specialization_.push_back (shaderInfo_.local_y);
+  specialization_.push_back (shaderInfo_.local_z);
 
   return VK_SUCCESS;
 }

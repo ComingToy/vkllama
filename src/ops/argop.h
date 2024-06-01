@@ -20,8 +20,8 @@ public:
   VkResult
   init () noexcept override
   {
-    Pipeline::ShaderInfo info0 = { 1, 2, 3, 32, 4, 1 };
-    Pipeline::ShaderInfo info1 = { 1, 2, 3, 1, 128, 1 };
+    Pipeline::ShaderInfo info0 = { 1, 2, sizeof (uint32_t) * 3, 32, 4, 1 };
+    Pipeline::ShaderInfo info1 = { 1, 2, sizeof (uint32_t) * 3, 1, 128, 1 };
 
     if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
       {
@@ -58,11 +58,11 @@ public:
         return VK_ERROR_FORMAT_NOT_SUPPORTED;
       }
 
-    pipeline0_.reset (new Pipeline (dev_, spv_code0, spv_size0,
-                                    { { .i = op_type } }, info0));
+    pipeline0_.reset (
+        new Pipeline (dev_, spv_code0, spv_size0, { op_type }, info0));
 
-    pipeline1_.reset (new Pipeline (dev_, spv_code1, spv_size1,
-                                    { { .i = op_type } }, info1));
+    pipeline1_.reset (
+        new Pipeline (dev_, spv_code1, spv_size1, { op_type }, info1));
 
     auto ret = pipeline0_->init ();
     if (ret != VK_SUCCESS)
@@ -105,10 +105,9 @@ public:
         return ret;
       }
 
-    std::vector<Pipeline::ConstantType> shape
-        = { { .u32 = static_cast<uint32_t> (in.channels ()) },
-            { .u32 = static_cast<uint32_t> (in.height ()) },
-            { .u32 = static_cast<uint32_t> (in.width ()) } };
+    ShaderConstants shape = { static_cast<uint32_t> (in.channels ()),
+                              static_cast<uint32_t> (in.height ()),
+                              static_cast<uint32_t> (in.width ()) };
 
     ret = command_->record_pipeline (*pipeline0_, { in, stage0_output_ },
                                      shape);
@@ -127,10 +126,11 @@ public:
         return ret;
       }
 
-    shape[2].u32 = group_x;
+    ShaderConstants shape1 = { static_cast<uint32_t> (in.channels ()),
+                               static_cast<uint32_t> (in.height ()), group_x };
 
     ret = command_->record_pipeline (*pipeline1_, { stage0_output_, out },
-                                     shape);
+                                     shape1);
 
     if (ret != VK_SUCCESS)
       {

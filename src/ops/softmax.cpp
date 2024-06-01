@@ -23,10 +23,9 @@ Softmax::init () noexcept
       return ret;
     }
 
-  Pipeline::ConstantType seq_mask = { .i = static_cast<int> (seq_mask_) };
-  Pipeline::ShaderInfo info0 = { 1, 4, 3, 32, 4, 1 };
-  Pipeline::ShaderInfo info1 = { 0, 2, 3, 1, 32, 1 };
-  Pipeline::ShaderInfo info2 = { 0, 3, 3, 32, 4, 1 };
+  Pipeline::ShaderInfo info0 = { 1, 4, 3 * sizeof (uint32_t), 32, 4, 1 };
+  Pipeline::ShaderInfo info1 = { 0, 2, 3 * sizeof (uint32_t), 1, 32, 1 };
+  Pipeline::ShaderInfo info2 = { 0, 3, 3 * sizeof (uint32_t), 32, 4, 1 };
 
   const auto spv_code0 = dtype_ == VkTensor::FP32
                              ? __get_softmax_stage0_comp_spv_code ()
@@ -36,7 +35,7 @@ Softmax::init () noexcept
                              : __get_softmax_stage0_fp16_comp_spv_size ();
 
   softmax0_.reset (
-      new Pipeline (dev_, spv_code0, spv_size0, { seq_mask }, info0));
+      new Pipeline (dev_, spv_code0, spv_size0, { (int)seq_mask_ }, info0));
 
   softmax1_.reset (new Pipeline (dev_, __get_softmax_stage1_comp_spv_code (),
                                  __get_softmax_stage1_comp_spv_size (), {},
@@ -83,11 +82,6 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
       return ret;
     }
 
-  std::vector<Pipeline::ConstantType> shape
-      = { { .u32 = (uint32_t)a.channels () },
-          { .u32 = (uint32_t)a.height () },
-          { .u32 = (uint32_t)a.width () } };
-
   uint32_t group_x = (a.width () + 31) / 32, group_y = (a.height () + 3) / 4,
            group_z = a.channels ();
   ret = softmax0_->set_group (group_x, group_y, group_z);
@@ -108,7 +102,10 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
       return ret;
     }
 
-  ret = command_->record_pipeline (*softmax0_, { a, bias_, m_, exps_ }, shape);
+  ret = command_->record_pipeline (*softmax0_, { a, bias_, m_, exps_ },
+                                   { (uint32_t)a.channels (),
+                                     (uint32_t)a.height (),
+                                     (uint32_t)a.width () });
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -132,13 +129,14 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
       return ret;
     }
 
-  shape[2] = { .u32 = group_x };
   group_x = 1;
   group_y = (a.height () + 31) / 32;
   group_z = a.channels ();
 
   softmax1_->set_group (group_x, group_y, group_z);
-  ret = command_->record_pipeline (*softmax1_, { m_, sum_ }, shape);
+  ret = command_->record_pipeline (
+      *softmax1_, { m_, sum_ },
+      { (uint32_t)a.channels (), (uint32_t)a.height (), group_x });
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -149,13 +147,15 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
 
   group_x = (a.width () + 31) / 32;
   group_y = (a.height () + 3) / 4;
-  shape[2] = { .u32 = (uint32_t)a.width () };
   ret = softmax2_->set_group (group_x, group_y, group_z);
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
-  ret = command_->record_pipeline (*softmax2_, { exps_, sum_, out_ }, shape);
+  ret = command_->record_pipeline (*softmax2_, { exps_, sum_, out_ },
+                                   { (uint32_t)a.channels (),
+                                     (uint32_t)a.height (),
+                                     (uint32_t)a.width () });
   if (ret != VK_SUCCESS)
     {
       return ret;

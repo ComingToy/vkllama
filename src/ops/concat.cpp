@@ -21,8 +21,8 @@ Concat::init () noexcept
   std::vector<std::unique_ptr<Pipeline> > pipelines;
   for (int i = 0; i < num_; ++i)
     {
-      Pipeline::ShaderInfo info = { 0, 2, 5, 16, 16, 1 };
-      std::vector<Pipeline::ConstantType> specs;
+      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 5, 16, 16, 1 };
+      ShaderConstants specs;
 
       const auto *spv_code = dtype_ == VkTensor::FP32
                                  ? __get_concat_axis2_comp_spv_code ()
@@ -85,12 +85,10 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
   for (int i = 0; i < num_; ++i)
     {
       const auto &inp = inputs[i];
-      std::vector<Pipeline::ConstantType> constants
-          = { { .u32 = (uint32_t)inp.channels () },
-              { .u32 = (uint32_t)inp.height () },
-              { .u32 = (uint32_t)inp.width () },
-              { .u32 = (uint32_t)w },
-              { .u32 = offset } };
+      ShaderConstants constants
+          = { (uint32_t)inp.channels (), (uint32_t)inp.height (),
+              (uint32_t)inp.width (), (uint32_t)w, offset };
+
       uint32_t group_x = (inp.width () + 15) / 16,
                group_y = (inp.height () + 15) / 16, group_z = inp.channels ();
       pipelines_[i]->set_group (group_x, group_y, group_z);

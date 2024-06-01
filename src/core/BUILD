@@ -6,7 +6,8 @@ cc_library(
 		'gpu_device.h',
 		'pipeline.h',
 		'tensor.h',
-		'float.h'
+		'float.h',
+        'shader_constants.h'
 	],
     deps = [
 		"//vulkan_rules:vulkan_cc_library",

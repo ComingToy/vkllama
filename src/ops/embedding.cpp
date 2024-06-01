@@ -13,8 +13,8 @@ Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
 VkResult
 Embedding::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 1, 3, 4, 16, 16, 1 };
-  Pipeline::ConstantType unk = { .u32 = UNK_ };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
+  ShaderConstants unk = { UNK_ };
 
   const auto *spv_code = dtype_ == VkTensor::FP32
                              ? __get_embedding_comp_spv_code ()
@@ -24,7 +24,7 @@ Embedding::init () noexcept
                             ? __get_embedding_comp_spv_size ()
                             : __get_embedding_fp16_comp_spv_size ();
 
-  pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, { unk }, info));
+  pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, unk, info));
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)
     {
@@ -52,11 +52,9 @@ Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
       return ret;
     }
 
-  std::vector<Pipeline::ConstantType> constants
-      = { { .u32 = (uint32_t)indices.height () },
-          { .u32 = (uint32_t)indices.width () },
-          { .u32 = (uint32_t)vocab_.height () },
-          { .u32 = (uint32_t)vocab_.width () } };
+  ShaderConstants constants
+      = { (uint32_t)indices.height (), (uint32_t)indices.width (),
+          (uint32_t)vocab_.height (), (uint32_t)vocab_.width () };
 
   uint32_t group_x = (indices.width () + 15) / 16,
            group_y = (indices.height () + 15) / 16;

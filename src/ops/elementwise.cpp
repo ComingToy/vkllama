@@ -12,8 +12,10 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
 VkResult
 ElementWise::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 1, 3, 1, 128, 1, 1 };
-  Pipeline::ConstantType op_type = { .i = type_ };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 128, 1, 1 };
+  Pipeline::ShaderInfo info1
+      = { 1, 3, sizeof (int) + sizeof (float), 128, 1, 1 };
+  ShaderConstants constants = { type_ };
 
   const uint8_t *spv_code = dtype_ == VkTensor::FP16
                                 ? __get_element_wise_fp16_comp_spv_code ()
@@ -23,17 +25,13 @@ ElementWise::init () noexcept
                         ? __get_element_wise_fp16_comp_spv_size ()
                         : __get_element_wise_comp_spv_size ();
 
-  pipeline0_.reset (
-      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
+  pipeline0_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info));
 
   auto ret = pipeline0_->init ();
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
-
-  info.push_constant_count = 2;
-  info.binding_count = 2;
 
   spv_code = dtype_ == VkTensor::FP32
                  ? __get_element_wise_constant_comp_spv_code ()
@@ -42,8 +40,7 @@ ElementWise::init () noexcept
                  ? __get_element_wise_constant_comp_spv_size ()
                  : __get_element_wise_constant_fp16_comp_spv_size ();
 
-  pipeline1_.reset (
-      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
+  pipeline1_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info1));
   return pipeline1_->init ();
 }
 
@@ -80,8 +77,8 @@ ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType n = { .i = static_cast<int> (x.size ()) };
-  if ((ret = command_->record_pipeline (*pipeline0_, { x, y, out }, { n }))
+  ShaderConstants constants = { static_cast<int> (x.size ()) };
+  if ((ret = command_->record_pipeline (*pipeline0_, { x, y, out }, constants))
       != VK_SUCCESS)
     {
       return ret;
@@ -113,9 +110,8 @@ ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType n = { .i = static_cast<int> (x.size ()) };
-  Pipeline::ConstantType alpha = { .f = y };
-  ret = command_->record_pipeline (*pipeline1_, { x, out }, { n, alpha });
+  ShaderConstants constants (static_cast<int> (x.size ()), y);
+  ret = command_->record_pipeline (*pipeline1_, { x, out }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;

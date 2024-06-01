@@ -28,7 +28,7 @@ Cast::init () noexcept
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  Pipeline::ShaderInfo info = { 0, 2, 1, 128, 1, 1 };
+  Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t), 128, 1, 1 };
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, {}, info));
 
   return pipeline_->init ();
@@ -61,8 +61,8 @@ Cast::operator() (VkTensor from, VkTensor &to) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType N = { .u32 = static_cast<uint32_t> (from.size ()) };
-  ret = command_->record_pipeline (*pipeline_, { from, to }, { N });
+  ShaderConstants N = { static_cast<uint32_t> (from.size ()) };
+  ret = command_->record_pipeline (*pipeline_, { from, to }, N);
   to.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   to.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 

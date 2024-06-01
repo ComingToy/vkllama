@@ -95,8 +95,10 @@ Rope::init () noexcept
         }
     }
 
-  Pipeline::ShaderInfo shader_info_k = { 0, 4, 3, 16, 16, 1 };
-  Pipeline::ShaderInfo shader_info_q = { 0, 4, 3, 16, 16, 1 };
+  Pipeline::ShaderInfo shader_info_k
+      = { 0, 4, 3 * sizeof (uint32_t), 16, 16, 1 };
+  Pipeline::ShaderInfo shader_info_q
+      = { 0, 4, 3 * sizeof (uint32_t), 16, 16, 1 };
 
   const auto *spv_code = dtype_ == VkTensor::FP32
                              ? __get_rope_comp_spv_code ()
@@ -166,19 +168,18 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
-  Pipeline::ConstantType C = { .u32 = (uint32_t)query.channels () };
-  Pipeline::ConstantType H = { .u32 = (uint32_t)query.height () };
-  Pipeline::ConstantType W = { .u32 = (uint32_t)query.width () };
-
+  ShaderConstants shape
+      = { (uint32_t)query.channels (), (uint32_t)query.height (),
+          (uint32_t)query.width () };
   ret = command_->record_pipeline (
-      *pipeline_q_, { query, freqc_, freqs_, out_query }, { C, H, W });
+      *pipeline_q_, { query, freqc_, freqs_, out_query }, shape);
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
 
-  ret = command_->record_pipeline (
-      *pipeline_k_, { key, freqc_, freqs_, out_key }, { C, H, W });
+  ret = command_->record_pipeline (*pipeline_k_,
+                                   { key, freqc_, freqs_, out_key }, shape);
   if (ret != VK_SUCCESS)
     {
       return ret;

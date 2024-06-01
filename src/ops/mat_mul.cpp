@@ -24,10 +24,7 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
 VkResult
 MatMul::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 2, 3, 4, 16, 16, 1 };
-  Pipeline::ConstantType act_type = { .i = act_ };
-  Pipeline::ConstantType transpose_b
-      = { .i = static_cast<int> (transpose_b_) };
+  Pipeline::ShaderInfo info = { 2, 3, 4 * sizeof (int), 16, 16, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
     {
@@ -68,8 +65,8 @@ MatMul::init () noexcept
       return VK_ERROR_UNKNOWN;
     }
 
-  pipeline_.reset (
-      new Pipeline (dev_, pcode, code_size, { act_type, transpose_b }, info));
+  pipeline_.reset (new Pipeline (dev_, pcode, code_size,
+                                 { act_, (int)transpose_b_ }, info));
 
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)
@@ -122,16 +119,14 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
     }
 
   int channels = std::max (a.channels (), weight_.channels ());
-  Pipeline::ConstantType C = { .i = channels };
-  Pipeline::ConstantType M = { .i = (int)a.height () };
-  Pipeline::ConstantType N = { .i = (int)out_w };
-  Pipeline::ConstantType K = { .i = (int)a.width () };
+  ShaderConstants constants
+      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
+  uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
+           groupz = channels;
   pipeline_->set_group (groupx, groupy, groupz);
 
-  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 },
-                                   { C, M, N, K });
+  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -167,15 +162,15 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
     }
 
   int channels = std::max (a.channels (), b.channels ());
-  Pipeline::ConstantType C = { .i = channels };
-  Pipeline::ConstantType M = { .i = (int)a.height () };
-  Pipeline::ConstantType N = { .i = (int)out_w };
-  Pipeline::ConstantType K = { .i = (int)a.width () };
 
-  uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
+  ShaderConstants constants
+      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
+
+  uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
+           groupz = channels;
   pipeline_->set_group (groupx, groupy, groupz);
 
-  ret = command_->record_pipeline (*pipeline_, { a, b, c }, { C, M, N, K });
+  ret = command_->record_pipeline (*pipeline_, { a, b, c }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;
