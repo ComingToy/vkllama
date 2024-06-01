@@ -185,7 +185,7 @@ public:
   VkResult
   record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
                    std::vector<uint32_t> const &indices,
-                   std::vector<Pipeline::ConstantType> const &constants)
+                   ShaderConstants const &constants)
   {
     auto &layout = pipeline.vklayout ();
     auto &descriptset = pipeline.vkdescriptorset ();
@@ -217,11 +217,11 @@ public:
     vkCmdBindPipeline (commandBuffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                        pipeline.vkpileine ());
 
-    if (!constants.empty ())
+    if (constants.elem_num () > 0)
       {
         vkCmdPushConstants (
             commandBuffer_, layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-            sizeof (Pipeline::ConstantType) * constants.size (),
+            constants.bytes (),
             reinterpret_cast<const void *> (constants.data ()));
       }
 
@@ -239,7 +239,7 @@ public:
 
   VkResult
   record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
-                   std::vector<Pipeline::ConstantType> const &constants)
+                   ShaderConstants const &constants)
   {
     std::vector<uint32_t> indices;
     std::generate_n (std::back_inserter (indices), bindings.size (),

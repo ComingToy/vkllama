@@ -24,10 +24,12 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
 VkResult
 MatMul::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 2, 3, 4, 16, 16, 1 };
-  Pipeline::ConstantType act_type = { .i = act_ };
-  Pipeline::ConstantType transpose_b
-      = { .i = static_cast<int> (transpose_b_) };
+  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  Pipeline::ShaderInfo info = { 2, 3, 4 * sizeof (int), 16, 16, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
     {
@@ -36,40 +38,56 @@ MatMul::init () noexcept
 
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
+
+  dev_->support_fp16_arithmetic ();
+#define __SPV_SELECTOR(__boradcast)                                           \
+  do                                                                          \
+    {                                                                         \
+      if (dtype_ == VkTensor::FP32)                                           \
+        {                                                                     \
+          pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();     \
+          code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size (); \
+        }                                                                     \
+      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())  \
+        {                                                                     \
+          pcode                                                               \
+              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_code (); \
+          code_size                                                           \
+              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_size (); \
+        }                                                                     \
+      else if (dtype_ == VkTensor::FP16)                                      \
+        {                                                                     \
+          pcode                                                               \
+              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_code ();  \
+          code_size                                                           \
+              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_size ();  \
+        }                                                                     \
+      else                                                                    \
+        {                                                                     \
+          return VK_ERROR_FORMAT_NOT_SUPPORTED;                               \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
   if (broadcast_type_ == 0)
     {
-      pcode = dtype_ == VkTensor::FP32
-                  ? __get_matmul_broadcast0_comp_spv_code ()
-                  : __get_matmul_broadcast0_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast0_comp_spv_size ()
-                      : __get_matmul_broadcast0_fp16_comp_spv_size ();
+      __SPV_SELECTOR (0);
     }
   else if (broadcast_type_ == 1)
     {
-      pcode = dtype_ == VkTensor::FP32
-                  ? __get_matmul_broadcast1_comp_spv_code ()
-                  : __get_matmul_broadcast1_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast1_comp_spv_size ()
-                      : __get_matmul_broadcast1_fp16_comp_spv_size ();
+      __SPV_SELECTOR (1);
     }
   else if (broadcast_type_ == 2)
     {
-      pcode = VkTensor::FP32 == dtype_
-                  ? __get_matmul_broadcast2_comp_spv_code ()
-                  : __get_matmul_broadcast2_fp16_comp_spv_code ();
-      code_size = dtype_ == VkTensor::FP32
-                      ? __get_matmul_broadcast2_comp_spv_size ()
-                      : __get_matmul_broadcast2_fp16_comp_spv_size ();
+      __SPV_SELECTOR (2);
     }
   else
     {
       return VK_ERROR_UNKNOWN;
     }
 
-  pipeline_.reset (
-      new Pipeline (dev_, pcode, code_size, { act_type, transpose_b }, info));
+  pipeline_.reset (new Pipeline (dev_, pcode, code_size,
+                                 { act_, (int)transpose_b_ }, info));
 
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)
@@ -122,16 +140,14 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
     }
 
   int channels = std::max (a.channels (), weight_.channels ());
-  Pipeline::ConstantType C = { .i = channels };
-  Pipeline::ConstantType M = { .i = (int)a.height () };
-  Pipeline::ConstantType N = { .i = (int)out_w };
-  Pipeline::ConstantType K = { .i = (int)a.width () };
+  ShaderConstants constants
+      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
+  uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
+           groupz = channels;
   pipeline_->set_group (groupx, groupy, groupz);
 
-  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 },
-                                   { C, M, N, K });
+  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -167,15 +183,15 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
     }
 
   int channels = std::max (a.channels (), b.channels ());
-  Pipeline::ConstantType C = { .i = channels };
-  Pipeline::ConstantType M = { .i = (int)a.height () };
-  Pipeline::ConstantType N = { .i = (int)out_w };
-  Pipeline::ConstantType K = { .i = (int)a.width () };
 
-  uint32_t groupx = (N.i + 31) / 32, groupy = (M.i + 31) / 32, groupz = C.i;
+  ShaderConstants constants
+      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
+
+  uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
+           groupz = channels;
   pipeline_->set_group (groupx, groupy, groupz);
 
-  ret = command_->record_pipeline (*pipeline_, { a, b, c }, { C, M, N, K });
+  ret = command_->record_pipeline (*pipeline_, { a, b, c }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;

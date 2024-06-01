@@ -12,19 +12,37 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
 VkResult
 ElementWise::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 1, 3, 1, 128, 1, 1 };
-  Pipeline::ConstantType op_type = { .i = type_ };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 128, 1, 1 };
 
-  const uint8_t *spv_code = dtype_ == VkTensor::FP16
-                                ? __get_element_wise_fp16_comp_spv_code ()
-                                : __get_element_wise_comp_spv_code ();
+  uint32_t bytes = sizeof (int)
+                   + (dtype_ == VkTensor::FP16 ? sizeof (__vkllama_fp16_t) * 2
+                                               : sizeof (float));
+  Pipeline::ShaderInfo info1 = { 1, 3, bytes, 128, 1, 1 };
+  ShaderConstants constants = { type_ };
 
-  size_t spv_size = dtype_ == VkTensor::FP16
-                        ? __get_element_wise_fp16_comp_spv_size ()
-                        : __get_element_wise_comp_spv_size ();
+  const uint8_t *spv_code = nullptr;
+  size_t spv_size = 0;
 
-  pipeline0_.reset (
-      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
+  if (dtype_ == VkTensor::FP32)
+    {
+      spv_code = __get_element_wise_comp_spv_code ();
+      spv_size = __get_element_wise_comp_spv_size ();
+    }
+  else if (dtype_ == VkTensor::FP16 && dev_->support_16bit_storage ())
+    {
+      spv_code = dev_->support_fp16_arithmetic ()
+                     ? __get_element_wise_fp16a_comp_spv_code ()
+                     : __get_element_wise_fp16_comp_spv_code ();
+      spv_size = dev_->support_fp16_arithmetic ()
+                     ? __get_element_wise_fp16a_comp_spv_size ()
+                     : __get_element_wise_fp16_comp_spv_size ();
+    }
+  else
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  pipeline0_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info));
 
   auto ret = pipeline0_->init ();
   if (ret != VK_SUCCESS)
@@ -32,18 +50,26 @@ ElementWise::init () noexcept
       return ret;
     }
 
-  info.push_constant_count = 2;
-  info.binding_count = 2;
+  if (dtype_ == VkTensor::FP32)
+    {
+      spv_code = __get_element_wise_constant_comp_spv_code ();
+      spv_size = __get_element_wise_constant_comp_spv_size ();
+    }
+  else if (dtype_ == VkTensor::FP16 && dev_->support_16bit_storage ())
+    {
+      spv_code = dev_->support_fp16_arithmetic ()
+                     ? __get_element_wise_constant_fp16a_comp_spv_code ()
+                     : __get_element_wise_constant_fp16_comp_spv_code ();
+      spv_size = dev_->support_fp16_arithmetic ()
+                     ? __get_element_wise_constant_fp16a_comp_spv_size ()
+                     : __get_element_wise_constant_fp16_comp_spv_size ();
+    }
+  else
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
 
-  spv_code = dtype_ == VkTensor::FP32
-                 ? __get_element_wise_constant_comp_spv_code ()
-                 : __get_element_wise_constant_fp16_comp_spv_code ();
-  spv_size = dtype_ == VkTensor::FP32
-                 ? __get_element_wise_constant_comp_spv_size ()
-                 : __get_element_wise_constant_fp16_comp_spv_size ();
-
-  pipeline1_.reset (
-      new Pipeline (dev_, spv_code, spv_size, { op_type }, info));
+  pipeline1_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info1));
   return pipeline1_->init ();
 }
 
@@ -80,8 +106,8 @@ ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType n = { .i = static_cast<int> (x.size ()) };
-  if ((ret = command_->record_pipeline (*pipeline0_, { x, y, out }, { n }))
+  ShaderConstants constants = { static_cast<int> (x.size ()) };
+  if ((ret = command_->record_pipeline (*pipeline0_, { x, y, out }, constants))
       != VK_SUCCESS)
     {
       return ret;
@@ -113,9 +139,18 @@ ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
       return ret;
     }
 
-  Pipeline::ConstantType n = { .i = static_cast<int> (x.size ()) };
-  Pipeline::ConstantType alpha = { .f = y };
-  ret = command_->record_pipeline (*pipeline1_, { x, out }, { n, alpha });
+  ShaderConstants constants = { (int)x.size () };
+  if (dtype_ == VkTensor::FP32)
+    {
+      constants.push_back (y);
+    }
+  else
+    {
+      // constants.push_back (y);
+      constants.push_back (__fp32_to_fp16 (y));
+      constants.push_back (__fp32_to_fp16 (0)); // padding
+    }
+  ret = command_->record_pipeline (*pipeline1_, { x, out }, constants);
   if (ret != VK_SUCCESS)
     {
       return ret;

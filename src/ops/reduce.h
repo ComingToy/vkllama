@@ -22,24 +22,42 @@ public:
   VkResult
   init () noexcept override
   {
-    Pipeline::ShaderInfo stage0Info = { 1, 2, 3, 64, 4, 1 };
-    Pipeline::ShaderInfo stage1Info = { 1, 2, 5, 1, 64, 1 };
+    if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+      {
+        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      }
+
+    Pipeline::ShaderInfo stage0Info = { 1, 2, 3 * sizeof (int), 64, 4, 1 };
+    Pipeline::ShaderInfo stage1Info
+        = { 1, 2, 3 * sizeof (int) + sizeof (float), 1, 64, 1 };
 
     const auto *spv_code = dtype_ == VkTensor::FP16
                                ? __get_reduce_stage0_fp16_comp_spv_code ()
                                : __get_reduce_stage0_comp_spv_code ();
-    const auto spv_size = dtype_ == VkTensor::FP16
-                              ? __get_reduce_stage0_fp16_comp_spv_size ()
-                              : __get_reduce_stage0_comp_spv_size ();
+    auto spv_size = dtype_ == VkTensor::FP16
+                        ? __get_reduce_stage0_fp16_comp_spv_size ()
+                        : __get_reduce_stage0_comp_spv_size ();
+
+    if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+      {
+        spv_code = __get_reduce_stage0_fp16a_comp_spv_code ();
+        spv_size = __get_reduce_stage0_fp16a_comp_spv_size ();
+      }
 
     const auto *spv_code1 = dtype_ == VkTensor::FP16
                                 ? __get_reduce_stage1_fp16_comp_spv_code ()
                                 : __get_reduce_stage1_comp_spv_code ();
-    const auto spv_size1 = dtype_ == VkTensor::FP16
-                               ? __get_reduce_stage1_fp16_comp_spv_size ()
-                               : __get_reduce_stage1_comp_spv_size ();
+    auto spv_size1 = dtype_ == VkTensor::FP16
+                         ? __get_reduce_stage1_fp16_comp_spv_size ()
+                         : __get_reduce_stage1_comp_spv_size ();
 
-    Pipeline::ConstantType op_type = { .i = op_type_ == 3 ? 0 : op_type_ };
+    if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+      {
+        spv_code1 = __get_reduce_stage1_fp16a_comp_spv_code ();
+        spv_size1 = __get_reduce_stage1_fp16a_comp_spv_size ();
+      }
+
+    auto op_type = op_type_ == 3 ? 0 : op_type_;
     stage0_.reset (
         new Pipeline (dev_, spv_code, spv_size, { op_type }, stage0Info));
 
@@ -90,12 +108,9 @@ public:
         return ret;
       }
 
-    Pipeline::ConstantType C = { .i = static_cast<int> (a.channels ()) };
-    Pipeline::ConstantType H = { .i = static_cast<int> (a.height ()) };
-    Pipeline::ConstantType W = { .i = static_cast<int> (a.width ()) };
-
-    ret = command_->record_pipeline (*stage0_, { a, stage0_output_ },
-                                     { C, H, W });
+    ret = command_->record_pipeline (
+        *stage0_, { a, stage0_output_ },
+        { (int)a.channels (), (int)a.height (), (int)a.width () });
     if (ret != VK_SUCCESS)
       {
         return ret;
@@ -104,20 +119,32 @@ public:
     stage0_output_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     stage0_output_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    Pipeline::ConstantType mean_scale;
+    float mean_scale;
     if (op_type_ == 3)
       {
-        mean_scale.f = 1.0f / static_cast<float> (a.width ());
+        mean_scale = 1.0f / static_cast<float> (a.width ());
       }
     else
       {
-        mean_scale.f = 1.0f;
+        mean_scale = 1.0f;
       }
 
-    W.i = static_cast<int> (group_x);
+    ShaderConstants constants
+        = { (int)a.channels (), (int)a.height (), (int)group_x };
+
+    if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+      {
+        constants.push_back (__fp32_to_fp16 (mean_scale));
+        constants.push_back (__fp32_to_fp16 (.0f)); // padding
+      }
+    else
+      {
+        constants.push_back (mean_scale);
+      }
+
     ret = stage1_->set_group (1, group_y, group_z);
     ret = command_->record_pipeline (*stage1_, { stage0_output_, b },
-                                     { C, H, W, mean_scale });
+                                     constants);
     if (ret != VK_SUCCESS)
       {
         return ret;

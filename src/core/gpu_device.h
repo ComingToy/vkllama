@@ -22,6 +22,10 @@ public:
   const VkPhysicalDeviceLimits &limits () const;
   VkResult init ();
   bool support_descriptor_templ_update () const;
+  bool support_16bit_storage() const;
+  bool support_fp16_arithmetic() const;
+  bool support_int8_arithmetic() const;
+
   ~GPUDevice ();
 
 private:
@@ -41,5 +45,7 @@ private:
   uint32_t version_;
   bool support_descriptor_templ_update_;
   bool support_16bit_storage_;
+  bool support_shader_fp16_arithmetic_;
+  bool support_shader_int8_arithmetic_;
 };
 #endif

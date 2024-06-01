@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
+#define __VKLLAMA_LOG_COST 1
 class InputLayer
 {
 public:
@@ -641,7 +642,6 @@ public:
 
     for (int i = 0; i < blocks_.size (); ++i)
       {
-        fprintf (stderr, "infer %d block\n", i);
         auto *command = block_commands_[i];
         command->begin ();
         auto *block = blocks_[i];
