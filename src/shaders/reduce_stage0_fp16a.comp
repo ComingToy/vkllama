@@ -1,0 +1,87 @@
+#version 450 core
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+// 0: sum 1: max 2: min
+layout (constant_id = 0) const int op_type = 0;
+layout (push_constant) uniform constants
+{
+  int C;
+  int H;
+  int W;
+};
+
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+layout (binding = 1) writeonly buffer OutputTensor0 { float16_t output0[]; };
+
+// block size = [64, 4, 1]
+shared float16_t smem[4][64];
+
+void
+main (void)
+{
+  uint tid_x = gl_GlobalInvocationID.x;
+  uint tid_y = gl_GlobalInvocationID.y;
+  uint tid_z = gl_GlobalInvocationID.z;
+  uint group_x = gl_WorkGroupSize.x;
+  uint group_id = gl_WorkGroupID.x;
+  uint WO = gl_NumWorkGroups.x;
+
+  uint local_tid_x = gl_LocalInvocationID.x;
+  uint local_tid_y = gl_LocalInvocationID.y;
+  uint local_tid_z = gl_LocalInvocationID.z;
+
+  if (tid_y >= H || tid_z >= C)
+    {
+      return;
+    }
+
+  const uint in_base = tid_z * H * W + tid_y * W;
+  const uint out_base = tid_z * H * WO + tid_y * WO;
+
+  if (tid_x < W)
+    {
+      smem[local_tid_y][local_tid_x] = input0[in_base + tid_x];
+    }
+  else
+    {
+      smem[local_tid_y][local_tid_x] = .0hf;
+    }
+
+  barrier ();
+
+  for (uint stride = group_x / 2; stride > 0; stride /= 2)
+    {
+      if (local_tid_x < stride && tid_x + stride < W)
+        {
+          if (op_type == 0)
+            {
+
+              smem[local_tid_y][local_tid_x]
+                  += smem[local_tid_y][local_tid_x + stride];
+            }
+          else if (op_type == 1)
+            {
+              smem[local_tid_y][local_tid_x]
+                  = max (smem[local_tid_y][local_tid_x + stride],
+                         smem[local_tid_y][local_tid_x]);
+            }
+          else if (op_type == 2)
+            {
+              smem[local_tid_y][local_tid_x]
+                  = min (smem[local_tid_y][local_tid_x + stride],
+                         smem[local_tid_y][local_tid_x]);
+            }
+        }
+
+      barrier ();
+    }
+
+  if (local_tid_x == 0)
+    {
+      output0[out_base + group_id] = smem[local_tid_y][0];
+    }
+}

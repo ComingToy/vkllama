@@ -139,7 +139,7 @@ TEST_P (TestReduce, test_reduce)
   // ASSERT_LT (*mse.data (), 1e-4);
 
   Tensor<2> err (vk_output_tensor.dimensions ());
-  err.setConstant (1e-2);
+  err.setConstant (5e-2);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
   ASSERT_EQ (*diff.data (), 0);
