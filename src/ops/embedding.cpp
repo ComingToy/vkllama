@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
                       const uint32_t UNK, const VkTensor::DType dtype)
     : Op (dev, command), vocab_ (vocab), UNK_ (UNK), dtype_ (dtype)
@@ -87,3 +89,5 @@ Embedding::time () noexcept
 {
   return pipeline_->time ();
 }
+}
+

@@ -7,6 +7,8 @@
 #include "src/ops/op.h"
 #include <memory>
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 class FeedForward : public Op
@@ -35,5 +37,7 @@ private:
 
   bool transposed_weight_;
 };
+
+}
 
 #endif

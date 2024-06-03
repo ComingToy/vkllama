@@ -5,6 +5,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+namespace vkllama
+{
 VkTensor::VkTensor ()
     : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false), dtype_ (FP32),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
@@ -265,3 +267,5 @@ VkTensor::like (const VkTensor &tensor)
                 tensor.dev_, tensor.dtype (), tensor.visable ());
   return tmp;
 }
+}
+

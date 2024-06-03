@@ -12,7 +12,7 @@
 #include <math.h>
 #include <vector>
 
-namespace
+namespace vkllama
 {
 struct TestMatMulParams
 {

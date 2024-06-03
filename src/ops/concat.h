@@ -5,6 +5,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 class Concat : public Op
 {
 public:
@@ -20,4 +22,6 @@ private:
   std::vector<std::unique_ptr<Pipeline> > pipelines_;
   VkTensor::DType dtype_;
 };
+
+}
 #endif

@@ -7,6 +7,8 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <vector>
 
+namespace vkllama
+{
 Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask,
                   const VkTensor::DType dtype)
     : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype)
@@ -184,3 +186,5 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
   b = out_;
   return VK_SUCCESS;
 }
+}
+

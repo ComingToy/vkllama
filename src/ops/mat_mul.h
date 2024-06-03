@@ -4,6 +4,8 @@
 #include "src/ops/op.h"
 #include <memory>
 
+namespace vkllama
+{
 class MatMul : public Op
 {
 public:
@@ -28,5 +30,6 @@ private:
   const bool transpose_b_;
   VkTensor::DType dtype_;
 };
+}
 
 #endif

@@ -120,7 +120,7 @@ main (const int argc, const char *argv[])
         }
     }
 
-  Model model;
+  vkllama::Model model;
   auto ret = model.init (state_dict);
   if (ret != VK_SUCCESS)
     {

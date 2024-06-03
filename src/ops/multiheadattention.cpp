@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+namespace vkllama
+{
 MultiHeadAttention::MultiHeadAttention (
     GPUDevice *dev, Command *command, std::vector<VkTensor> const &Wk,
     std::vector<VkTensor> const &Wq, std::vector<VkTensor> const &Wv,
@@ -215,3 +217,5 @@ MultiHeadAttention::time () noexcept
 {
   return 0;
 }
+}
+

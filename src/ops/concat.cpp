@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 Concat::Concat (GPUDevice *gpu, Command *command, const int num,
                 VkTensor::DType const dtype)
     : Op (gpu, command), num_ (num), dtype_ (dtype)
@@ -126,3 +128,5 @@ Concat::time () noexcept
   uint64_t time = *std::max_element (times.cbegin (), times.cend ());
   return time;
 }
+}
+

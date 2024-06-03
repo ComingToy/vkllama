@@ -3,6 +3,9 @@
 #include "src/core/float.h"
 #include "src/ops/op.h"
 #include <memory>
+
+namespace vkllama
+{
 class Pipeline;
 class GPUDevice;
 class Command;
@@ -23,5 +26,7 @@ private:
   std::unique_ptr<Pipeline> pipeline1_;
   VkTensor::DType dtype_;
 };
+
+}
 
 #endif

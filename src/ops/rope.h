@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 class Rope : public Op
 {
 public:
@@ -34,5 +36,7 @@ private:
   std::unique_ptr<Pipeline> pipeline_k_;
   std::unique_ptr<Pipeline> pipeline_q_;
 };
+
+}
 
 #endif

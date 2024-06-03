@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+namespace vkllama
+{
 Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
             const VkTensor::DType dtype)
     : Op (dev, command), maxlen_ (maxlen), dim_ (dim), dtype_ (dtype)
@@ -203,3 +205,5 @@ Rope::freqs ()
 {
   return freqs_host_;
 }
+}
+

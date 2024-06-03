@@ -24,6 +24,8 @@
 #include <vector>
 
 #define __VKLLAMA_LOG_COST 1
+namespace vkllama
+{
 class InputLayer
 {
 public:
@@ -697,5 +699,7 @@ private:
   OutputLayer *output_layer_;
   std::vector<Llama2Block *> blocks_;
 };
+
+}
 
 #endif

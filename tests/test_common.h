@@ -43,11 +43,11 @@ random_number (T min, T max)
 }
 
 template <typename T>
-inline std::unique_ptr<std::pair<VkTensor, std::vector<T> > >
-random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
-               const int w, const T min = -1, const T max = 1)
+inline std::unique_ptr<std::pair<vkllama::VkTensor, std::vector<T> > >
+random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
+               const int h, const int w, const T min = -1, const T max = 1)
 {
-  VkTensor tensor (c, h, w, dev, VkTensor::to_dtype<T> ());
+  vkllama::VkTensor tensor (c, h, w, dev, vkllama::VkTensor::to_dtype<T> ());
   if (tensor.create () != VK_SUCCESS)
     {
       return {};
@@ -63,7 +63,8 @@ random_tensor (GPUDevice *dev, Command *command, const int c, const int h,
       return {};
     }
 
-  return std::make_unique<std::pair<VkTensor, std::vector<T> > > (tensor, buf);
+  return std::make_unique<std::pair<vkllama::VkTensor, std::vector<T> > > (
+      tensor, buf);
 }
 
 template <int NumIndices_ = 3>
@@ -136,8 +137,8 @@ public:
   void
   SetUp () override
   {
-    gpu_ = new GPUDevice ();
-    command_ = new Command (gpu_);
+    gpu_ = new vkllama::GPUDevice ();
+    command_ = new vkllama::Command (gpu_);
 
     gpu_->init ();
     command_->init ();
@@ -150,7 +151,7 @@ public:
     delete gpu_;
   }
 
-  GPUDevice *gpu_;
-  Command *command_;
+  vkllama::GPUDevice *gpu_;
+  vkllama::Command *command_;
 };
 #endif

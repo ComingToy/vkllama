@@ -6,6 +6,9 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+namespace vkllama
+{
 class ShaderConstants
 {
 public:
@@ -76,5 +79,7 @@ private:
   std::vector<size_t> offset_;
   std::vector<size_t> sizes_;
 };
+
+}
 
 #endif

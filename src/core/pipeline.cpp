@@ -9,6 +9,8 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+namespace vkllama
+{
 Pipeline::Pipeline (GPUDevice *device, const uint8_t *spv,
                     const size_t spv_size,
                     ShaderConstants const &specialization,
@@ -445,3 +447,5 @@ Pipeline::set_group (uint32_t x, uint32_t y, uint32_t z)
     }
   return VK_SUCCESS;
 }
+}
+

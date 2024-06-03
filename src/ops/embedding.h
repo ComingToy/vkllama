@@ -3,6 +3,8 @@
 #include "src/ops/op.h"
 #include <memory>
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 class Embedding : public Op
@@ -21,4 +23,6 @@ private:
   const uint32_t UNK_;
   const VkTensor::DType dtype_;
 };
+
+}
 #endif

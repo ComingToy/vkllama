@@ -4,6 +4,8 @@
 #include "src/ops/reduce.h"
 #include <memory>
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 class Softmax : public Op
@@ -30,4 +32,6 @@ private:
   bool seq_mask_;
   VkTensor::DType dtype_;
 };
+
+}
 #endif

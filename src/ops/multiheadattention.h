@@ -10,6 +10,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 class MultiHeadAttention : public Op
@@ -50,4 +52,6 @@ private:
 
   const VkTensor::DType dtype_;
 };
+}
+
 #endif

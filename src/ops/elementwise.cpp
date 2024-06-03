@@ -3,6 +3,8 @@
 #include "src/core/gpu_device.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+namespace vkllama
+{
 ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
                           VkTensor::DType dtype)
     : Op (dev, command), type_ (type), dtype_ (dtype)
@@ -160,3 +162,5 @@ ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
   return VK_SUCCESS;
 }
+}
+

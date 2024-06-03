@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-namespace
+namespace vkllama
 {
 struct TestArgOpParams
 {
