@@ -6,16 +6,16 @@
 #include "test_common.h"
 #include "gtest/gtest.h"
 #include <memory>
+#include <tuple>
 #include <vector>
 
 namespace vkllama
 {
 struct TestConcatParams
 {
-  const int C;
-  const int H;
-  const std::vector<int> W;
   const int dtype; // 0: fp32 1: fp16
+  const int axis;
+  std::vector<std::tuple<int, int, int> > shapes;
 };
 
 class TestConcat : public ::testing::TestWithParam<TestConcatParams>
@@ -48,10 +48,9 @@ TEST_P (TestConcat, test_concat)
   std::vector<std::unique_ptr<Cast> > cast_input_ops;
   std::vector<std::vector<float> > input_bufs;
 
-  for (auto const w : params.W)
+  for (auto const &[c, h, w] : params.shapes)
     {
-      auto input
-          = random_tensor<float> (gpu_, command_, params.C, params.H, w);
+      auto input = random_tensor<float> (gpu_, command_, c, h, w);
       ASSERT_TRUE (input) << "failed at create tensor";
       input_tensors.push_back (input->first);
 
@@ -87,7 +86,7 @@ TEST_P (TestConcat, test_concat)
         }
     }
 
-  Concat concat_op (gpu_, command_, (int)input_tensors.size (),
+  Concat concat_op (gpu_, command_, (int)input_tensors.size (), params.axis,
                     (VkTensor::DType)params.dtype);
   ASSERT_EQ (concat_op.init (), VK_SUCCESS) << "failed at init op";
 
@@ -127,7 +126,8 @@ TEST_P (TestConcat, test_concat)
   Tensor<3> eigen_output_tensor;
   for (int i = 1; i < input_eigen_tensors.size (); ++i)
     {
-      eigen_output_tensor = tmp.concatenate (input_eigen_tensors[i], 2);
+      eigen_output_tensor
+          = tmp.concatenate (input_eigen_tensors[i], params.axis);
       tmp = eigen_output_tensor;
     }
 
@@ -147,18 +147,13 @@ TEST_P (TestConcat, test_concat)
 }
 
 std::vector<TestConcatParams> params = {
-  { 1, 64, { 32, 32 }, 0 },      { 5, 64, { 32, 32 }, 0 },
-  { 1, 65, { 32, 32 }, 0 },      { 5, 65, { 32, 32 }, 0 },
-  { 5, 65, { 15, 18 }, 0 },      { 5, 65, { 15, 32, 125 }, 0 },
-  { 5, 65, { 32, 15, 128 }, 0 }, { 5, 65, { 33, 128, 15 }, 0 },
-  { 5, 65, { 128, 19, 31 }, 0 },
+  { 0, 0, { { 1, 63, 31 }, { 2, 63, 31 } } },
+  { 0, 1, { { 3, 63, 31 }, { 3, 31, 31 } } },
+  { 0, 2, { { 3, 63, 31 }, { 3, 63, 63 } } },
 
-  { 1, 64, { 32, 32 }, 1 },      { 5, 64, { 32, 32 }, 1 },
-  { 1, 65, { 32, 32 }, 1 },      { 5, 65, { 32, 32 }, 1 },
-  { 5, 65, { 15, 18 }, 1 },      { 5, 65, { 15, 32, 125 }, 1 },
-  { 5, 65, { 32, 15, 128 }, 1 }, { 5, 65, { 33, 128, 15 }, 1 },
-  { 5, 65, { 128, 19, 31 }, 1 },
-
+  { 1, 0, { { 1, 63, 31 }, { 2, 63, 31 }, { 5, 63, 31 } } },
+  { 1, 1, { { 3, 63, 31 }, { 3, 31, 31 }, { 3, 22, 31 } } },
+  { 1, 2, { { 3, 63, 31 }, { 3, 63, 63 }, { 3, 63, 22 } } },
 };
 
 INSTANTIATE_TEST_SUITE_P (test_concat, TestConcat,
