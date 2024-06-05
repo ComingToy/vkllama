@@ -28,12 +28,12 @@ Concat::init () noexcept
     }
 
   const auto *spv_code = dtype_ == VkTensor::FP32
-                             ? __get_concat_axis2_comp_spv_code ()
-                             : __get_concat_axis2_fp16_comp_spv_code ();
+                             ? __get_concat_comp_spv_code ()
+                             : __get_concat_fp16_comp_spv_code ();
 
   size_t spv_size = dtype_ == VkTensor::FP32
-                        ? __get_concat_axis2_comp_spv_size ()
-                        : __get_concat_axis2_fp16_comp_spv_size ();
+                        ? __get_concat_comp_spv_size ()
+                        : __get_concat_fp16_comp_spv_size ();
 
   std::vector<std::unique_ptr<Pipeline> > pipelines;
 
