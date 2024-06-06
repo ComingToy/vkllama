@@ -164,6 +164,10 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
+  groupx = (key.width () / 2 + 15) / 16;
+  groupy = (key.height () + 15) / 16;
+  groupz = key.channels ();
+
   ret = pipeline_q_->set_group (groupx, groupy, groupz);
   if (ret != VK_SUCCESS)
     {
@@ -180,8 +184,12 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
-  ret = command_->record_pipeline (*pipeline_k_,
-                                   { key, freqc_, freqs_, out_key }, shape);
+  ShaderConstants key_shape
+      = { (uint32_t)key.channels (), (uint32_t)key.height (),
+          (uint32_t)key.width () };
+
+  ret = command_->record_pipeline (
+      *pipeline_k_, { key, freqc_, freqs_, out_key }, key_shape);
   if (ret != VK_SUCCESS)
     {
       return ret;
