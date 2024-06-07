@@ -40,6 +40,8 @@ glsl_shader(
         "softmax_stage2_fp16a.comp",
         "concat.comp",
         "concat_fp16.comp",
+        "slice.comp",
+        "slice_fp16.comp",
         "embedding.comp",
         "embedding_fp16.comp",
         "argmax_stage0.comp",
