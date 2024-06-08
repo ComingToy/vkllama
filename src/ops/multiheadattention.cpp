@@ -17,10 +17,11 @@ MultiHeadAttention::MultiHeadAttention (
     GPUDevice *dev, Command *command, std::vector<VkTensor> const &Wk,
     std::vector<VkTensor> const &Wq, std::vector<VkTensor> const &Wv,
     const VkTensor Wo, const int maxlen, const int dim,
-    const bool transposed_weight, const VkTensor::DType dtype)
+    const bool transposed_weight, const VkTensor::DType dtype,
+    const size_t cache_size)
     : Op (dev, command), wk_ (Wk), wq_ (Wq), wv_ (Wv), wo_ (Wo),
       maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
-      dtype_ (dtype)
+      dtype_ (dtype), cache_size_ (cache_size)
 {
 }
 

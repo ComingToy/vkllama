@@ -23,7 +23,8 @@ public:
                       std::vector<VkTensor> const &Wv, VkTensor const Wo,
                       const int maxlen, const int dim,
                       const bool transposed_weight = false,
-                      VkTensor::DType const dtype = VkTensor::FP32);
+                      VkTensor::DType const dtype = VkTensor::FP32,
+                      const size_t cache_size = 0);
   VkResult operator() (VkTensor X, VkTensor &output) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
@@ -51,6 +52,7 @@ private:
   bool transposed_weight_;
 
   const VkTensor::DType dtype_;
+  const size_t cache_size_;
 };
 }
 

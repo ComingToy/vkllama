@@ -119,6 +119,16 @@ cc_test(
 	],
 )
 
+cc_test(
+	name = "test_slice",
+	srcs = ["test_slice.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+
+
 
 cc_binary(
 	name="llama2",
