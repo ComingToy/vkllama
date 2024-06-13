@@ -13,9 +13,10 @@ layout (binding = 3) writeonly buffer OutputTensor0 { float16_t output_kq[]; };
 
 layout (push_constant) uniform constants
 {
-  uint C; // batch size
-  uint H; // seqlen
-  uint W; // token dim
+  uint C;      // batch size
+  uint H;      // seqlen
+  uint W;      // token dim
+  uint offset; // kvcache offset
 };
 
 void
@@ -30,8 +31,8 @@ main (void)
       return;
     }
 
-  float freqc = float (rope_freqc[tid_y * W / 2 + tid_x]);
-  float freqs = float (rope_freqs[tid_y * W / 2 + tid_x]);
+  float freqc = float (rope_freqc[(tid_y + offset) * W / 2 + tid_x]);
+  float freqs = float (rope_freqs[(tid_y + offset) * W / 2 + tid_x]);
 
   uint src_idx = tid_z * H * W + tid_y * W + 2 * tid_x;
   float q0 = float (input_query[src_idx]);

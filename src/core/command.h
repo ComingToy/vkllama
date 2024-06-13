@@ -16,6 +16,8 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+namespace vkllama
+{
 class Command
 {
 public:
@@ -405,4 +407,6 @@ public:
 private:
   Command command_;
 };
+}
+
 #endif

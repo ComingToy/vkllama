@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace
+namespace vkllama
 {
 struct TestMultiheadattnParams
 {

@@ -7,6 +7,8 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <vector>
 
+namespace vkllama
+{
 Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask,
                   const VkTensor::DType dtype)
     : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype)
@@ -23,7 +25,7 @@ Softmax::init () noexcept
       return ret;
     }
 
-  Pipeline::ShaderInfo info0 = { 1, 4, 3 * sizeof (uint32_t), 32, 4, 1 };
+  Pipeline::ShaderInfo info0 = { 1, 4, 4 * sizeof (uint32_t), 32, 4, 1 };
   Pipeline::ShaderInfo info1 = { 0, 2, 3 * sizeof (uint32_t), 1, 32, 1 };
   Pipeline::ShaderInfo info2 = { 0, 3, 3 * sizeof (uint32_t), 32, 4, 1 };
 
@@ -87,7 +89,7 @@ Softmax::time () noexcept
 }
 
 VkResult
-Softmax::operator() (VkTensor a, VkTensor &b) noexcept
+Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
 {
   if (a.dtype () != dtype_)
     {
@@ -123,7 +125,7 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
   ret = command_->record_pipeline (*softmax0_, { a, bias_, m_, exps_ },
                                    { (uint32_t)a.channels (),
                                      (uint32_t)a.height (),
-                                     (uint32_t)a.width () });
+                                     (uint32_t)a.width (), (uint32_t)offset });
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -184,3 +186,5 @@ Softmax::operator() (VkTensor a, VkTensor &b) noexcept
   b = out_;
   return VK_SUCCESS;
 }
+}
+

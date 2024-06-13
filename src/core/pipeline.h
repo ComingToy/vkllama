@@ -7,6 +7,8 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
+namespace vkllama
+{
 class VkTensor;
 class Pipeline
 {
@@ -15,7 +17,7 @@ public:
   {
     int specialization_count;
     int binding_count;
-	uint32_t push_constant_bytes;
+    uint32_t push_constant_bytes;
     uint32_t local_x, local_y, local_z;
   };
 
@@ -70,4 +72,6 @@ private:
                           std::vector<uint32_t> const &indices);
   VkResult limits_ ();
 };
+}
+
 #endif

@@ -9,33 +9,37 @@
 #include <memory>
 #include <vector>
 
-Concat::Concat (GPUDevice *gpu, Command *command, const int num,
-                VkTensor::DType const dtype)
-    : Op (gpu, command), num_ (num), dtype_ (dtype)
+namespace vkllama
 {
+Concat::Concat (GPUDevice *gpu, Command *command, const int num,
+                const int axis, VkTensor::DType const dtype)
+    : Op (gpu, command), num_ (num), axis_ (axis), dtype_ (dtype)
+{
+  axis_ = axis_ < 0 ? 2 : axis_;
 }
 
 VkResult
 Concat::init () noexcept
 {
-  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+  if (axis_ > 2
+      || (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ()))
     {
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
   const auto *spv_code = dtype_ == VkTensor::FP32
-                             ? __get_concat_axis2_comp_spv_code ()
-                             : __get_concat_axis2_fp16_comp_spv_code ();
+                             ? __get_concat_comp_spv_code ()
+                             : __get_concat_fp16_comp_spv_code ();
 
   size_t spv_size = dtype_ == VkTensor::FP32
-                        ? __get_concat_axis2_comp_spv_size ()
-                        : __get_concat_axis2_fp16_comp_spv_size ();
+                        ? __get_concat_comp_spv_size ()
+                        : __get_concat_fp16_comp_spv_size ();
 
   std::vector<std::unique_ptr<Pipeline> > pipelines;
 
   for (int i = 0; i < num_; ++i)
     {
-      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 5, 16, 16, 1 };
+      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
       ShaderConstants specs;
 
       auto pipeline
@@ -68,32 +72,95 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  auto const &ref = inputs[0];
-  size_t w = 0;
-  for (auto &inp : inputs)
+  if (axis_ == 0
+      && std::any_of (inputs.cbegin (), inputs.cend (),
+                      [&inputs] (const VkTensor &item) {
+                        return item.height () != inputs.front ().height ()
+                               || item.width () != inputs.front ().width ();
+                      }))
     {
-      if (inp.channels () != ref.channels () || inp.height () != ref.height ())
-        {
-          return VK_ERROR_UNKNOWN;
-        }
-
-      w += inp.width ();
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  output = VkTensor (ref.channels (), ref.height (), w, dev_, dtype_);
+  if (axis_ == 1
+      && std::any_of (inputs.cbegin (), inputs.cend (),
+                      [&inputs] (const auto &item) {
+                        return inputs.front ().channels () != item.channels ()
+                               || inputs.front ().width () != item.width ();
+                      }))
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  if (axis_ == 2
+      && std::any_of (inputs.cbegin (), inputs.cend (),
+                      [&inputs] (const auto &item) {
+                        return inputs.front ().channels () != item.channels ()
+                               || inputs.front ().height () != item.height ();
+                      }))
+    {
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    }
+
+  auto const &ref = inputs[0];
+  size_t c = ref.channels (), h = ref.height (), w = ref.width ();
+  for (size_t i = 1; i < inputs.size (); ++i)
+    {
+      auto &inp = inputs[i];
+
+      if (axis_ == 0)
+        {
+          c += inp.channels ();
+        }
+      else if (axis_ == 1)
+        {
+          h += inp.height ();
+        }
+      else
+        {
+          w += inp.width ();
+        }
+    }
+
+  output = VkTensor (c, h, w, dev_, dtype_);
   auto ret = output.create ();
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
 
+  std::vector<uint32_t> offsets;
   uint32_t offset = 0;
+  for (size_t i = 0; i < num_; ++i)
+    {
+      offsets.push_back (offset);
+      if (axis_ == 0)
+        {
+          offset += inputs[i].size ();
+        }
+      else if (axis_ == 1)
+        {
+          offset += inputs[i].width () * inputs[i].height ();
+        }
+      else if (axis_ == 2)
+        {
+          offset += inputs[i].width ();
+        }
+      else
+        {
+          return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        }
+    }
+
   for (int i = 0; i < num_; ++i)
     {
       const auto &inp = inputs[i];
-      ShaderConstants constants
-          = { (uint32_t)inp.channels (), (uint32_t)inp.height (),
-              (uint32_t)inp.width (), (uint32_t)w, offset };
+      ShaderConstants constants = { (uint32_t)inp.channels (),
+                                    (uint32_t)inp.height (),
+                                    (uint32_t)inp.width (),
+                                    (uint32_t)h,
+                                    (uint32_t)w,
+                                    offsets[i] };
 
       uint32_t group_x = (inp.width () + 15) / 16,
                group_y = (inp.height () + 15) / 16, group_z = inp.channels ();
@@ -104,8 +171,6 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
         {
           return ret;
         }
-
-      offset += inp.width ();
     }
 
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
@@ -126,3 +191,5 @@ Concat::time () noexcept
   uint64_t time = *std::max_element (times.cbegin (), times.cend ());
   return time;
 }
+}
+

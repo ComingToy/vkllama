@@ -4,6 +4,8 @@
 #include "src/ops/reduce.h"
 #include <memory>
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 class Softmax : public Op
@@ -13,7 +15,7 @@ public:
            VkTensor::DType const dtype = VkTensor::FP32);
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor a, VkTensor &b) noexcept;
+  VkResult operator() (VkTensor a, VkTensor &b, size_t offset = 0) noexcept;
 
 private:
   std::unique_ptr<Reduce> reduce_;
@@ -30,4 +32,6 @@ private:
   bool seq_mask_;
   VkTensor::DType dtype_;
 };
+
+}
 #endif

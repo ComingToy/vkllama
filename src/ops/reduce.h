@@ -9,6 +9,8 @@
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <memory>
 
+namespace vkllama
+{
 // 0: sum 1: max 2: min 3: mean
 class Reduce : public Op
 {
@@ -162,5 +164,6 @@ private:
   VkTensor stage0_output_;
   const VkTensor::DType dtype_;
 };
+}
 
 #endif

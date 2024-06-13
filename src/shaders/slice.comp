@@ -7,11 +7,16 @@ layout (push_constant) uniform constants
   uint C;
   uint H;
   uint W;
-  uint WO;
-  uint OFFSET;
+
+  uint CS;
+  uint HS;
+  uint WS;
+
+  uint CE;
+  uint HE;
+  uint WE;
 };
 
-// hape of input0 [C, H, W]
 layout (binding = 0) readonly buffer InputTensor0 { float input0[]; };
 layout (binding = 1) writeonly buffer OutputTensor0 { float output0[]; };
 
@@ -21,12 +26,12 @@ main (void)
   uint glb_tid_x = gl_GlobalInvocationID.x;
   uint glb_tid_y = gl_GlobalInvocationID.y;
   uint glb_tid_z = gl_GlobalInvocationID.z;
-  if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
+  if (glb_tid_x >= WE || glb_tid_y >= HE || glb_tid_z >= CE)
     {
       return;
     }
 
-  uint i = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
-  uint o = glb_tid_z * H * WO + glb_tid_y * WO + glb_tid_x + OFFSET; 
+  uint i = (CS + glb_tid_z) * H * W + (HS + glb_tid_y) * W + (WS + glb_tid_x);
+  uint o = glb_tid_z * HE * WE + glb_tid_y * WE + glb_tid_x;
   output0[o] = input0[i];
 }

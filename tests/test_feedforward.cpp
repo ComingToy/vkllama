@@ -8,7 +8,7 @@
 #include "test_common.h"
 #include "gtest/gtest.h"
 
-namespace
+namespace vkllama
 {
 struct FeedFowardParams
 {

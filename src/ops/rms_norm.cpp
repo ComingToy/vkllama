@@ -3,6 +3,8 @@
 #include "src/core/pipeline.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+namespace vkllama
+{
 RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
                   const float eps_, const VkTensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
@@ -72,3 +74,5 @@ RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
                                       (uint32_t)x.height (),
                                       (uint32_t)x.width () });
 }
+}
+

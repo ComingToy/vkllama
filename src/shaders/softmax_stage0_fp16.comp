@@ -10,6 +10,7 @@ layout (push_constant) uniform constants
   uint C;
   uint H;
   uint W;
+  uint OFFSET;
 };
 
 // shape of input0 [C, H, W], shape of input1 [C, H, 1]
@@ -49,7 +50,7 @@ main (void)
   const uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
 
   float e = 0;
-  if (seq_mask > 0 && glb_tid_x <= glb_tid_y)
+  if (seq_mask > 0 && glb_tid_x <= glb_tid_y + OFFSET)
     {
       e = exp (float(input0[idx]) - bias);
     }

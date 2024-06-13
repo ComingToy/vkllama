@@ -6,6 +6,8 @@
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+namespace vkllama
+{
 FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
                           VkTensor w2, VkTensor w3,
                           const bool transposed_weight,
@@ -100,3 +102,5 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
 
   return VK_SUCCESS;
 }
+}
+

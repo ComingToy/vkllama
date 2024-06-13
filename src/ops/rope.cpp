@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+namespace vkllama
+{
 Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
             const VkTensor::DType dtype)
     : Op (dev, command), maxlen_ (maxlen), dim_ (dim), dtype_ (dtype)
@@ -96,9 +98,9 @@ Rope::init () noexcept
     }
 
   Pipeline::ShaderInfo shader_info_k
-      = { 0, 4, 3 * sizeof (uint32_t), 16, 16, 1 };
+      = { 0, 4, 4 * sizeof (uint32_t), 16, 16, 1 };
   Pipeline::ShaderInfo shader_info_q
-      = { 0, 4, 3 * sizeof (uint32_t), 16, 16, 1 };
+      = { 0, 4, 4 * sizeof (uint32_t), 16, 16, 1 };
 
   const auto *spv_code = dtype_ == VkTensor::FP32
                              ? __get_rope_comp_spv_code ()
@@ -131,12 +133,11 @@ Rope::time () noexcept
 
 VkResult
 Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
-                  VkTensor &out_key) noexcept
+                  VkTensor &out_key, const size_t offset) noexcept
 {
-  if (query.width () != key.width () || query.height () != key.height ()
-      || query.channels () != key.channels () || query.width () != dim_
-      || query.height () > maxlen_ || query.dtype () != dtype_
-      || key.dtype () != dtype_)
+  if (query.width () != key.width () || query.channels () != key.channels ()
+      || query.width () != dim_ || query.height () > maxlen_
+      || query.dtype () != dtype_ || key.dtype () != dtype_)
     {
       return VK_ERROR_UNKNOWN;
     }
@@ -156,13 +157,17 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
   uint32_t groupx = (query.width () / 2 + 15) / 16,
            groupy = (query.height () + 15) / 16, groupz = query.channels ();
 
-  ret = pipeline_k_->set_group (groupx, groupy, groupz);
+  ret = pipeline_q_->set_group (groupx, groupy, groupz);
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
 
-  ret = pipeline_q_->set_group (groupx, groupy, groupz);
+  groupx = (key.width () / 2 + 15) / 16;
+  groupy = (key.height () + 15) / 16;
+  groupz = key.channels ();
+
+  ret = pipeline_k_->set_group (groupx, groupy, groupz);
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -170,7 +175,7 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
 
   ShaderConstants shape
       = { (uint32_t)query.channels (), (uint32_t)query.height (),
-          (uint32_t)query.width () };
+          (uint32_t)query.width (), (uint32_t)offset };
   ret = command_->record_pipeline (
       *pipeline_q_, { query, freqc_, freqs_, out_query }, shape);
   if (ret != VK_SUCCESS)
@@ -178,8 +183,12 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
-  ret = command_->record_pipeline (*pipeline_k_,
-                                   { key, freqc_, freqs_, out_key }, shape);
+  ShaderConstants key_shape
+      = { (uint32_t)key.channels (), (uint32_t)key.height (),
+          (uint32_t)key.width (), (uint32_t)0 };
+
+  ret = command_->record_pipeline (
+      *pipeline_k_, { key, freqc_, freqs_, out_key }, key_shape);
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -203,3 +212,5 @@ Rope::freqs ()
 {
   return freqs_host_;
 }
+}
+

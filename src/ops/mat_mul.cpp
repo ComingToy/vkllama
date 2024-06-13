@@ -5,6 +5,8 @@
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+namespace vkllama
+{
 MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
                 const int act, const int broadcast_type,
                 const bool transpose_b, const VkTensor::DType dtype)
@@ -201,3 +203,5 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
   c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
   return VK_SUCCESS;
 }
+}
+

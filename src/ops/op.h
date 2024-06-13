@@ -4,6 +4,8 @@
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 
+namespace vkllama
+{
 class GPUDevice;
 class Command;
 
@@ -19,5 +21,7 @@ protected:
   GPUDevice *dev_;
   Command *command_;
 };
+
+}
 
 #endif

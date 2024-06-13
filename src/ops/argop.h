@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+namespace vkllama
+{
 template <int op_type> class ArgOp : public Op
 {
 public:
@@ -158,5 +160,7 @@ private:
 
 using ArgMax = ArgOp<0>;
 using ArgMin = ArgOp<1>;
+
+}
 
 #endif

@@ -4,6 +4,8 @@
 #include "src/ops/op.h"
 #include <memory>
 
+namespace vkllama
+{
 class Pipeline;
 class GPUDevice;
 class Command;
@@ -22,5 +24,7 @@ private:
   VkTensor::DType to_;
   std::unique_ptr<Pipeline> pipeline_;
 };
+
+}
 
 #endif

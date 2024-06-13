@@ -8,6 +8,8 @@
 #include <type_traits>
 #include <vulkan/vulkan.h>
 
+namespace vkllama
+{
 class VkTensor
 {
 public:
@@ -87,5 +89,7 @@ private:
   __TensorStatus *status_;
   void release_ ();
 };
+
+}
 
 #endif

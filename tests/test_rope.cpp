@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include <vector>
 
-namespace
+namespace vkllama
 {
 struct TestRopeParams
 {

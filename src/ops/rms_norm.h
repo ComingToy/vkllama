@@ -4,6 +4,8 @@
 #include "src/core/tensor.h"
 #include <memory>
 
+namespace vkllama
+{
 class RMSNorm : public Op
 {
 public:
@@ -19,4 +21,6 @@ private:
   VkTensor weight_;
   VkTensor::DType dtype_;
 };
+
+}
 #endif

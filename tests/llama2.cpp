@@ -79,10 +79,11 @@ load_checkpoint (std::string const &path)
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 4)
+  if (argc != 5)
     {
       fprintf (stderr,
-               "usage: %s <path to checkpoitns> <path to bpe> <prompt>\n",
+               "usage: %s <path to checkpoitns> <path to bpe> <enable kv "
+               "cache> <prompt>\n",
                argv[0]);
       return -1;
     }
@@ -96,7 +97,7 @@ main (const int argc, const char *argv[])
     }
 
   std::vector<int> prompt;
-  sp.Encode (std::string (argv[3]), &prompt);
+  sp.Encode (std::string (argv[4]), &prompt);
   std::cerr << "input tokens: ";
   for (auto t : prompt)
     {
@@ -120,7 +121,7 @@ main (const int argc, const char *argv[])
         }
     }
 
-  Model model;
+  vkllama::Model model;
   auto ret = model.init (state_dict);
   if (ret != VK_SUCCESS)
     {
@@ -134,9 +135,16 @@ main (const int argc, const char *argv[])
       std::transform (
           prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
           [] (const int tok) { return static_cast<uint32_t> (tok); });
-      for (int i = 0; i < 20; ++i)
+
+      auto init_out = model (toks, 0);
+      toks.push_back (init_out.back ());
+
+      int enable_kvcache = ::atoi (argv[3]);
+      for (int i = 1; i < 20; ++i)
         {
-          auto output = model (toks);
+          auto output = enable_kvcache
+                            ? model ({ toks.back () }, toks.size () - 1)
+                            : model (toks, 0);
           if ((int)output.back () == sp.eos_id ())
             {
               break;
@@ -152,7 +160,7 @@ main (const int argc, const char *argv[])
 
       std::string content;
       sp.Decode (output, &content);
-      std::cerr << "prompt: " << argv[3] << std::endl
+      std::cerr << "prompt: " << argv[4] << std::endl
                 << "output: " << content << std::endl;
     }
 

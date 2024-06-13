@@ -2,6 +2,8 @@
 #include "src/core/command.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+namespace vkllama
+{
 Cast::Cast (GPUDevice *gpu, Command *command, const VkTensor::DType from,
             const VkTensor::DType to)
     : Op (gpu, command), from_ (from), to_ (to)
@@ -68,3 +70,5 @@ Cast::operator() (VkTensor from, VkTensor &to) noexcept
 
   return VK_SUCCESS;
 }
+}
+

@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <vector>
 
-namespace
+namespace vkllama
 {
 struct TestElementwiseParams
 {
