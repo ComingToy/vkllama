@@ -2,6 +2,7 @@
 #include "gpu_device.h"
 #include "vk_mem_alloc.h"
 #include <atomic>
+#include <cstddef>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
@@ -202,6 +203,21 @@ size_t
 VkTensor::size () const
 {
   return c_ * h_ * w_;
+}
+
+VkResult
+VkTensor::reshape (size_t const c, size_t const h, size_t const w)
+{
+  if (c * h * w != c_ * h_ * w_)
+    {
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+    }
+
+  c_ = c;
+  h_ = h;
+  w_ = w;
+
+  return VK_SUCCESS;
 }
 
 VkBuffer &
