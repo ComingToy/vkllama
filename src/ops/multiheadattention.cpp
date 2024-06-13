@@ -18,10 +18,10 @@ MultiHeadAttention::MultiHeadAttention (
     std::vector<VkTensor> const &Wq, std::vector<VkTensor> const &Wv,
     const VkTensor Wo, const int maxlen, const int dim,
     const bool transposed_weight, const VkTensor::DType dtype,
-    const size_t cache_size)
+    const bool use_kvcache)
     : Op (dev, command), wk_ (Wk), wq_ (Wq), wv_ (Wv), wo_ (Wo),
       maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
-      dtype_ (dtype), cache_size_ (cache_size)
+      dtype_ (dtype), use_kvcache_ (use_kvcache)
 {
 }
 
@@ -52,8 +52,8 @@ MultiHeadAttention::init () noexcept
       return ret;
     }
 
-  concat_
-      = std::make_unique<Concat> (dev_, command_, wq_.size (), VkTensor::FP16);
+  concat_ = std::make_unique<Concat> (dev_, command_, wq_.size (), 2,
+                                      VkTensor::FP16);
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
@@ -74,6 +74,13 @@ MultiHeadAttention::init () noexcept
           = std::make_unique<ElementWise> (dev_, command_, 2, dtype_);
       auto softmax = std::make_unique<Softmax> (dev_, command_, true, dtype_);
 
+      auto update_key_cache
+          = std::make_unique<UpdateKVCache> (dev_, command_, dtype_);
+      auto update_value_cache
+          = std::make_unique<UpdateKVCache> (dev_, command_, dtype_);
+      auto slice_kcache_op = std::make_unique<Slice> (dev_, command_, dtype_);
+      auto slice_vcache_op = std::make_unique<Slice> (dev_, command_, dtype_);
+
       if ((ret = k_matmul->init ()) != VK_SUCCESS
           || (ret = q_matmul->init ()) != VK_SUCCESS
           || (ret = v_matmul->init ()) != VK_SUCCESS
@@ -83,30 +90,52 @@ MultiHeadAttention::init () noexcept
           || (ret = elementwise->init ()) != VK_SUCCESS
           || (ret = softmax->init ()) != VK_SUCCESS
           || (ret = out_matmul_->init ()) != VK_SUCCESS
-          || (ret = concat_->init ()) != VK_SUCCESS)
+          || (ret = concat_->init ()) != VK_SUCCESS
+          || (ret = update_key_cache->init ()) != VK_SUCCESS
+          || (ret = update_value_cache->init ()) != VK_SUCCESS
+          || (ret = slice_kcache_op->init ()) != VK_SUCCESS
+          || (ret = slice_vcache_op->init ()) != VK_SUCCESS)
         {
           return ret;
         }
 
-      k_ops_.push_back (std::move (k_matmul));
-      q_ops_.push_back (std::move (q_matmul));
-      v_ops_.push_back (std::move (v_matmul));
-      weighted_ops_.push_back (std::move (weighted_matmul));
-      rope_ops_.push_back (std::move (rope));
-      attn_ops_.push_back (std::move (attn_score));
-      elementwise_ops_.push_back (std::move (elementwise));
-      softmax_ops_.push_back (std::move (softmax));
+      k_ops_.emplace_back (std::move (k_matmul));
+      q_ops_.emplace_back (std::move (q_matmul));
+      v_ops_.emplace_back (std::move (v_matmul));
+      weighted_ops_.emplace_back (std::move (weighted_matmul));
+      rope_ops_.emplace_back (std::move (rope));
+      attn_ops_.emplace_back (std::move (attn_score));
+      elementwise_ops_.emplace_back (std::move (elementwise));
+      softmax_ops_.emplace_back (std::move (softmax));
+      update_cache_ops_.emplace_back (std::move (update_key_cache));
+      update_cache_ops_.emplace_back (std::move (update_value_cache));
+      cache_slice_ops_.emplace_back (std::move (slice_kcache_op));
+      cache_slice_ops_.emplace_back (std::move (slice_vcache_op));
+    }
+
+  if (use_kvcache_)
+    {
+      kcache_
+          = VkTensor ((int)wq_.size (), maxlen_, dim_, dev_, dtype_, false);
+      vcache_ = VkTensor::like (kcache_);
+
+      if ((ret = kcache_.create ()) != VK_SUCCESS
+          || (ret = vcache_.create ()) != VK_SUCCESS)
+        {
+          return ret;
+        }
     }
 
   return VK_SUCCESS;
 }
 
 VkResult
-MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
+MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
+                                const size_t offset) noexcept
 {
   VkResult ret = VK_SUCCESS;
   std::vector<VkTensor> head_tensors;
-  std::vector<VkTensor> ks, qs, vs, sacled_attns, softmax_attns;
+  std::vector<VkTensor> ks, qs, sacled_attns, softmax_attns;
   VkTensor input = X;
   tmp_tensors_.clear ();
 
@@ -147,15 +176,61 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
           return ret;
         }
 
-      vs.push_back (v);
       tmp_tensors_.push_back (k);
       tmp_tensors_.push_back (q);
       tmp_tensors_.push_back (v);
+
+      if (use_kvcache_)
+        {
+
+          auto &update_kcache_op = *update_cache_ops_[2 * i];
+          auto &update_vcache_op = *update_cache_ops_[2 * i + 1];
+          auto &kcache_slice_op = *cache_slice_ops_[2 * i];
+          auto &vcache_slice_op = *cache_slice_ops_[2 * i + 1];
+
+          ret = update_kcache_op (kcache_, k, { i, offset });
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
+
+          ret = update_vcache_op (vcache_, v, { i, offset });
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
+
+          ret = kcache_slice_op (
+              kcache_, { (uint32_t)i, (uint32_t)0, (uint32_t)0 },
+              { (uint32_t)1, (uint32_t)(offset + k.height ()),
+                (uint32_t)dim_ },
+              k);
+
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
+
+          ret = vcache_slice_op (
+              vcache_, { (uint32_t)i, (uint32_t)0, (uint32_t)0 },
+              { (uint32_t)1, (uint32_t)(offset + v.height ()),
+                (uint32_t)dim_ },
+              v);
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
+
+          tmp_tensors_.push_back (k);
+          tmp_tensors_.push_back (v);
+        }
+
       VkTensor roped_q, roped_k;
-      if ((ret = rope (q, k, roped_q, roped_k)) != VK_SUCCESS)
+      if ((ret = rope (q, k, roped_q, roped_k, offset)) != VK_SUCCESS)
         {
           return ret;
         }
+
       ks.push_back (roped_k);
       qs.push_back (roped_q);
       tmp_tensors_.push_back (roped_q);
@@ -179,7 +254,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output) noexcept
       sacled_attns.push_back (scaled_attn_scores);
 
       VkTensor softmax_attn_scores;
-      if ((ret = softmax_op (scaled_attn_scores, softmax_attn_scores))
+      if ((ret = softmax_op (scaled_attn_scores, softmax_attn_scores, offset))
           != VK_SUCCESS)
         {
           return ret;

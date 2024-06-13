@@ -1,6 +1,7 @@
 #include "src/ops/update_kv_cache.h"
 #include "src/core/command.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <array>
 #include <memory>
 
 namespace vkllama
@@ -31,22 +32,23 @@ UpdateKVCache::init () noexcept
 
 VkResult
 UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
-                           const size_t offset) noexcept
+                           const std::array<size_t, 2> &offset) noexcept
 {
-  if (cache.height () < key_or_value.height () + offset
-      || cache.channels () != key_or_value.channels ()
+  if (cache.height () < key_or_value.height () + offset[1]
+      || cache.channels () < key_or_value.channels () + offset[0]
       || cache.width () != key_or_value.width ())
     {
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
 
+  uint32_t flat_offset
+      = static_cast<uint32_t> (offset[0] * cache.width () * cache.height ()
+                               + offset[1] * cache.width ());
+
   ShaderConstants constants
-      = { (uint32_t)key_or_value.channels (),
-          (uint32_t)key_or_value.height (),
-          (uint32_t)key_or_value.width (),
-          (uint32_t)cache.height (),
-          (uint32_t)cache.width (),
-          static_cast<uint32_t> (offset * cache.width ()) };
+      = { (uint32_t)key_or_value.channels (), (uint32_t)key_or_value.height (),
+          (uint32_t)key_or_value.width (),    (uint32_t)cache.height (),
+          (uint32_t)cache.width (),           flat_offset };
 
   const uint32_t group_x = (key_or_value.width () + 15) / 16,
                  group_y = (key_or_value.height () + 15) / 16,

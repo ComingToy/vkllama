@@ -114,7 +114,7 @@ public:
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
         transformer_params_.maxlen, transformer_params_.dim, true,
-        VkTensor::FP16));
+        VkTensor::FP16, true));
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
@@ -141,7 +141,7 @@ public:
   }
 
   VkTensor
-  operator() (VkTensor in)
+  operator() (VkTensor in, const size_t offset)
   {
     auto ret = norm_op_->operator() (in, normed_);
     if (ret != VK_SUCCESS)
@@ -149,7 +149,7 @@ public:
         throw std::runtime_error ("failed at forwarding RMSNorm op");
       }
 
-    ret = attn_op_->operator() (normed_, transformed_);
+    ret = attn_op_->operator() (normed_, transformed_, offset);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error (
@@ -593,7 +593,7 @@ public:
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight };
           Llama2Block::TransformerParams transformer_params
-              = { Wk, Wq, Wv, Wo, 1024, (int)head_dim };
+              = { Wk, Wq, Wv, Wo, 50, (int)head_dim };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 
@@ -622,7 +622,7 @@ public:
   }
 
   std::vector<uint32_t>
-  operator() (std::vector<uint32_t> const &toks)
+  operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
     VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32, true);
@@ -647,7 +647,7 @@ public:
         auto *command = block_commands_[i];
         command->begin ();
         auto *block = blocks_[i];
-        X = (*block) (X);
+        X = (*block) (X, offset);
         tmps.push_back (X);
         command->end ();
         command->submit ();

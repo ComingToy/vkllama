@@ -3,6 +3,7 @@
 
 #include "src/core/pipeline.h"
 #include "src/ops/op.h"
+#include <array>
 #include <memory>
 namespace vkllama
 {
@@ -14,7 +15,8 @@ public:
 
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor cache, VkTensor key_or_value, const size_t offset) noexcept;
+  VkResult operator() (VkTensor cache, VkTensor key_or_value,
+                       std::array<size_t, 2> const &offset) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

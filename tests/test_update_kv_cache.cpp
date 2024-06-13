@@ -16,7 +16,7 @@ struct TestUpdateKVCacheParams
   const int dtype;
   const int dim;
   const int maxlen;
-  const int offset;
+  std::array<size_t, 2> offset;
 };
 
 class TestUpdateKVCache
@@ -47,8 +47,8 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), VK_SUCCESS);
 
-  auto input0
-      = random_tensor<float> (gpu_, command_, 1, params.maxlen, params.dim);
+  auto input0 = random_tensor<float> (gpu_, command_, 2 * params.offset[0] + 1,
+                                      params.maxlen, params.dim);
 
   auto input1 = random_tensor<float> (gpu_, command_, 1, 1, params.dim);
 
@@ -114,10 +114,12 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
             .cast<Eigen::half> ();
 
   Eigen::array<Eigen::Index, 3> starts
-      = { Eigen::Index (0), (Eigen::Index)params.offset, Eigen::Index (0) };
+      = { Eigen::Index (params.offset[0]), (Eigen::Index)params.offset[1],
+          Eigen::Index (0) };
+
   Eigen::array<Eigen::Index, 3> sizes
-      = { cache_eigen_tensor.dimension (0), (Eigen::Index)1,
-          cache_eigen_tensor.dimension (2) };
+      = { input_eigen_tensor.dimension (0), input_eigen_tensor.dimension (1),
+          input_eigen_tensor.dimension (2) };
 
   cache_eigen_tensor.slice (starts, sizes) = input_eigen_tensor;
 
@@ -136,8 +138,11 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
 }
 
 std::vector<TestUpdateKVCacheParams> params = {
-  { 0, 63, 1025, 0 }, { 0, 63, 1025, 1 },   { 0, 64, 1025, 255 },
-  { 1, 64, 1025, 0 }, { 1, 64, 1025, 235 },
+  { 0, 63, 1025, { 0, 255 } }, { 0, 63, 1025, { 3, 255 } },
+  { 0, 64, 1025, { 5, 255 } },
+
+  { 1, 63, 1025, { 0, 255 } }, { 1, 63, 1025, { 3, 255 } },
+  { 1, 64, 1025, { 5, 255 } },
 };
 
 INSTANTIATE_TEST_SUITE_P (test_update_kv_cache, TestUpdateKVCache,

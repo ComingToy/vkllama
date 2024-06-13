@@ -14,7 +14,7 @@ public:
   Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
         const VkTensor::DType dtype = VkTensor::FP32);
   VkResult operator() (VkTensor query, VkTensor key, VkTensor &out_query,
-                       VkTensor &out_key) noexcept;
+                       VkTensor &out_key, const size_t offset=0) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
   const std::vector<float> &freqc ();
