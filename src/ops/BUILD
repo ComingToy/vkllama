@@ -13,7 +13,8 @@ cc_library(
 		'embedding.cpp',
 	    'multiheadattention.cpp',
 	    'cast.cpp',
-        'update_kv_cache.cpp'
+        'update_kv_cache.cpp',
+        'transpose.cpp',
     ],
     hdrs = [
         'op.h',
@@ -30,7 +31,8 @@ cc_library(
 	    'multiheadattention.h',
         'argop.h',
         'cast.h',
-        'update_kv_cache.h'
+        'update_kv_cache.h',
+        'transpose.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
     copts = select({

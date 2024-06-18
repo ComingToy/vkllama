@@ -51,6 +51,8 @@ glsl_shader(
         "argmax_stage1_fp16a.comp",
         "cast_fp32_to_fp16.comp",
         "cast_fp16_to_fp32.comp",
+        "transpose_type0.comp",
+        "transpose_type0_fp16.comp",
     ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]
