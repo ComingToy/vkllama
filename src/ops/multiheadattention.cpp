@@ -135,7 +135,6 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
 {
   VkResult ret = VK_SUCCESS;
   std::vector<VkTensor> head_tensors;
-  std::vector<VkTensor> ks, qs, sacled_attns, softmax_attns;
   VkTensor input = X;
   tmp_tensors_.clear ();
 
@@ -231,8 +230,6 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
           return ret;
         }
 
-      ks.push_back (roped_k);
-      qs.push_back (roped_q);
       tmp_tensors_.push_back (roped_q);
       tmp_tensors_.push_back (roped_k);
 
@@ -251,7 +248,6 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
           return ret;
         }
       tmp_tensors_.push_back (scaled_attn_scores);
-      sacled_attns.push_back (scaled_attn_scores);
 
       VkTensor softmax_attn_scores;
       if ((ret = softmax_op (scaled_attn_scores, softmax_attn_scores, offset))
@@ -259,7 +255,6 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
         {
           return ret;
         }
-      softmax_attns.push_back (softmax_attn_scores);
       tmp_tensors_.push_back (softmax_attn_scores);
 
       VkTensor head;
