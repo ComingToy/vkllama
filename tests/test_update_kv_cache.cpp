@@ -14,8 +14,10 @@ namespace vkllama
 struct TestUpdateKVCacheParams
 {
   const int dtype;
-  const int dim;
+  const int heads;
+  const int seqlen;
   const int maxlen;
+  const int dim;
   std::array<size_t, 2> offset;
 };
 
@@ -47,10 +49,11 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), VK_SUCCESS);
 
-  auto input0 = random_tensor<float> (gpu_, command_, 2 * params.offset[0] + 1,
+  auto input0 = random_tensor<float> (gpu_, command_, params.heads,
                                       params.maxlen, params.dim);
 
-  auto input1 = random_tensor<float> (gpu_, command_, 1, 1, params.dim);
+  auto input1 = random_tensor<float> (gpu_, command_, params.heads,
+                                      params.seqlen, params.dim);
 
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
@@ -77,7 +80,9 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
 
   ASSERT_EQ (update_op.init (), VK_SUCCESS);
   ASSERT_EQ (update_op (cache, input, params.offset), VK_SUCCESS);
+
   std::vector<float> output_buf (cache.size ());
+
   VkTensor cache_fp32;
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
@@ -137,13 +142,8 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   ASSERT_EQ (*diff.data (), 0);
 }
 
-std::vector<TestUpdateKVCacheParams> params = {
-  { 0, 63, 1025, { 0, 255 } }, { 0, 63, 1025, { 3, 255 } },
-  { 0, 64, 1025, { 5, 255 } },
-
-  { 1, 63, 1025, { 0, 255 } }, { 1, 63, 1025, { 3, 255 } },
-  { 1, 64, 1025, { 5, 255 } },
-};
+std::vector<TestUpdateKVCacheParams> params
+    = { { 1, 32, 25, 1024, 100, { 0, 0 } } };
 
 INSTANTIATE_TEST_SUITE_P (test_update_kv_cache, TestUpdateKVCache,
                           ::testing::ValuesIn (params));

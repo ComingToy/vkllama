@@ -14,7 +14,7 @@ Slice::init () noexcept
 {
   constexpr int binding_count = 9;
   Pipeline::ShaderInfo info
-      = { 0, binding_count, sizeof (uint32_t) * binding_count, 16, 16, 1 };
+      = { 0, binding_count, sizeof (uint32_t) * binding_count, 8, 8, 4 };
 
   const auto spv_code = dtype_ == VkTensor::FP32
                             ? __get_slice_comp_spv_code ()
@@ -56,8 +56,8 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
       return ret;
     }
 
-  uint32_t groupz = (extents[0] + 15) / 16, groupy = (extents[1] + 15) / 16,
-           groupx = (extents[2] + 15) / 16;
+  uint32_t groupz = (extents[0] + 3) / 4, groupy = (extents[1] + 7) / 8,
+           groupx = (extents[2] + 7) / 8;
 
   ret = pipeline_->set_group (groupx, groupy, groupz);
   if (ret != VK_SUCCESS)

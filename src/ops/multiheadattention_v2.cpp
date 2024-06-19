@@ -84,8 +84,10 @@ MultiHeadAttentionV2::init () noexcept
 
   if (use_kvcache_)
     {
-      kcache_ = VkTensor (wk_.channels (), maxlen_, dim_, dev_, dtype_, false);
-      vcache_ = VkTensor (wv_.channels (), maxlen_, dim_, dev_, dtype_, false);
+      kcache_
+          = VkTensor (wk_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
+      vcache_
+          = VkTensor (wv_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
 
       if ((ret = kcache_.create ()) != VK_SUCCESS
           || (ret = vcache_.create ()) != VK_SUCCESS)
@@ -148,6 +150,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   q.reshape (q.height (), q.width () / dim_, dim_);
   v.reshape (v.height (), v.width () / dim_, dim_);
 
+  //[heads, seqlen, dim]
   VkTensor transposed_k, transposed_q, transposed_v;
   if ((ret = (*transpose_k_) (k, transposed_k)) != VK_SUCCESS)
     {
@@ -167,6 +170,50 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (transposed_k);
   tmp_tensors_.push_back (transposed_q);
   tmp_tensors_.push_back (transposed_v);
+
+  if (use_kvcache_)
+    {
+      auto &update_kcache_op = *update_kcache_op_;
+      auto &update_vcache_op = *update_vcache_op_;
+      auto &kcache_slice_op = *kcache_slice_op_;
+      auto &vcache_slice_op = *vcache_slice_op_;
+
+      if ((ret = update_kcache_op (kcache_, transposed_k, { 0, offset }))
+          != VK_SUCCESS)
+        {
+          return ret;
+        }
+
+      if ((ret = update_vcache_op (vcache_, transposed_v, { 0, offset })))
+        {
+          return ret;
+        }
+
+      ret = kcache_slice_op (kcache_, { 0, 0, 0 },
+                             { (uint32_t)transposed_k.channels (),
+                               (uint32_t)(offset + transposed_k.height ()),
+                               (uint32_t)dim_ },
+                             transposed_k);
+
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
+
+      ret = vcache_slice_op (vcache_, { 0, 0, 0 },
+                             { (uint32_t)transposed_v.channels (),
+                               (uint32_t)(offset + transposed_v.height ()),
+                               (uint32_t)dim_ },
+                             transposed_v);
+
+      if (ret != VK_SUCCESS)
+        {
+          return ret;
+        }
+
+      tmp_tensors_.push_back (transposed_k);
+      tmp_tensors_.push_back (transposed_v);
+    }
 
   VkTensor roped_k, roped_q;
   if ((ret = (*rope_) (transposed_q, transposed_k, roped_q, roped_k, offset))
