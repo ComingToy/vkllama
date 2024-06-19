@@ -296,6 +296,12 @@ public:
     return vkQueueSubmit (queue_, 1, &sumbitInfo, fence_);
   }
 
+  void
+  defer (std::function<VkResult (void)> &&fn)
+  {
+    defer_task_.push_back (std::move (fn));
+  }
+
 private:
   template <typename T>
   VkResult

@@ -212,6 +212,26 @@ TEST_P (TestRope, test_rope)
   auto rope_vulkan_output_key
       = TensorMap<3> (output_key_buf.data (), input_query_host.dimensions ());
 
+#if 1
+  for (Eigen::Index i = 0; i < rope_output_query.size (); ++i)
+    {
+      if (fabs (rope_output_query (i) - rope_vulkan_output_query (i)) > 1e-1)
+        {
+          fprintf (stderr, "index %ld error: lhs = %f, rhs = %f\n", i,
+                   rope_output_query (i), rope_vulkan_output_query (i));
+        }
+    }
+
+  for (Eigen::Index i = 0; i < rope_output_key.size (); ++i)
+    {
+      if (fabs (rope_output_key (i) - rope_vulkan_output_key (i)) > 1e-1)
+        {
+          fprintf (stderr, "index %ld error: lhs = %f, rhs = %f\n", i,
+                   rope_output_key (i), rope_vulkan_output_key (i));
+        }
+    }
+#endif
+
   Tensor<3> err (rope_output_query.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
 
@@ -229,11 +249,11 @@ TEST_P (TestRope, test_rope)
 }
 
 std::vector<TestRopeParams> params = {
-  { 1, 256, 64, 256, 0 },  { 1, 128, 64, 256, 0 },
-  { 12, 256, 64, 256, 0 }, { 15, 128, 64, 256, 0 },
+  { 1, 256, 64, 256, 0 },   { 1, 128, 64, 256, 0 },
+  { 12, 256, 64, 256, 0 },  { 15, 128, 64, 256, 0 },
 
-  { 1, 256, 64, 256, 1 },  { 1, 128, 64, 256, 1 },
-  { 12, 256, 64, 256, 1 }, { 15, 128, 64, 256, 1 },
+  { 3, 25, 100, 1024, 1 },  { 3, 13, 100, 1024, 1 },
+  { 32, 25, 100, 1024, 1 }, { 32, 13, 100, 1024, 1 },
 };
 
 INSTANTIATE_TEST_SUITE_P (TestRopeCases, TestRope, testing::ValuesIn (params));

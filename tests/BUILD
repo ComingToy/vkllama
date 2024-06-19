@@ -128,8 +128,6 @@ cc_test(
 	],
 )
 
-
-
 cc_binary(
 	name="llama2",
 	srcs=["llama2.cpp"],
@@ -143,3 +141,13 @@ cc_binary(
     copts=["-std=c++17"],
     deps = ["//models:llama2"]
 )
+
+cc_test(
+    name = "test_transpose",
+    srcs = ["test_transpose.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+

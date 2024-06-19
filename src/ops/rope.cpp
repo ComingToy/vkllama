@@ -1,4 +1,4 @@
-#include "src/ops//rope.h"
+#include "src/ops/rope.h"
 #include "src/core/command.h"
 #include "src/core/pipeline.h"
 #include "src/shaders/vkllama_comp_shaders.h"

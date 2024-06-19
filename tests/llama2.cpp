@@ -140,7 +140,7 @@ main (const int argc, const char *argv[])
       toks.push_back (init_out.back ());
 
       int enable_kvcache = ::atoi (argv[3]);
-      for (int i = 1; i < 20; ++i)
+      for (int i = 1; i < 100; ++i)
         {
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)

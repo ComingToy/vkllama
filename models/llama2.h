@@ -6,10 +6,12 @@
 #include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
+#include "src/ops/cast.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/embedding.h"
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
+#include "src/ops/multiheadattention_v2.h"
 #include "src/ops/rms_norm.h"
 #include <algorithm>
 #include <chrono>
@@ -77,9 +79,9 @@ class Llama2Block
 public:
   struct TransformerParams
   {
-    std::vector<VkTensor> Wk;
-    std::vector<VkTensor> Wq;
-    std::vector<VkTensor> Wv;
+    VkTensor Wk;
+    VkTensor Wq;
+    VkTensor Wv;
     VkTensor Wo;
     int maxlen;
     int dim;
@@ -110,7 +112,7 @@ public:
   VkResult
   init ()
   {
-    attn_op_.reset (new MultiHeadAttention (
+    attn_op_.reset (new MultiHeadAttentionV2 (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
         transformer_params_.maxlen, transformer_params_.dim, true,
@@ -187,7 +189,7 @@ public:
 private:
   GPUDevice *gpu_;
   Command *command_;
-  std::unique_ptr<MultiHeadAttention> attn_op_;
+  std::unique_ptr<MultiHeadAttentionV2> attn_op_;
   std::unique_ptr<FeedForward> feedforward_op_;
   std::unique_ptr<RMSNorm> norm_op_;
   std::unique_ptr<RMSNorm> norm_op2_;
@@ -480,56 +482,46 @@ public:
               return ret;
             }
 
-          std::vector<VkTensor> Wk, Wq, Wv;
-          size_t head_dim = attn_k_weight->shape (0) / head_count;
+          size_t head_dim = attn_k_weight->shape (0);
           size_t input_dim = attn_k_weight->shape (1);
           size_t head_weight_size = head_dim * input_dim;
 
-          for (int h = 0; h < head_count; ++h)
+          VkTensor vkWk (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+          VkTensor vkWq (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+          VkTensor vkWv (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+
+          if ((ret = vkWk.create ()) != VK_SUCCESS
+              || (ret = vkWq.create ()) != VK_SUCCESS
+              || (ret = vkWv.create ()) != VK_SUCCESS)
             {
-              VkTensor vkWk (1, head_dim, input_dim, gpu_, VkTensor::FP16);
-              VkTensor vkWq (1, head_dim, input_dim, gpu_, VkTensor::FP16);
-              VkTensor vkWv (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+              return ret;
+            }
 
-              if ((ret = vkWk.create ()) != VK_SUCCESS
-                  || (ret = vkWq.create ()) != VK_SUCCESS
-                  || (ret = vkWv.create ()) != VK_SUCCESS)
-                {
-                  return ret;
-                }
+          const __vkllama_fp16_t *wk_weight_data
+              = (__vkllama_fp16_t *)attn_k_weight->data ().data ();
 
-              const __vkllama_fp16_t *wk_weight_data
-                  = (__vkllama_fp16_t *)attn_k_weight->data ().data ()
-                    + head_weight_size * h;
-              const __vkllama_fp16_t *wq_weight_data
-                  = (__vkllama_fp16_t *)attn_q_weight->data ().data ()
-                    + head_weight_size * h;
+          const __vkllama_fp16_t *wq_weight_data
+              = (__vkllama_fp16_t *)attn_q_weight->data ().data ();
 
-              const __vkllama_fp16_t *wv_weight_data
-                  = (__vkllama_fp16_t *)attn_v_weight->data ().data ()
-                    + head_weight_size * h;
+          const __vkllama_fp16_t *wv_weight_data
+              = (__vkllama_fp16_t *)attn_v_weight->data ().data ();
 
-              ret = command->upload (wk_weight_data, head_weight_size, vkWk);
-              if (ret != VK_SUCCESS)
-                {
-                  return ret;
-                }
+          ret = command->upload (wk_weight_data, head_weight_size, vkWk);
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
 
-              ret = command->upload (wq_weight_data, head_weight_size, vkWq);
-              if (ret != VK_SUCCESS)
-                {
-                  return ret;
-                }
+          ret = command->upload (wq_weight_data, head_weight_size, vkWq);
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
+            }
 
-              ret = command->upload (wv_weight_data, head_weight_size, vkWv);
-              if (ret != VK_SUCCESS)
-                {
-                  return ret;
-                }
-
-              Wk.push_back (vkWk);
-              Wq.push_back (vkWq);
-              Wv.push_back (vkWv);
+          ret = command->upload (wv_weight_data, head_weight_size, vkWv);
+          if (ret != VK_SUCCESS)
+            {
+              return ret;
             }
 
           VkTensor Wo (1, attn_output_weight->shape (0),
@@ -590,10 +582,11 @@ public:
               return ret;
             }
 
+          const auto dim = head_dim / head_count;
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight };
           Llama2Block::TransformerParams transformer_params
-              = { Wk, Wq, Wv, Wo, 50, (int)head_dim };
+              = { vkWk, vkWq, vkWv, Wo, 1024, (int)dim };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 
@@ -646,8 +639,10 @@ public:
       {
         auto *command = block_commands_[i];
         command->begin ();
+
         auto *block = blocks_[i];
         X = (*block) (X, offset);
+
         tmps.push_back (X);
         command->end ();
         command->submit ();
