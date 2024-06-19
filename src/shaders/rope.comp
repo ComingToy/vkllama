@@ -24,7 +24,7 @@ main (void)
   uint tid_y = gl_GlobalInvocationID.y;
   uint tid_z = gl_GlobalInvocationID.z;
 
-  if (tid_z >= C || tid_y >= H || tid_x >= 2 * W)
+  if (tid_z >= C || tid_y >= H || tid_x * 2 >= W)
     {
       return;
     }

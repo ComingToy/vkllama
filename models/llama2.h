@@ -6,6 +6,7 @@
 #include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
+#include "src/ops/cast.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/embedding.h"
 #include "src/ops/feed_forward.h"
@@ -585,7 +586,7 @@ public:
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight };
           Llama2Block::TransformerParams transformer_params
-              = { vkWk, vkWq, vkWv, Wo, 50, (int)dim };
+              = { vkWk, vkWq, vkWv, Wo, 1024, (int)dim };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 
@@ -638,8 +639,10 @@ public:
       {
         auto *command = block_commands_[i];
         command->begin ();
+
         auto *block = blocks_[i];
         X = (*block) (X, offset);
+
         tmps.push_back (X);
         command->end ();
         command->submit ();
