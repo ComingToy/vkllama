@@ -19,7 +19,7 @@ ElementWise::init () noexcept
   uint32_t bytes = sizeof (int)
                    + (dtype_ == VkTensor::FP16 ? sizeof (__vkllama_fp16_t) * 2
                                                : sizeof (float));
-  Pipeline::ShaderInfo info1 = { 1, 3, bytes, 128, 1, 1 };
+  Pipeline::ShaderInfo info1 = { 1, 2, bytes, 128, 1, 1 };
   ShaderConstants constants = { type_ };
 
   const uint8_t *spv_code = nullptr;
