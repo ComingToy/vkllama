@@ -5,6 +5,8 @@
 #include "src/core/tensor.h"
 #include "src/ops/reduce.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
+#include <memory>
 #include <vector>
 
 namespace vkllama
@@ -110,13 +112,17 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
       return ret;
     }
 
-  m_ = VkTensor (a.channels (), a.height (), group_x, dev_);
+  m_ = VkTensor (a.channels (), a.height (), group_x, dev_,
+                 dev_->support_fp16_arithmetic () ? VkTensor::FP16
+                                                  : VkTensor::FP32);
   if ((ret = m_.create ()) != VK_SUCCESS)
     {
       return ret;
     }
 
-  exps_ = VkTensor (a.channels (), a.height (), a.width (), dev_);
+  exps_ = VkTensor (a.channels (), a.height (), a.width (), dev_,
+                    dev_->support_fp16_arithmetic () ? VkTensor::FP16
+                                                     : VkTensor::FP32);
   if ((ret = exps_.create ()) != VK_SUCCESS)
     {
       return ret;
@@ -136,14 +142,16 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
   exps_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   exps_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  out_ = VkTensor::like (a);
-  ret = out_.create ();
+  b = VkTensor::like (a);
+  ret = b.create ();
   if (ret != VK_SUCCESS)
     {
       return ret;
     }
 
-  sum_ = VkTensor (a.channels (), a.height (), 1, dev_);
+  sum_ = VkTensor (a.channels (), a.height (), 1, dev_,
+                   dev_->support_fp16_arithmetic () ? VkTensor::FP16
+                                                    : VkTensor::FP32);
   if ((ret = sum_.create ()) != VK_SUCCESS)
     {
       return ret;
@@ -172,7 +180,7 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
     {
       return ret;
     }
-  ret = command_->record_pipeline (*softmax2_, { exps_, sum_, out_ },
+  ret = command_->record_pipeline (*softmax2_, { exps_, sum_, b },
                                    { (uint32_t)a.channels (),
                                      (uint32_t)a.height (),
                                      (uint32_t)a.width () });
@@ -181,9 +189,9 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
       return ret;
     }
 
-  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  b = out_;
+  b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
   return VK_SUCCESS;
 }
 }

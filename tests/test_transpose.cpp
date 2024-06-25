@@ -136,7 +136,10 @@ TEST_P (TestTranspose, test_transpose)
     }
 }
 
-std::vector<TestTransposeParams> params = { { 1, 128, 64 }, { 63, 53, 33 } };
+std::vector<TestTransposeParams> params
+    = { { 1, 128, 64, 0 },  { 63, 53, 33, 0 }, { 32, 15, 100, 0 },
+        { 15, 32, 100, 0 }, { 1, 128, 64, 1 }, { 63, 53, 33, 1 },
+        { 32, 15, 100, 1 }, { 15, 32, 100, 1 } };
 
 INSTANTIATE_TEST_SUITE_P (test_transpose, TestTranspose,
                           ::testing::ValuesIn (params));

@@ -1,5 +1,5 @@
 #version 450 core
-#extension GL_EXT_shader_16bit_storage: require
+#extension GL_EXT_shader_16bit_storage : require
 
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
@@ -46,13 +46,13 @@ main (void)
       return;
     }
 
-  const float bias = float(input1[glb_tid_z * C + glb_tid_y]);
+  const float bias = float (input1[glb_tid_z * H + glb_tid_y]);
   const uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
 
   float e = 0;
   if (seq_mask > 0 && glb_tid_x <= glb_tid_y + OFFSET)
     {
-      e = exp (float(input0[idx]) - bias);
+      e = exp (float (input0[idx]) - bias);
     }
 
   smem[loc_tid_y][loc_tid_x] = e;

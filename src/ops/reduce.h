@@ -7,7 +7,10 @@
 #include "src/core/tensor.h"
 #include "src/ops/op.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
 #include <memory>
+#include <numeric>
+#include <vector>
 
 namespace vkllama
 {
@@ -104,7 +107,9 @@ public:
         return ret;
       }
 
-    stage0_output_ = VkTensor (a.channels (), a.height (), group_x, dev_);
+    stage0_output_ = VkTensor (
+        a.channels (), a.height (), group_x, dev_,
+        dev_->support_fp16_arithmetic () ? VkTensor::FP16 : VkTensor::FP32);
     if ((ret = stage0_output_.create ()) != VK_SUCCESS)
       {
         return ret;
@@ -154,6 +159,7 @@ public:
 
     b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
     return VK_SUCCESS;
   }
 

@@ -97,9 +97,9 @@ TEST_P (TestSlice, test_slice)
   ASSERT_EQ (command_->submit (), VK_SUCCESS);
   ASSERT_EQ (command_->wait (), VK_SUCCESS);
 
-  Tensor<3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), out_fp32.channels (),
-                      out_fp32.height (), out_fp32.width ());
+  Tensor<3> vk_output_tensor = TensorMap<3> (
+      output_buf.data (), (Eigen::Index)out_fp32.channels (),
+      (Eigen::Index)out_fp32.height (), (Eigen::Index)out_fp32.width ());
 
   Tensor<3> input_eigen_tensor = TensorMap<3> (
       input0->second.data (), (Eigen::Index)params.shape.C,

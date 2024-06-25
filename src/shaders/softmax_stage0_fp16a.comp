@@ -47,7 +47,7 @@ main (void)
       return;
     }
 
-  const float16_t bias = input1[glb_tid_z * C + glb_tid_y];
+  const float16_t bias = input1[glb_tid_z * H + glb_tid_y];
   const uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
 
   float16_t  e = .0hf;
