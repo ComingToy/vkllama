@@ -28,7 +28,6 @@ private:
   VkTensor exps_;
   VkTensor n_;
   VkTensor sum_;
-  VkTensor out_;
   bool seq_mask_;
   VkTensor::DType dtype_;
 };

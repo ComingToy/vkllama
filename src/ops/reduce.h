@@ -160,42 +160,6 @@ public:
     b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    auto inbuf = std::make_shared<std::vector<__vkllama_fp16_t> > (a.size ());
-    auto buf0 = std::make_shared<std::vector<float> > (stage0_output_.size ());
-
-    auto buf1 = std::make_shared<std::vector<__vkllama_fp16_t> > (b.size ());
-    if ((ret = command_->download (a, inbuf->data (), inbuf->size ()))
-            != VK_SUCCESS
-        || (ret = command_->download (stage0_output_, buf0->data (),
-                                      buf0->size ()))
-               != VK_SUCCESS
-        || (ret = command_->download (b, buf1->data (), buf1->size ()))
-               != VK_SUCCESS)
-      {
-        return VK_ERROR_UNKNOWN;
-      }
-
-    auto mean_op = [] (std::vector<__vkllama_fp16_t> const &v) {
-      return std::accumulate (
-                 v.cbegin (), v.cend (), .0f,
-                 [] (const float lhs, const __vkllama_fp16_t rhs) {
-                   return lhs + __fp16_to_fp32 (rhs.u16);
-                 })
-             / static_cast<float> (v.size ());
-    };
-
-    command_->defer ([mean_op, inbuf, buf0, buf1] () {
-      auto m = std::accumulate (buf0->cbegin (), buf0->cend (), .0f)
-               / static_cast<float> (buf0->size ());
-
-      fprintf (stderr,
-               "Reduce op input mean: %f, stage0 output mean: %f, "
-               "output mean: %f\n",
-               mean_op (*inbuf), m, mean_op (*buf1));
-
-      return VK_SUCCESS;
-    });
-
     return VK_SUCCESS;
   }
 
