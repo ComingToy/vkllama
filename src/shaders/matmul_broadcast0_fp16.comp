@@ -6,6 +6,9 @@ layout (local_size_x_id = 253, local_size_y_id = 254,
 
 layout (constant_id = 0) const int act = 0;
 layout (constant_id = 1) const int transpose_b = 0;
+layout (constant_id = 2) const float scale = 1.0;
+layout (constant_id = 3) const float bias = 0;
+
 layout (set = 0, binding = 0) readonly buffer V1 { float16_t values[]; }
 v1;
 layout (set = 0, binding = 1) readonly buffer V2 { float16_t values[]; }
@@ -122,28 +125,28 @@ main (void)
 
   if (m < M && n < N)
     {
-      float x = results[0][0];
+      float x = scale * results[0][0] + bias;
       v3.values[c_channel_base + m * N + n]
           = float16_t (act == 1 ? x / (1 + exp (-x)) : x);
     }
 
   if (m + 1 < M && n < N)
     {
-      float x = results[1][0];
+      float x = scale * results[1][0] + bias;
       v3.values[c_channel_base + (m + 1) * N + n]
           = float16_t (act == 1 ? x / (1 + exp (-x)) : x);
     }
 
   if (n + 1 < N && m < M)
     {
-      float x = results[0][1];
+      float x = scale * results[0][1] + bias;
       v3.values[c_channel_base + m * N + n + 1]
           = float16_t (act == 1 ? x / (1 + exp (-x)) : x);
     }
 
   if (m + 1 < M && n + 1 < N)
     {
-      float x = results[1][1];
+      float x = scale * results[1][1] + bias;
       v3.values[c_channel_base + (m + 1) * N + n + 1]
           = float16_t (act == 1 ? x / (1 + exp (-x)) : x);
     }

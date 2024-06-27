@@ -127,7 +127,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       input1_buf.swap (input1->second);
     }
 
-  MatMul matmul_op (gpu_, command_, 0, params.broadcast_type,
+  MatMul matmul_op (gpu_, command_, 1.0, .0, 0, params.broadcast_type,
                     params.transpose_b, (VkTensor::DType)params.dtype);
 
   ASSERT_TRUE (matmul_op.init () == VK_SUCCESS) << "failed at init matmul op";

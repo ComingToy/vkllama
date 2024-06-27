@@ -220,7 +220,7 @@ public:
   init ()
   {
     matmul_op_.reset (
-        new MatMul (gpu_, command_, wo_, 0, 0, true, VkTensor::FP16));
+        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, VkTensor::FP16));
     auto ret = matmul_op_->init ();
     if (ret != VK_SUCCESS)
       {

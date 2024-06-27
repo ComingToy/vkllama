@@ -8,18 +8,20 @@
 namespace vkllama
 {
 MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
-                const int act, const int broadcast_type,
-                const bool transpose_b, const VkTensor::DType dtype)
+                const float scale, const float bias, const int act,
+                const int broadcast_type, const bool transpose_b,
+                const VkTensor::DType dtype)
     : Op (dev, command), weight_ (weight), broadcast_type_ (broadcast_type),
-      act_ (act), transpose_b_ (transpose_b), dtype_ (dtype)
+      act_ (act), transpose_b_ (transpose_b), dtype_ (dtype), scale_ (scale),
+      bias_ (bias)
 {
 }
 
-MatMul::MatMul (GPUDevice *dev, Command *command, const int act,
-                const int broadcast_type, const bool transpose_b,
-                const VkTensor ::DType dtype)
+MatMul::MatMul (GPUDevice *dev, Command *command, const float scale,
+                const float bias, const int act, const int broadcast_type,
+                const bool transpose_b, const VkTensor ::DType dtype)
     : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act),
-      transpose_b_ (transpose_b), dtype_ (dtype)
+      transpose_b_ (transpose_b), dtype_ (dtype), scale_ (scale), bias_ (bias)
 {
 }
 
@@ -31,7 +33,7 @@ MatMul::init () noexcept
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  Pipeline::ShaderInfo info = { 2, 3, 4 * sizeof (int), 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 16, 16, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
     {
@@ -89,7 +91,8 @@ MatMul::init () noexcept
     }
 
   pipeline_.reset (new Pipeline (dev_, pcode, code_size,
-                                 { act_, (int)transpose_b_ }, info));
+                                 { act_, (int)transpose_b_, scale_, bias_ },
+                                 info));
 
   auto ret = pipeline_->init ();
   if (ret != VK_SUCCESS)

@@ -40,24 +40,26 @@ MultiHeadAttentionV2::init () noexcept
     }
 
   VkResult ret = VK_SUCCESS;
-  matmul_k_ = std::make_unique<MatMul> (dev_, command_, wk_, 0, 0,
+  matmul_k_ = std::make_unique<MatMul> (dev_, command_, wk_, 1.0, .0, 0, 0,
                                         transposed_weight_, dtype_);
-  matmul_q_ = std::make_unique<MatMul> (dev_, command_, wq_, 0, 0,
+  matmul_q_ = std::make_unique<MatMul> (dev_, command_, wq_, 1.0, .0, 0, 0,
                                         transposed_weight_, dtype_);
-  matmul_v_ = std::make_unique<MatMul> (dev_, command_, wv_, 0, 0,
+  matmul_v_ = std::make_unique<MatMul> (dev_, command_, wv_, 1.0, .0, 0, 0,
                                         transposed_weight_, dtype_);
-  matmul_o_ = std::make_unique<MatMul> (dev_, command_, wo_, 0, 0,
+  matmul_o_ = std::make_unique<MatMul> (dev_, command_, wo_, 1.0, 0, 0, 0,
                                         transposed_weight_, dtype_);
 
-  matmul_qk_ = std::make_unique<MatMul> (dev_, command_, 0, 0, 1, dtype_);
+  float attn_score_scale = 1.0f / std::sqrt (static_cast<float> (dim_));
+  matmul_qk_ = std::make_unique<MatMul> (dev_, command_, attn_score_scale, 0,
+                                         0, 0, 1, dtype_);
 
   rope_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
   matmul_weighted_
-      = std::make_unique<MatMul> (dev_, command_, 0, 0, 0, dtype_);
+      = std::make_unique<MatMul> (dev_, command_, 1.0, 0, 0, 0, 0, dtype_);
 
   matmul_attn_score_
-      = std::make_unique<MatMul> (dev_, command_, 0, 0, true, dtype_);
-  scaled_ = std::make_unique<ElementWise> (dev_, command_, 2, dtype_);
+      = std::make_unique<MatMul> (dev_, command_, 1.0, .0, 0, 0, true, dtype_);
+
   softmax_ = std::make_unique<Softmax> (dev_, command_, true, dtype_);
   transpose_k_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
   transpose_q_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
@@ -76,7 +78,6 @@ MultiHeadAttentionV2::init () noexcept
       || (ret = transpose_q_->init ()) != VK_SUCCESS
       || (ret = transpose_v_->init ()) != VK_SUCCESS
       || (ret = transpose_heads_->init ()) != VK_SUCCESS
-      || (ret = scaled_->init ()) != VK_SUCCESS
       || (ret = softmax_->init ()) != VK_SUCCESS)
     {
       return ret;
@@ -235,19 +236,9 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (attn_scores);
 
   // TODO: could be funsed
-  VkTensor scaled_attn_scores;
-  float attn_score_scale = 1.0f / std::sqrt (static_cast<float> (dim_));
-  if ((ret = (*scaled_) (attn_scores, attn_score_scale, scaled_attn_scores))
-      != VK_SUCCESS)
-    {
-      return ret;
-    }
-
-  tmp_tensors_.push_back (scaled_attn_scores);
-
   VkTensor softmax_attn_scores;
 
-  if ((ret = (*softmax_) (scaled_attn_scores, softmax_attn_scores, offset))
+  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores, offset))
       != VK_SUCCESS)
     {
       return ret;

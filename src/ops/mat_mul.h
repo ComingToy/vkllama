@@ -9,11 +9,13 @@ namespace vkllama
 class MatMul : public Op
 {
 public:
-  MatMul (GPUDevice *dev, Command *command, VkTensor weight, const int act = 0,
+  MatMul (GPUDevice *dev, Command *command, VkTensor weight,
+          const float scale = 1.0f, const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
           const VkTensor::DType dtype = VkTensor::FP32);
 
-  MatMul (GPUDevice *dev, Command *command, const int act = 0,
+  MatMul (GPUDevice *dev, Command *command, const float scale = 1.0f,
+          const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
           const VkTensor::DType dtype = VkTensor::FP32);
 
@@ -29,6 +31,8 @@ private:
   const int act_;
   const bool transpose_b_;
   VkTensor::DType dtype_;
+  const float scale_;
+  const float bias_;
 };
 }
 
