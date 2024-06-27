@@ -84,3 +84,6 @@ sentencepiece_repo()
 
 load("//thirdparty/VulkanMemoryAllocator:repo.bzl", vma_repo= "repo")
 vma_repo()
+
+load("//thirdparty/gguf-tools:repo.bzl", gguf_repo = "repo")
+gguf_repo()
