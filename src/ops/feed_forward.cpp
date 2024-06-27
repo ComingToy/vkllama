@@ -16,12 +16,12 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
       transposed_weight_ (transposed_weight)
 {
 
-  gate_op_.reset (
-      new MatMul (dev_, command_, w1_, 1, 0, transposed_weight_, dtype_));
-  down_op_.reset (
-      new MatMul (dev_, command_, w2_, 0, 0, transposed_weight_, dtype_));
-  up_op_.reset (
-      new MatMul (dev_, command_, w3_, 0, 0, transposed_weight_, dtype_));
+  gate_op_.reset (new MatMul (dev_, command_, w1_, 1.0, .0, 1, 0,
+                              transposed_weight_, dtype_));
+  down_op_.reset (new MatMul (dev_, command_, w2_, 1.0, .0, 0, 0,
+                              transposed_weight_, dtype_));
+  up_op_.reset (new MatMul (dev_, command_, w3_, 1.0, .0, 0, 0,
+                            transposed_weight_, dtype_));
 
   elemwise_op_.reset (new ElementWise (dev_, command_, 2, dtype_));
 }
