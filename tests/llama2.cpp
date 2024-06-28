@@ -1,4 +1,13 @@
+#define USE_GGUF 0
+#if USE_GGUF
+#include "models/llama2_gguf.h"
+extern "C"
+{
+#include "gguflib.h"
+}
+#else
 #include "models/llama2.h"
+#endif
 #include "sentencepiece_processor.h"
 #include <cstdio>
 #include <cstring>
@@ -105,6 +114,7 @@ main (const int argc, const char *argv[])
     }
   std::cerr << std::endl;
 
+#if !USE_GGUF
   std::unordered_map<std::string, const llama2::Variable *> state_dict;
   auto checkpoint = load_checkpoint (argv[1]);
   if (checkpoint.empty ())
@@ -120,9 +130,30 @@ main (const int argc, const char *argv[])
           state_dict[var.name ()] = &var;
         }
     }
+#else
+  auto *gguf = gguf_open (argv[1]);
+  if (!gguf)
+    {
+      fprintf (stderr, "output gguf file failed.\n");
+    }
+
+  /* Show all the key-value pairs. */
+  gguf_key key;
+  while (gguf_get_key (gguf, &key))
+    {
+      printf ("%.*s: [%s] ", (int)key.namelen, key.name,
+              gguf_get_value_type_name (key.type));
+      gguf_print_value (gguf, key.type, key.val, 0);
+      printf ("\n");
+    }
+
+  auto *state_dict = gguf;
+
+#endif
 
   vkllama::Model model;
   auto ret = model.init (state_dict);
+
   if (ret != VK_SUCCESS)
     {
       fprintf (stderr, "failed at init model\n");
