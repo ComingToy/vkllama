@@ -11,9 +11,9 @@
 
 namespace vkllama
 {
-Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask,
+Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask, float temp,
                   const VkTensor::DType dtype)
-    : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype)
+    : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype), temp_ (temp)
 {
 }
 

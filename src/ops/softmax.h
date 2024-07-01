@@ -12,6 +12,7 @@ class Softmax : public Op
 {
 public:
   Softmax (GPUDevice *dev, Command *command, bool seq_mask = false,
+           const float temp = 1.0,
            VkTensor::DType const dtype = VkTensor::FP32);
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
@@ -30,6 +31,8 @@ private:
   VkTensor sum_;
   bool seq_mask_;
   VkTensor::DType dtype_;
+
+  float temp_;
 };
 
 }

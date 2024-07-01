@@ -60,7 +60,7 @@ MultiHeadAttentionV2::init () noexcept
   matmul_attn_score_
       = std::make_unique<MatMul> (dev_, command_, 1.0, .0, 0, 0, true, dtype_);
 
-  softmax_ = std::make_unique<Softmax> (dev_, command_, true, dtype_);
+  softmax_ = std::make_unique<Softmax> (dev_, command_, true, 1.0, dtype_);
   transpose_k_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
   transpose_q_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
   transpose_v_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);

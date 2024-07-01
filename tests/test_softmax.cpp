@@ -71,7 +71,8 @@ TEST_P (TestSoftmax, test_softmax)
       input0_buf.swap (input0->second);
     }
 
-  Softmax softmax_op (gpu_, command_, false, (VkTensor::DType)params.dtype);
+  Softmax softmax_op (gpu_, command_, false, 1.0,
+                      (VkTensor::DType)params.dtype);
   ASSERT_EQ (softmax_op.init (), VK_SUCCESS) << "failed at init op";
 
   VkTensor output;
