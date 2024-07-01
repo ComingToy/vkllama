@@ -1,4 +1,13 @@
+#define USE_GGUF 1
+#if USE_GGUF
+#include "models/llama2_gguf.h"
+extern "C"
+{
+#include "gguflib.h"
+}
+#else
 #include "models/llama2.h"
+#endif
 #include "sentencepiece_processor.h"
 #include <cstdio>
 #include <cstring>
@@ -11,6 +20,67 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
+
+void
+string_process_escapes (std::string &input)
+{
+  std::size_t input_len = input.length ();
+  std::size_t output_idx = 0;
+
+  for (std::size_t input_idx = 0; input_idx < input_len; ++input_idx)
+    {
+      if (input[input_idx] == '\\' && input_idx + 1 < input_len)
+        {
+          switch (input[++input_idx])
+            {
+            case 'n':
+              input[output_idx++] = '\n';
+              break;
+            case 'r':
+              input[output_idx++] = '\r';
+              break;
+            case 't':
+              input[output_idx++] = '\t';
+              break;
+            case '\'':
+              input[output_idx++] = '\'';
+              break;
+            case '\"':
+              input[output_idx++] = '\"';
+              break;
+            case '\\':
+              input[output_idx++] = '\\';
+              break;
+            case 'x':
+              // Handle \x12, etc
+              if (input_idx + 2 < input_len)
+                {
+                  const char x[3]
+                      = { input[input_idx + 1], input[input_idx + 2], 0 };
+                  char *err_p = nullptr;
+                  const long val = std::strtol (x, &err_p, 16);
+                  if (err_p == x + 2)
+                    {
+                      input_idx += 2;
+                      input[output_idx++] = char (val);
+                      break;
+                    }
+                }
+              // fall through
+            default:
+              input[output_idx++] = '\\';
+              input[output_idx++] = input[input_idx];
+              break;
+            }
+        }
+      else
+        {
+          input[output_idx++] = input[input_idx];
+        }
+    }
+
+  input.resize (output_idx);
+}
 
 static std::unique_ptr<llama2::Variables>
 load_checkpoint_file (std::string const &fname)
@@ -96,15 +166,23 @@ main (const int argc, const char *argv[])
       return static_cast<int> (status.code ());
     }
 
-  std::vector<int> prompt;
-  sp.Encode (std::string (argv[4]), &prompt);
+  std::string buffer = argv[4];
+  string_process_escapes (buffer);
+
+  std::vector<int> prompt_tmp;
+  sp.Encode (buffer, &prompt_tmp);
   std::cerr << "input tokens: ";
-  for (auto t : prompt)
+  for (auto t : prompt_tmp)
     {
       std::cerr << t << " ";
     }
   std::cerr << std::endl;
 
+  std::vector<int> prompt = { sp.bos_id () };
+  std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
+             std::back_inserter (prompt));
+
+#if !USE_GGUF
   std::unordered_map<std::string, const llama2::Variable *> state_dict;
   auto checkpoint = load_checkpoint (argv[1]);
   if (checkpoint.empty ())
@@ -120,9 +198,30 @@ main (const int argc, const char *argv[])
           state_dict[var.name ()] = &var;
         }
     }
+#else
+  auto *gguf = gguf_open (argv[1]);
+  if (!gguf)
+    {
+      fprintf (stderr, "output gguf file failed.\n");
+    }
+
+  /* Show all the key-value pairs. */
+  gguf_key key;
+  while (gguf_get_key (gguf, &key))
+    {
+      printf ("%.*s: [%s] ", (int)key.namelen, key.name,
+              gguf_get_value_type_name (key.type));
+      gguf_print_value (gguf, key.type, key.val, 0);
+      printf ("\n");
+    }
+
+  auto *state_dict = gguf;
+
+#endif
 
   vkllama::Model model;
   auto ret = model.init (state_dict);
+
   if (ret != VK_SUCCESS)
     {
       fprintf (stderr, "failed at init model\n");
@@ -140,12 +239,13 @@ main (const int argc, const char *argv[])
       toks.push_back (init_out.back ());
 
       int enable_kvcache = ::atoi (argv[3]);
-      for (int i = 1; i < 20; ++i)
+      for (int i = 1; i < 100; ++i)
         {
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)
                             : model (toks, 0);
-          if ((int)output.back () == sp.eos_id ())
+          if ((int)output.back () == sp.eos_id ()
+              || sp.bos_id () == (int)output.back ())
             {
               break;
             }

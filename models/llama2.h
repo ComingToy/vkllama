@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_MODELS_LLAMA2_H__
 #define __VKLLAMA_MODELS_LLAMA2_H__
-#include "models/gguf/gguf.h"
+#include <stddef.h>
+#include "gguflib.h"
 #include "models/proto/llama2_model.pb.h"
 #include "src/core/command.h"
 #include "src/core/float.h"

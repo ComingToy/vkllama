@@ -132,14 +132,7 @@ cc_binary(
 	name="llama2",
 	srcs=["llama2.cpp"],
     copts = ["-std=c++17"],
-    deps = ["//models:llama2", "//src:vkllama", "@sentencepiece//:sentencepiece"],
-)
-
-cc_binary(
-    name="test_gguf",
-    srcs=["test_gguf.cpp"],
-    copts=["-std=c++17"],
-    deps = ["//models:llama2"]
+    deps = ["//models:llama2", "//src:vkllama", "@sentencepiece//:sentencepiece", "@gguf-tools//:gguf"],
 )
 
 cc_test(

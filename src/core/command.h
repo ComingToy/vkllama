@@ -85,7 +85,72 @@ public:
   VkResult
   upload (T const *from, const size_t n, VkTensor &to)
   {
-    return upload_large_ (from, n, to);
+    return upload_bytes (reinterpret_cast<const uint8_t *> (from),
+                         n * sizeof (T), to);
+  }
+
+  VkResult
+  upload_bytes (uint8_t const *from, const size_t bytes, VkTensor &to)
+  {
+    if (to.bytes () < bytes)
+      {
+        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      }
+
+    if (to.visable ())
+      {
+        ::memcpy (to.host (), from, bytes);
+        auto ret = to.flush ();
+        if (ret != VK_SUCCESS)
+          {
+            return ret;
+          }
+
+        to.set_access_flags (VK_ACCESS_HOST_WRITE_BIT);
+        to.set_pipeline_stage (VK_PIPELINE_STAGE_HOST_BIT);
+        return VK_SUCCESS;
+      }
+
+    auto staging = std::make_shared<VkTensor> (
+        to.channels (), to.height (), to.width (), dev_, to.dtype (), true);
+
+    auto ret = staging->create ();
+    if (ret != VK_SUCCESS)
+      return ret;
+
+    ::memcpy (staging->host (), reinterpret_cast<const void *> (from), bytes);
+
+    ret = staging->flush ();
+    if (ret != VK_SUCCESS)
+      {
+        return ret;
+      }
+
+    // put a barrier for host writing
+    {
+      VkBufferMemoryBarrier barrier
+          = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+              nullptr,
+              VK_ACCESS_HOST_WRITE_BIT,
+              VK_ACCESS_TRANSFER_READ_BIT,
+              VK_QUEUE_FAMILY_IGNORED,
+              VK_QUEUE_FAMILY_IGNORED,
+              staging->data (),
+              0,
+              staging->bytes () };
+
+      vkCmdPipelineBarrier (commandBuffer_, VK_PIPELINE_STAGE_HOST_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1,
+                            &barrier, 0, nullptr);
+    }
+
+    VkBufferCopy region = { 0, 0, staging->bytes () };
+    vkCmdCopyBuffer (commandBuffer_, staging->data (), to.data (), 1, &region);
+    to.set_access_flags (VK_ACCESS_TRANSFER_WRITE_BIT);
+    to.set_pipeline_stage (VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    defer_task_.push_back ([staging] () { return VK_SUCCESS; });
+    return ret;
   }
 
   template <typename T>
@@ -303,74 +368,6 @@ public:
   }
 
 private:
-  template <typename T>
-  VkResult
-  upload_large_ (const T *from, size_t n, VkTensor &to)
-  {
-    const size_t bytes = n * sizeof (T);
-
-    if (to.size () < n)
-      {
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-      }
-
-    if (to.visable ())
-      {
-        ::memcpy (to.host (), from, bytes);
-        auto ret = to.flush ();
-        if (ret != VK_SUCCESS)
-          {
-            return ret;
-          }
-
-        to.set_access_flags (VK_ACCESS_HOST_WRITE_BIT);
-        to.set_pipeline_stage (VK_PIPELINE_STAGE_HOST_BIT);
-        return VK_SUCCESS;
-      }
-
-    auto staging = std::make_shared<VkTensor> (to.channels (), to.height (),
-                                               to.width (), dev_,
-                                               VkTensor::to_dtype<T> (), true);
-
-    auto ret = staging->create ();
-    if (ret != VK_SUCCESS)
-      return ret;
-
-    ::memcpy (staging->host (), reinterpret_cast<const void *> (from), bytes);
-
-    ret = staging->flush ();
-    if (ret != VK_SUCCESS)
-      {
-        return ret;
-      }
-
-    // put a barrier for host writing
-    {
-      VkBufferMemoryBarrier barrier
-          = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-              nullptr,
-              VK_ACCESS_HOST_WRITE_BIT,
-              VK_ACCESS_TRANSFER_READ_BIT,
-              VK_QUEUE_FAMILY_IGNORED,
-              VK_QUEUE_FAMILY_IGNORED,
-              staging->data (),
-              0,
-              staging->bytes () };
-
-      vkCmdPipelineBarrier (commandBuffer_, VK_PIPELINE_STAGE_HOST_BIT,
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1,
-                            &barrier, 0, nullptr);
-    }
-
-    VkBufferCopy region = { 0, 0, staging->bytes () };
-    vkCmdCopyBuffer (commandBuffer_, staging->data (), to.data (), 1, &region);
-    to.set_access_flags (VK_ACCESS_TRANSFER_WRITE_BIT);
-    to.set_pipeline_stage (VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-    defer_task_.push_back ([staging] () { return VK_SUCCESS; });
-    return ret;
-  }
-
   VkResult
   begin_ ()
   {

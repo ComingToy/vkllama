@@ -162,9 +162,10 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
   group_z = a.channels ();
 
   softmax1_->set_group (group_x, group_y, group_z);
-  ret = command_->record_pipeline (
-      *softmax1_, { m_, sum_ },
-      { (uint32_t)a.channels (), (uint32_t)a.height (), group_x });
+  ret = command_->record_pipeline (*softmax1_, { m_, sum_ },
+                                   { (uint32_t)m_.channels (),
+                                     (uint32_t)m_.height (),
+                                     (uint32_t)m_.width () });
   if (ret != VK_SUCCESS)
     {
       return ret;
