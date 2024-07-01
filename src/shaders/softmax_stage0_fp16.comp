@@ -46,13 +46,13 @@ main (void)
       return;
     }
 
-  const float bias = float (input1[glb_tid_z * H + glb_tid_y]);
+  const float offset = float (input1[glb_tid_z * H + glb_tid_y]);
   const uint idx = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
 
   float e = 0;
   if (seq_mask > 0 && glb_tid_x <= glb_tid_y + OFFSET)
     {
-      e = exp (float (input0[idx]) - bias);
+      e = exp (float (input0[idx]) - offset);
     }
 
   smem[loc_tid_y][loc_tid_x] = e;
