@@ -21,6 +21,67 @@ extern "C"
 #include <unordered_map>
 #include <vector>
 
+void
+string_process_escapes (std::string &input)
+{
+  std::size_t input_len = input.length ();
+  std::size_t output_idx = 0;
+
+  for (std::size_t input_idx = 0; input_idx < input_len; ++input_idx)
+    {
+      if (input[input_idx] == '\\' && input_idx + 1 < input_len)
+        {
+          switch (input[++input_idx])
+            {
+            case 'n':
+              input[output_idx++] = '\n';
+              break;
+            case 'r':
+              input[output_idx++] = '\r';
+              break;
+            case 't':
+              input[output_idx++] = '\t';
+              break;
+            case '\'':
+              input[output_idx++] = '\'';
+              break;
+            case '\"':
+              input[output_idx++] = '\"';
+              break;
+            case '\\':
+              input[output_idx++] = '\\';
+              break;
+            case 'x':
+              // Handle \x12, etc
+              if (input_idx + 2 < input_len)
+                {
+                  const char x[3]
+                      = { input[input_idx + 1], input[input_idx + 2], 0 };
+                  char *err_p = nullptr;
+                  const long val = std::strtol (x, &err_p, 16);
+                  if (err_p == x + 2)
+                    {
+                      input_idx += 2;
+                      input[output_idx++] = char (val);
+                      break;
+                    }
+                }
+              // fall through
+            default:
+              input[output_idx++] = '\\';
+              input[output_idx++] = input[input_idx];
+              break;
+            }
+        }
+      else
+        {
+          input[output_idx++] = input[input_idx];
+        }
+    }
+
+  input.resize (output_idx);
+}
+
 static std::unique_ptr<llama2::Variables>
 load_checkpoint_file (std::string const &fname)
 {
@@ -105,8 +166,11 @@ main (const int argc, const char *argv[])
       return static_cast<int> (status.code ());
     }
 
+  std::string buffer = argv[4];
+  string_process_escapes (buffer);
+
   std::vector<int> prompt_tmp;
-  sp.Encode (std::string (argv[4]), &prompt_tmp);
+  sp.Encode (buffer, &prompt_tmp);
   std::cerr << "input tokens: ";
   for (auto t : prompt_tmp)
     {
@@ -175,7 +239,7 @@ main (const int argc, const char *argv[])
       toks.push_back (init_out.back ());
 
       int enable_kvcache = ::atoi (argv[3]);
-      for (int i = 1; i < 1024; ++i)
+      for (int i = 1; i < 100; ++i)
         {
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)
