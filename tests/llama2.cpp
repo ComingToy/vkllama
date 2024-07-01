@@ -1,4 +1,4 @@
-#define USE_GGUF 0
+#define USE_GGUF 1
 #if USE_GGUF
 #include "models/llama2_gguf.h"
 extern "C"
