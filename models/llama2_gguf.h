@@ -598,7 +598,7 @@ public:
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight };
           Llama2Block::TransformerParams transformer_params
-              = { vkWk, vkWq, vkWv, Wo, 1024, (int)dim };
+              = { vkWk, vkWq, vkWv, Wo, 2048, (int)dim };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3 };
 

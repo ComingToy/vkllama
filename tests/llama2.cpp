@@ -105,14 +105,18 @@ main (const int argc, const char *argv[])
       return static_cast<int> (status.code ());
     }
 
-  std::vector<int> prompt;
-  sp.Encode (std::string (argv[4]), &prompt);
+  std::vector<int> prompt_tmp;
+  sp.Encode (std::string (argv[4]), &prompt_tmp);
   std::cerr << "input tokens: ";
-  for (auto t : prompt)
+  for (auto t : prompt_tmp)
     {
       std::cerr << t << " ";
     }
   std::cerr << std::endl;
+
+  std::vector<int> prompt = { sp.bos_id () };
+  std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
+             std::back_inserter (prompt));
 
 #if !USE_GGUF
   std::unordered_map<std::string, const llama2::Variable *> state_dict;
@@ -176,7 +180,8 @@ main (const int argc, const char *argv[])
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)
                             : model (toks, 0);
-          if ((int)output.back () == sp.eos_id ())
+          if ((int)output.back () == sp.eos_id ()
+              || sp.bos_id () == (int)output.back ())
             {
               break;
             }
