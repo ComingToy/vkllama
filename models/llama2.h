@@ -1,8 +1,11 @@
 #ifndef __VKLLAMA_MODELS_LLAMA2_H__
 #define __VKLLAMA_MODELS_LLAMA2_H__
+// clang-format off
 #include <stddef.h>
+extern "C"{
 #include "gguflib.h"
-#include "models/proto/llama2_model.pb.h"
+}
+// clang-format on
 #include "src/core/command.h"
 #include "src/core/float.h"
 #include "src/core/tensor.h"
@@ -93,12 +96,14 @@ public:
     VkTensor w1;
     VkTensor w2;
     VkTensor w3;
+    float eps;
   };
 
   struct RmsNormParams
   {
     VkTensor weight1;
     VkTensor weight2;
+    float eps;
   };
 
   Llama2Block (GPUDevice *dev, Command *command,
@@ -123,10 +128,10 @@ public:
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
         feedforward_params_.w3, true, VkTensor::FP16));
 
-    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1, 1e-6,
-                                 VkTensor::FP16));
+    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1,
+                                 rmsnorm_params_.eps, VkTensor::FP16));
     norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2,
-                                  1e-6, VkTensor::FP16));
+                                  feedforward_params_.eps, VkTensor::FP16));
     add_op_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
     add_op2_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
 
@@ -302,7 +307,8 @@ public:
   }
 
   VkResult
-  init (std::unordered_map<std::string, const llama2::Variable *> &variables)
+  init (std::map<std::string, gguf_value *> &kv,
+        std::map<std::string, gguf_tensor> &tensors)
   {
     gpu_ = new GPUDevice ();
     auto ret = gpu_->init ();
@@ -319,24 +325,34 @@ public:
         return ret;
       }
 
-    uint32_t head_count = 32;
-    uint32_t block_count = 26;
+    auto head_count = kv["llama.attention.head_count"]->uint32;
+    auto block_count = kv["llama.block_count"]->uint32;
+    auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"]->float32;
+    auto maxlen = kv["llama.context_length"]->uint32;
 
     input_command_->begin ();
     output_command_->begin ();
+
     // input layer
     {
-      const auto *embeddings = variables["model.embed_tokens.weight"];
-      const auto *output_weight = variables["lm_head.weight"];
-      const auto *norm_weight = variables["model.norm.weight"];
+      auto embeddings = tensors["token_embd.weight"];
+      auto output_weight = tensors["output.weight"];
+      auto norm_weight = tensors["output_norm.weight"];
 
-      VkTensor vkembeddings (1, embeddings->shape (0), embeddings->shape (1),
-                             gpu_, VkTensor::FP16);
-      VkTensor vkoutput_weight (1, output_weight->shape (0),
-                                output_weight->shape (1), gpu_,
-                                VkTensor::FP16);
-      VkTensor vknorm_weight (1, 1, norm_weight->shape (0), gpu_,
-                              VkTensor::FP16);
+      VkTensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
+                             VkTensor::FP16);
+      VkTensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
+                                gpu_, VkTensor::FP16);
+      VkTensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, VkTensor::FP16);
+
+      std::vector<__vkllama_fp16_t> norm_weight_fp16;
+      const float *p
+          = reinterpret_cast<const float *> (norm_weight.weights_data);
+      for (size_t i = 0; i < norm_weight.num_weights; ++i)
+        {
+          __vkllama_fp16_t v = { .u16 = __fp32_to_fp16 (p[i]) };
+          norm_weight_fp16.push_back (v);
+        }
 
       VkResult ret = VK_SUCCESS;
       if ((ret = vkembeddings.create ()) != VK_SUCCESS
@@ -347,8 +363,7 @@ public:
         }
 
       ret = input_command_->upload (
-          (__vkllama_fp16_t *)embeddings->data ().data (),
-          embeddings->data ().size () / sizeof (__vkllama_fp16_t),
+          (__vkllama_fp16_t *)embeddings.weights_data, embeddings.num_weights,
           vkembeddings);
       if (ret != VK_SUCCESS)
         {
@@ -356,18 +371,15 @@ public:
         }
 
       ret = output_command_->upload (
-          (__vkllama_fp16_t *)output_weight->data ().data (),
-          output_weight->data ().size () / sizeof (__vkllama_fp16_t),
-          vkoutput_weight);
+          (__vkllama_fp16_t *)output_weight.weights_data,
+          output_weight.num_weights, vkoutput_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = input_command_->upload (
-          (__vkllama_fp16_t *)norm_weight->data ().data (),
-          norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
-          vknorm_weight);
+      ret = input_command_->upload (norm_weight_fp16.data (),
+                                    norm_weight.num_weights, vknorm_weight);
       if (ret != VK_SUCCESS)
         {
           return ret;
@@ -400,49 +412,33 @@ public:
       for (uint32_t b = 0; b < block_count; ++b)
         {
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.input_layernorm.weight", b);
-          auto const *attn_norm_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_norm.weight", b);
+          const auto attn_norm_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.k_proj.weight", b);
-          auto attn_k_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_k.weight", b);
+          const auto attn_k_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.q_proj.weight", b);
-          auto attn_q_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_q.weight", b);
+          const auto attn_q_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.v_proj.weight", b);
-          auto attn_v_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_v.weight", b);
+          const auto attn_v_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.self_attn.o_proj.weight", b);
-          const auto *attn_output_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.attn_output.weight", b);
+          const auto attn_output_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.post_attention_layernorm.weight", b);
-          const auto *ffn_norm_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_norm.weight", b);
+          const auto ffn_norm_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.up_proj.weight", b);
-          const auto *ffn_up_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_up.weight", b);
+          const auto ffn_up_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.down_proj.weight", b);
-          const auto *ffn_down_weight = variables[vname];
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_down.weight", b);
+          const auto ffn_down_weight = tensors[vname];
 
-          ::snprintf (vname, sizeof (vname),
-                      "model.layers.%u.mlp.gate_proj.weight", b);
+          ::snprintf (vname, sizeof (vname), "blk.%u.ffn_gate.weight", b);
 
-          const auto *ffn_gate_weight = variables[vname];
-
-          if (!attn_norm_weight || !attn_k_weight || !attn_q_weight
-              || !attn_v_weight || !attn_output_weight || !ffn_norm_weight
-              || !ffn_up_weight || !ffn_down_weight || !ffn_gate_weight)
-            {
-              return VK_ERROR_UNKNOWN;
-            }
+          const auto ffn_gate_weight = tensors[vname];
 
           auto command = new Command (gpu_);
           if ((ret = command->init ()) != VK_SUCCESS
@@ -452,10 +448,10 @@ public:
             }
           block_commands_.push_back (command);
 
-          VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight->shape (0),
-                                        gpu_, VkTensor::FP16);
+          VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
+                                        VkTensor::FP16);
 
-          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight->shape (0), gpu_,
+          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
                                        VkTensor::FP16);
 
           VkResult ret = VK_SUCCESS;
@@ -465,26 +461,41 @@ public:
               return ret;
             }
 
-          ret = command->upload (
-              (__vkllama_fp16_t *)attn_norm_weight->data ().data (),
-              attn_norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              vk_attn_norm_weight);
+          std::vector<__vkllama_fp16_t> attn_norm_weight_fp16;
+          const float *p = reinterpret_cast<const float *> (
+              attn_norm_weight.weights_data);
+          for (size_t i = 0; i < attn_norm_weight.num_weights; ++i)
+            {
+              attn_norm_weight_fp16.push_back (
+                  { .u16 = __fp32_to_fp16 (p[i]) });
+            }
+
+          ret = command->upload (attn_norm_weight_fp16.data (),
+                                 attn_norm_weight_fp16.size (),
+                                 vk_attn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          ret = command->upload (
-              (__vkllama_fp16_t *)ffn_norm_weight->data ().data (),
-              ffn_norm_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              vk_ffn_norm_weight);
+          std::vector<__vkllama_fp16_t> ffn_norm_weight_fp16;
+          p = reinterpret_cast<const float *> (ffn_norm_weight.weights_data);
+          for (size_t i = 0; i < ffn_norm_weight.num_weights; ++i)
+            {
+              ffn_norm_weight_fp16.push_back (
+                  { .u16 = __fp32_to_fp16 (p[i]) });
+            }
+
+          ret = command->upload (ffn_norm_weight_fp16.data (),
+                                 ffn_norm_weight_fp16.size (),
+                                 vk_ffn_norm_weight);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          size_t head_dim = attn_k_weight->shape (0);
-          size_t input_dim = attn_k_weight->shape (1);
+          size_t head_dim = attn_k_weight.dim[1];
+          size_t input_dim = attn_k_weight.dim[0];
           size_t head_weight_size = head_dim * input_dim;
 
           VkTensor vkWk (1, head_dim, input_dim, gpu_, VkTensor::FP16);
@@ -499,13 +510,13 @@ public:
             }
 
           const __vkllama_fp16_t *wk_weight_data
-              = (__vkllama_fp16_t *)attn_k_weight->data ().data ();
+              = (__vkllama_fp16_t *)attn_k_weight.weights_data;
 
           const __vkllama_fp16_t *wq_weight_data
-              = (__vkllama_fp16_t *)attn_q_weight->data ().data ();
+              = (__vkllama_fp16_t *)attn_q_weight.weights_data;
 
           const __vkllama_fp16_t *wv_weight_data
-              = (__vkllama_fp16_t *)attn_v_weight->data ().data ();
+              = (__vkllama_fp16_t *)attn_v_weight.weights_data;
 
           ret = command->upload (wk_weight_data, head_weight_size, vkWk);
           if (ret != VK_SUCCESS)
@@ -525,30 +536,29 @@ public:
               return ret;
             }
 
-          VkTensor Wo (1, attn_output_weight->shape (0),
-                       attn_output_weight->shape (1), gpu_, VkTensor::FP16);
+          VkTensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
+                       gpu_, VkTensor::FP16);
           if ((ret = Wo.create ()) != VK_SUCCESS)
             {
               return ret;
             }
           ret = command->upload (
-              (__vkllama_fp16_t *)attn_output_weight->data ().data (),
-              attn_output_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              Wo);
+              (__vkllama_fp16_t *)attn_output_weight.weights_data,
+              attn_output_weight.num_weights, Wo);
 
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
-          VkTensor vkw1 (1, ffn_gate_weight->shape (0),
-                         ffn_gate_weight->shape (1), gpu_, VkTensor::FP16);
-
-          VkTensor vkw2 (1, ffn_down_weight->shape (0),
-                         ffn_down_weight->shape (1), gpu_, VkTensor::FP16);
-
-          VkTensor vkw3 (1, ffn_up_weight->shape (0), ffn_up_weight->shape (1),
+          VkTensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0],
                          gpu_, VkTensor::FP16);
+
+          VkTensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0],
+                         gpu_, VkTensor::FP16);
+
+          VkTensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
+                         VkTensor::FP16);
           if ((ret = vkw1.create ()) != VK_SUCCESS
               || (ret = vkw2.create ()) != VK_SUCCESS
               || (ret = vkw3.create ()) != VK_SUCCESS)
@@ -557,27 +567,24 @@ public:
             }
 
           ret = command->upload (
-              (__vkllama_fp16_t *)ffn_gate_weight->data ().data (),
-              ffn_gate_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              vkw1);
+              (__vkllama_fp16_t *)ffn_gate_weight.weights_data,
+              ffn_gate_weight.num_weights, vkw1);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
           ret = command->upload (
-              (__vkllama_fp16_t *)ffn_down_weight->data ().data (),
-              ffn_down_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              vkw2);
+              (__vkllama_fp16_t *)ffn_down_weight.weights_data,
+              ffn_down_weight.num_weights, vkw2);
           if (ret != VK_SUCCESS)
             {
               return ret;
             }
 
           ret = command->upload (
-              (__vkllama_fp16_t *)ffn_up_weight->data ().data (),
-              ffn_up_weight->data ().size () / sizeof (__vkllama_fp16_t),
-              vkw3);
+              (__vkllama_fp16_t *)ffn_up_weight.weights_data,
+              ffn_up_weight.num_weights, vkw3);
           if (ret != VK_SUCCESS)
             {
               return ret;
@@ -585,11 +592,11 @@ public:
 
           const auto dim = head_dim / head_count;
           Llama2Block::RmsNormParams rmsnorm_params
-              = { vk_attn_norm_weight, vk_ffn_norm_weight };
+              = { vk_attn_norm_weight, vk_ffn_norm_weight, norm_eps };
           Llama2Block::TransformerParams transformer_params
-              = { vkWk, vkWq, vkWv, Wo, 1024, (int)dim };
+              = { vkWk, vkWq, vkWv, Wo, (int)maxlen, (int)dim };
           Llama2Block::FeedForwardParams feedfward_params
-              = { vkw1, vkw2, vkw3 };
+              = { vkw1, vkw2, vkw3, norm_eps };
 
           auto *block = new Llama2Block (gpu_, command, transformer_params,
                                          feedfward_params, rmsnorm_params);

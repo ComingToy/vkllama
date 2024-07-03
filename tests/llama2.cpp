@@ -1,13 +1,8 @@
-#define USE_GGUF 1
-#if USE_GGUF
-#include "models/llama2_gguf.h"
+#include "models/llama2.h"
 extern "C"
 {
 #include "gguflib.h"
 }
-#else
-#include "models/llama2.h"
-#endif
 #include "sentencepiece_processor.h"
 #include <cstdio>
 #include <cstring>
@@ -82,70 +77,6 @@ string_process_escapes (std::string &input)
   input.resize (output_idx);
 }
 
-static std::unique_ptr<llama2::Variables>
-load_checkpoint_file (std::string const &fname)
-{
-  int fd = open (fname.c_str (), O_RDONLY);
-  if (fd < 0)
-    {
-      char buf[512];
-      strerror_r (errno, buf, sizeof (buf));
-      fprintf (stderr, "open checkpoitn %s failed: %s\n", fname.c_str (), buf);
-      return nullptr;
-    }
-
-  auto variables = std::make_unique<llama2::Variables> ();
-  if (!variables->ParseFromFileDescriptor (fd))
-    {
-      fprintf (stderr, "parse checkpoint %s failed.\n", fname.c_str ());
-      return nullptr;
-    }
-
-  return variables;
-}
-
-static std::vector<std::unique_ptr<llama2::Variables> >
-load_checkpoint (std::string const &path)
-{
-  DIR *dir = opendir (path.c_str ());
-  if (!dir)
-    {
-      fprintf (stderr, "open dir %s failed\n", path.c_str ());
-      return {};
-    }
-
-  std::vector<std::string> blocks;
-  struct dirent *d;
-  while ((d = readdir (dir)))
-    {
-      if (d->d_type != DT_REG)
-        continue;
-      blocks.push_back (path + "/" + d->d_name);
-    }
-
-  auto ret = closedir (dir);
-  if (ret)
-    {
-      fprintf (stderr, "close %s dir failed: %d\n", path.c_str (), ret);
-      return {};
-    }
-
-  std::vector<std::unique_ptr<llama2::Variables> > checkpoint;
-  for (auto const &block : blocks)
-    {
-      auto ckpt = load_checkpoint_file (block);
-      if (!ckpt)
-        {
-          fprintf (stderr, "load checkpoint %s failed\n", block.c_str ());
-          return {};
-        }
-
-      checkpoint.push_back (std::move (ckpt));
-    }
-
-  return checkpoint;
-}
-
 int
 main (const int argc, const char *argv[])
 {
@@ -182,23 +113,6 @@ main (const int argc, const char *argv[])
   std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
              std::back_inserter (prompt));
 
-#if !USE_GGUF
-  std::unordered_map<std::string, const llama2::Variable *> state_dict;
-  auto checkpoint = load_checkpoint (argv[1]);
-  if (checkpoint.empty ())
-    {
-      return -1;
-    }
-  for (auto &variables : checkpoint)
-    {
-      for (const auto &var : variables->variables ())
-        {
-          fprintf (stderr, "load variable %s from checkpoint\n",
-                   var.name ().c_str ());
-          state_dict[var.name ()] = &var;
-        }
-    }
-#else
   auto *gguf = gguf_open (argv[1]);
   if (!gguf)
     {
@@ -206,6 +120,7 @@ main (const int argc, const char *argv[])
     }
 
   /* Show all the key-value pairs. */
+  std::map<std::string, gguf_value *> gguf_kv;
   gguf_key key;
   while (gguf_get_key (gguf, &key))
     {
@@ -213,14 +128,22 @@ main (const int argc, const char *argv[])
               gguf_get_value_type_name (key.type));
       gguf_print_value (gguf, key.type, key.val, 0);
       printf ("\n");
+
+      std::string name (key.name, key.namelen);
+      gguf_kv[name] = key.val;
     }
 
-  auto *state_dict = gguf;
+  std::map<std::string, gguf_tensor> tensors;
 
-#endif
+  gguf_tensor tensor;
+  while (gguf_get_tensor (gguf, &tensor))
+    {
+      std::string name (tensor.name, tensor.namelen);
+      tensors[name] = tensor;
+    }
 
   vkllama::Model model;
-  auto ret = model.init (state_dict);
+  auto ret = model.init (gguf_kv, tensors);
 
   if (ret != VK_SUCCESS)
     {

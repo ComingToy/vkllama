@@ -1,8 +1,8 @@
 cc_library(
     name = 'llama2',
     srcs = [],
-    hdrs = ['llama2_gguf.h'],
-    deps = ['//models/proto:llama2_model_cc_proto', '@gguf-tools//:gguf'],
+    hdrs = ['llama2.h'],
+    deps = ['@gguf-tools//:gguf'],
     copts = ['-std=c++17'],
     visibility = ['//visibility:public']
 )
