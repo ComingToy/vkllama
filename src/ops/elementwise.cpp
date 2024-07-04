@@ -78,7 +78,7 @@ ElementWise::init () noexcept
 uint64_t
 ElementWise::time () noexcept
 {
-  return pipeline0_->time ();
+  return std::max (pipeline0_->time (), pipeline1_->time ());
 }
 
 VkResult

@@ -278,6 +278,38 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 uint64_t
 MultiHeadAttentionV2::time () noexcept
 {
-  return 0;
+  auto kqv_cost = std::max (
+      { matmul_k_->time (), matmul_q_->time (), matmul_v_->time () });
+  auto transposed_cost = std::max (
+      { transpose_k_->time (), transpose_q_->time (), transpose_v_->time () });
+  uint64_t kvcache_cost = 0;
+
+  if (use_kvcache_)
+    {
+      auto update_cost
+          = std::max (update_kcache_op_->time (), update_vcache_op_->time ());
+      auto slice_cost
+          = std::max (kcache_slice_op_->time (), vcache_slice_op_->time ());
+      kvcache_cost = update_cost + slice_cost;
+    }
+
+  auto rope_cost = rope_->time ();
+  auto attn_score_cost = matmul_qk_->time ();
+  auto softmax_cost = softmax_->time ();
+  auto weighted_cost = matmul_weighted_->time ();
+  auto transpose_head_cost = transpose_heads_->time ();
+  auto output_cost = matmul_o_->time ();
+
+  // fprintf (
+  //     stderr,
+  //     "attn time: kqv_cost = %llu, transposed_cost = %llu, kvcache_cost = "
+  //     "%llu, rope_cost = %llu, attn_score_cost = %llu, softmax cost = %llu,
+  //     " "weighted_cost = %llu, transpose head cost = %llu, output cost =
+  //     %llu\n", kqv_cost, transposed_cost, kvcache_cost, rope_cost,
+  //     attn_score_cost, softmax_cost, weighted_cost, transpose_head_cost,
+  //     output_cost);
+  return kqv_cost + transposed_cost + kvcache_cost + rope_cost
+         + attn_score_cost + softmax_cost + weighted_cost + transpose_head_cost
+         + output_cost;
 }
 }
