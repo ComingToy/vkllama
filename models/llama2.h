@@ -192,6 +192,16 @@ public:
     return out;
   }
 
+  void
+  print_op_cost ()
+  {
+    fprintf (stderr,
+             "attn norm cost: %llu, attn cost: %lld, attn add cost: %lld, "
+             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
+             norm_op_->time (), attn_op_->time (), add_op_->time (),
+             norm_op2_->time (), feedforward_op_->time (), add_op2_->time ());
+  }
+
 private:
   GPUDevice *gpu_;
   Command *command_;
@@ -690,6 +700,11 @@ public:
         "record cost = %lldms,  wait cost = %lldms, total cost = %lldms\n",
         record_cost, wait_cost, total_cost);
 #endif
+
+    for (int i = 0; i < blocks_.size (); ++i)
+      {
+        blocks_[i]->print_op_cost ();
+      }
     return buf;
   }
 
