@@ -9,7 +9,7 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
                   const float eps_, const VkTensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
-  Pipeline::ShaderInfo info = { 2, 3, 3 * sizeof (uint32_t), 1, 32, 32 };
+  Pipeline::ShaderInfo info = { 2, 3, 3 * sizeof (uint32_t), 1, 32, 4 };
 
   const auto *spv_code = dtype_ == VkTensor::FP16
                              ? __get_rms_norm_fp16_comp_spv_code ()
@@ -68,7 +68,7 @@ RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  pipeline_->set_group (1, (x.height () + 31) / 32, (x.channels () + 31) / 32);
+  pipeline_->set_group (1, (x.height () + 31) / 32, (x.channels () + 3) / 4);
   return command_->record_pipeline (*pipeline_, { x, output }, { 0, 2 },
                                     { (uint32_t)x.channels (),
                                       (uint32_t)x.height (),

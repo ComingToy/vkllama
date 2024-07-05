@@ -447,5 +447,11 @@ Pipeline::set_group (uint32_t x, uint32_t y, uint32_t z)
     }
   return VK_SUCCESS;
 }
+
+Pipeline::ShaderInfo const &
+Pipeline::shader_info () const
+{
+  return shaderInfo_;
+}
 }
 

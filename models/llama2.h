@@ -68,6 +68,13 @@ public:
     return out;
   }
 
+  void
+  print_op_cost ()
+  {
+    fprintf (stderr, "embedding lookup cost -- embedding cost: %llu\n",
+             embedding_op_->time ());
+  }
+
 private:
   GPUDevice *gpu_;
   Command *command_;
@@ -196,7 +203,8 @@ public:
   print_op_cost ()
   {
     fprintf (stderr,
-             "attn norm cost: %llu, attn cost: %lld, attn add cost: %lld, "
+             "block cost -- attn norm cost: %llu, attn cost: %lld, attn add "
+             "cost: %lld, "
              "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
              norm_op_->time (), attn_op_->time (), add_op_->time (),
              norm_op2_->time (), feedforward_op_->time (), add_op2_->time ());
@@ -276,6 +284,15 @@ public:
       }
 
     return out;
+  }
+
+  void
+  print_op_cost ()
+  {
+    fprintf (stderr,
+             "output cost -- matmul out cost: %llu, norm cost: %llu, argmax "
+             "cost: %llu\n",
+             matmul_op_->time (), norm_op_->time (), argmax_op_->time ());
   }
 
 private:
@@ -701,10 +718,13 @@ public:
         record_cost, wait_cost, total_cost);
 #endif
 
-    for (int i = 0; i < blocks_.size (); ++i)
-      {
-        blocks_[i]->print_op_cost ();
-      }
+    // input_layer_->print_op_cost ();
+    // for (int i = 0; i < blocks_.size (); ++i)
+    //   {
+    //     blocks_[i]->print_op_cost ();
+    //   }
+    // output_layer_->print_op_cost ();
+
     return buf;
   }
 

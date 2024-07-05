@@ -41,6 +41,8 @@ public:
   VkResult update_bindings (std::vector<VkTensor> bindings,
                             std::vector<uint32_t> const &indices);
 
+  ShaderInfo const &shader_info() const;
+
 private:
   bool init_;
   VkShaderModule module_;

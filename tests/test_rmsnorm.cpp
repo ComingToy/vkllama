@@ -2,7 +2,7 @@
 #include "core/command.h"
 #include "core/gpu_device.h"
 #include "ops/cast.h"
-#include "ops/rms_norm.h"
+#include "ops/rms_norm_v2.h"
 #include "test_common.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -69,8 +69,8 @@ TEST_P (TestRMSNorm, test_rmsnorm)
       input1_buf.swap (input1->second);
     }
 
-  RMSNorm norm_op (gpu_, command_, params.dtype ? input1_fp16 : input1_fp32,
-                   1e-3f, (VkTensor::DType)params.dtype);
+  RMSNormV2 norm_op (gpu_, command_, params.dtype ? input1_fp16 : input1_fp32,
+                     1e-3f, (VkTensor::DType)params.dtype);
   ASSERT_EQ (norm_op.init (), VK_SUCCESS);
 
   VkTensor output;
