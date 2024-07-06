@@ -16,7 +16,7 @@ extern "C"{
 #include "src/ops/feed_forward.h"
 #include "src/ops/multiheadattention.h"
 #include "src/ops/multiheadattention_v2.h"
-#include "src/ops/rms_norm.h"
+#include "src/ops/rms_norm_v2.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -135,10 +135,10 @@ public:
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
         feedforward_params_.w3, true, VkTensor::FP16));
 
-    norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1,
-                                 rmsnorm_params_.eps, VkTensor::FP16));
-    norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2,
-                                  feedforward_params_.eps, VkTensor::FP16));
+    norm_op_.reset (new RMSNormV2 (gpu_, command_, rmsnorm_params_.weight1,
+                                   rmsnorm_params_.eps, VkTensor::FP16));
+    norm_op2_.reset (new RMSNormV2 (gpu_, command_, rmsnorm_params_.weight2,
+                                    feedforward_params_.eps, VkTensor::FP16));
     add_op_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
     add_op2_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
 
@@ -215,8 +215,8 @@ private:
   Command *command_;
   std::unique_ptr<MultiHeadAttentionV2> attn_op_;
   std::unique_ptr<FeedForward> feedforward_op_;
-  std::unique_ptr<RMSNorm> norm_op_;
-  std::unique_ptr<RMSNorm> norm_op2_;
+  std::unique_ptr<RMSNormV2> norm_op_;
+  std::unique_ptr<RMSNormV2> norm_op2_;
   std::unique_ptr<ElementWise> add_op_;
   std::unique_ptr<ElementWise> add_op2_;
 
@@ -252,7 +252,7 @@ public:
       }
 
     norm_op_.reset (
-        new RMSNorm (gpu_, command_, norm_weight_, 1e-6, VkTensor::FP16));
+        new RMSNormV2 (gpu_, command_, norm_weight_, 1e-6, VkTensor::FP16));
     if ((ret = norm_op_->init ()) != VK_SUCCESS)
       {
         return ret;
@@ -265,13 +265,13 @@ public:
   VkTensor
   operator() (VkTensor in)
   {
-    auto ret = norm_op_->operator() (in, norm_output_);
-    if (ret != VK_SUCCESS)
-      {
-        throw std::runtime_error ("failed at forwarding rms norm");
-      }
+    // auto ret = norm_op_->operator() (in, norm_output_);
+    // if (ret != VK_SUCCESS)
+    //   {
+    //     throw std::runtime_error ("failed at forwarding rms norm");
+    //   }
 
-    ret = matmul_op_->operator() (norm_output_, matmul_output_);
+    auto ret = matmul_op_->operator() (in, matmul_output_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding MatMul op");
@@ -303,7 +303,7 @@ private:
   VkTensor norm_output_;
   VkTensor matmul_output_;
   std::unique_ptr<MatMul> matmul_op_;
-  std::unique_ptr<RMSNorm> norm_op_;
+  std::unique_ptr<RMSNormV2> norm_op_;
   std::unique_ptr<ArgMax> argmax_op_;
 };
 
@@ -718,12 +718,12 @@ public:
         record_cost, wait_cost, total_cost);
 #endif
 
-    // input_layer_->print_op_cost ();
-    // for (int i = 0; i < blocks_.size (); ++i)
-    //   {
-    //     blocks_[i]->print_op_cost ();
-    //   }
-    // output_layer_->print_op_cost ();
+    input_layer_->print_op_cost ();
+    for (int i = 0; i < blocks_.size (); ++i)
+      {
+        blocks_[i]->print_op_cost ();
+      }
+    output_layer_->print_op_cost ();
 
     return buf;
   }

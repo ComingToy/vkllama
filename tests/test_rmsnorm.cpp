@@ -128,13 +128,9 @@ TEST_P (TestRMSNorm, test_rmsnorm)
             .reshape (dims)
             .broadcast (broadcasts)
         * input_tensor1.broadcast (weight_broadcasts) * input_tensor0;
-  // std::cerr << "eigen output mean: " << eigen_output_tensor.mean ()
-  //           << std::endl
-  //           << "vk output mean: " << vk_output_tensor.mean () << std::endl;
-
-  std::cerr << "input tensor: " << input_tensor0 << std::endl
-            << "vk output tensor: " << vk_output_tensor << std::endl
-            << "eigen output tensor: " << eigen_output_tensor << std::endl;
+  // std::cerr << "input tensor: " << input_tensor0 << std::endl
+  //           << "vk output tensor: " << vk_output_tensor << std::endl
+  //           << "eigen output tensor: " << eigen_output_tensor << std::endl;
   Tensor<3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-3);
   _Tensor<int, 0> diff
@@ -145,8 +141,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
 };
 
 std::vector<TestRMSNormParams> params = {
-  { 1, 1, 63, 1 },
-  // { 3, 1023, 63, 1 },
+  { 3, 2, 133, 1 }, { 3, 1023, 63, 1 },
   // { 1, 1023, 63, 0 },
   // { 3, 1023, 63, 0 }
 };

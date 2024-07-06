@@ -24,7 +24,6 @@ main (void)
   uint tid_z = gl_GlobalInvocationID.z;
 
   uint in_idx = tid_z * H * W + tid_y * W + tid_x;
-  output0[in_idx] = 2.0hf;
 
   if (tid_x >= W || tid_y >= H || tid_z >= C)
     {
