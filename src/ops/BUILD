@@ -3,7 +3,6 @@ cc_library(
     srcs = [
         'op.cpp',
         'mat_mul.cpp',
-        'rms_norm.cpp',
         'rms_norm_v2.cpp',
         'feed_forward.cpp',
         'rope.cpp',
@@ -21,7 +20,6 @@ cc_library(
     hdrs = [
         'op.h',
         'mat_mul.h',
-        'rms_norm.h',
         'rms_norm_v2.h',
         'feed_forward.h',
         'rope.h',

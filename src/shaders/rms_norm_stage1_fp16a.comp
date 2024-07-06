@@ -5,9 +5,9 @@
 layout (constant_id = 0) const float16_t eps = .0hf;
 layout (push_constant) uniform constants
 {
-  int C;
-  int H;
-  int W;
+  uint C;
+  uint H;
+  uint W;
 };
 
 layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };

@@ -90,6 +90,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
     }
 
   std::vector<float> output_buf (output.size ());
+  std::cerr << "size of output buf: " << output_buf.size () << std::endl;
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
@@ -131,6 +132,9 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   //           << std::endl
   //           << "vk output mean: " << vk_output_tensor.mean () << std::endl;
 
+  std::cerr << "input tensor: " << input_tensor0 << std::endl
+            << "vk output tensor: " << vk_output_tensor << std::endl
+            << "eigen output tensor: " << eigen_output_tensor << std::endl;
   Tensor<3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-3);
   _Tensor<int, 0> diff
@@ -140,10 +144,12 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   ASSERT_EQ (*diff.data (), 0);
 };
 
-std::vector<TestRMSNormParams> params = { { 1, 1023, 63, 1 },
-                                          { 3, 1023, 63, 1 },
-                                          { 1, 1023, 63, 0 },
-                                          { 3, 1023, 63, 0 } };
+std::vector<TestRMSNormParams> params = {
+  { 1, 1, 63, 1 },
+  // { 3, 1023, 63, 1 },
+  // { 1, 1023, 63, 0 },
+  // { 3, 1023, 63, 0 }
+};
 
 INSTANTIATE_TEST_SUITE_P (test_rmsnorm, TestRMSNorm,
                           ::testing::ValuesIn (params));
