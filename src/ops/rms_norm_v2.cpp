@@ -14,7 +14,8 @@ RMSNormV2::RMSNormV2 (GPUDevice *dev, Command *command, VkTensor weight,
 {
   Pipeline::ShaderInfo info0 = { 1, 4, 3 * sizeof (uint32_t), 64, 4, 1 };
   Pipeline::ShaderInfo info1
-      = { 1, 2, 3 * sizeof (uint32_t) + sizeof (__vkllama_fp16_t), 1, 128, 1 };
+      = { 1, 2,   3 * sizeof (uint32_t) + 2 * sizeof (__vkllama_fp16_t),
+          1, 128, 1 };
   Pipeline::ShaderInfo info2 = { 0, 3, 3 * sizeof (uint32_t), 16, 16, 1 };
 
   const auto *spv_code0 = __get_rms_norm_stage0_fp16a_comp_spv_code ();
@@ -135,10 +136,10 @@ RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
   __vkllama_fp16_t DIM
       = { .u16 = __fp32_to_fp16 (static_cast<float> (x.width ())) };
 
-  ret = command_->record_pipeline (*pipeline1_, { stage0_out0_, stage1_out0_ },
-                                   { (uint32_t)stage0_out0_.channels (),
-                                     (uint32_t)stage0_out0_.height (),
-                                     (uint32_t)stage0_out0_.width (), DIM });
+  ret = command_->record_pipeline (
+      *pipeline1_, { stage0_out0_, stage1_out0_ },
+      { (uint32_t)stage0_out0_.channels (), (uint32_t)stage0_out0_.height (),
+        (uint32_t)stage0_out0_.width (), DIM, (uint16_t)0 });
   if (ret != VK_SUCCESS)
     {
       return ret;
@@ -178,7 +179,7 @@ RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
   y.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   y.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-#if 1
+#if 0
   auto stage00_buf = std::make_shared<std::vector<__vkllama_fp16_t> > (
       stage0_out0_.size ());
   auto stage01_buf = std::make_shared<std::vector<__vkllama_fp16_t> > (
