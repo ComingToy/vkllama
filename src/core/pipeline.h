@@ -2,6 +2,7 @@
 #define __VKLLAMA_CPP_PIPELINE_H__
 #include "gpu_device.h"
 #include "shader_constants.h"
+#include <array>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -41,7 +42,8 @@ public:
   VkResult update_bindings (std::vector<VkTensor> bindings,
                             std::vector<uint32_t> const &indices);
 
-  ShaderInfo const &shader_info() const;
+  ShaderInfo const &shader_info () const;
+  void query_exec_timestamp ();
 
 private:
   bool init_;
@@ -62,6 +64,7 @@ private:
   int z_;
   VkQueryPool queryPool_;
   VkDescriptorUpdateTemplate descriptor_update_template_;
+  std::array<uint64_t, 2> time_stamps_;
 
   VkResult create_shader_module_ ();
   VkResult create_pipeline_layout_ ();

@@ -22,6 +22,7 @@ public:
                      VkMemoryPropertyFlags properties) const;
   uint32_t require_queue (VkQueueFlags flags) const;
   const VkPhysicalDeviceLimits &limits () const;
+  const float timestamp_period () const;
   VkResult init ();
   bool support_descriptor_templ_update () const;
   bool support_16bit_storage () const;

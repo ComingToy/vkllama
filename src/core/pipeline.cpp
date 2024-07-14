@@ -1,5 +1,6 @@
 #include "pipeline.h"
 #include "tensor.h"
+#include <array>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -376,17 +377,22 @@ Pipeline::vkquerypool ()
   return queryPool_;
 }
 
+void
+Pipeline::query_exec_timestamp ()
+{
+  vkGetQueryPoolResults (device_->device (), queryPool_, 0, 2,
+                         time_stamps_.size () * sizeof (uint64_t),
+                         time_stamps_.data (), sizeof (uint64_t),
+                         VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+}
+
 uint64_t
 Pipeline::time ()
 {
 
-  std::vector<uint64_t> time_stamps (2);
-  vkGetQueryPoolResults (device_->device (), queryPool_, 0, 2,
-                         time_stamps.size () * sizeof (uint64_t),
-                         time_stamps.data (), sizeof (uint64_t),
-                         VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-
-  return time_stamps[1] - time_stamps[0];
+  auto delta = (time_stamps_[1] - time_stamps_[0])
+               * device_->timestamp_period () / 1000.0f;
+  return (uint64_t)delta;
 }
 
 VkResult

@@ -301,6 +301,11 @@ public:
                    pipeline.group_z ());
     vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                          pipeline.vkquerypool (), 1);
+
+    defer_task_.push_back ([&pipeline] () {
+      pipeline.query_exec_timestamp ();
+      return VK_SUCCESS;
+    });
     return VK_SUCCESS;
   }
 

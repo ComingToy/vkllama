@@ -335,5 +335,11 @@ GPUDevice::limits () const
 {
   return physicalDevProperties_.limits;
 }
+
+const float
+GPUDevice::timestamp_period () const
+{
+  return physicalDevProperties_.limits.timestampPeriod;
+}
 }
 

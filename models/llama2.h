@@ -203,9 +203,9 @@ public:
     fprintf (stderr,
              "block cost -- attn norm cost: %llu, attn cost: %lld, attn add "
              "cost: %lld, "
-             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
-             norm_op_->time (), attn_op_->time (), add_op_->time (),
-             norm_op2_->time (), feedforward_op_->time (), add_op2_->time ());
+             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %ld\n",
+             norm_op_->time (), attn_op_->time (), 0llu,
+             feedforward_op_->time (), 0llu, 0llu);
   }
 
 private:
@@ -263,13 +263,13 @@ public:
   VkTensor
   operator() (VkTensor in)
   {
-    // auto ret = norm_op_->operator() (in, norm_output_);
-    // if (ret != VK_SUCCESS)
-    //   {
-    //     throw std::runtime_error ("failed at forwarding rms norm");
-    //   }
+    auto ret = norm_op_->operator() (in, norm_output_);
+    if (ret != VK_SUCCESS)
+      {
+        throw std::runtime_error ("failed at forwarding rms norm");
+      }
 
-    auto ret = matmul_op_->operator() (in, matmul_output_);
+    ret = matmul_op_->operator() (norm_output_, matmul_output_);
     if (ret != VK_SUCCESS)
       {
         throw std::runtime_error ("failed at forwarding MatMul op");
