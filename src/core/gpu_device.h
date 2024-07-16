@@ -28,6 +28,7 @@ public:
   bool support_16bit_storage () const;
   bool support_fp16_arithmetic () const;
   bool support_int8_arithmetic () const;
+  bool support_pipeline_statistics () const;
 
   ~GPUDevice ();
 

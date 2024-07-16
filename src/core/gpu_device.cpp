@@ -330,6 +330,12 @@ GPUDevice::support_int8_arithmetic () const
   return support_shader_int8_arithmetic_;
 }
 
+bool
+GPUDevice::support_pipeline_statistics () const
+{
+  return physicalFeats_.pipelineStatisticsQuery;
+}
+
 VkPhysicalDeviceLimits const &
 GPUDevice::limits () const
 {

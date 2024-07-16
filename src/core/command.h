@@ -294,18 +294,25 @@ public:
 
     vkCmdBindDescriptorSets (commandBuffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                              layout, 0, 1, &descriptset, 0, nullptr);
-    vkCmdResetQueryPool (commandBuffer_, pipeline.vkquerypool (), 0, 2);
-    vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         pipeline.vkquerypool (), 0);
+    if (dev_->support_pipeline_statistics ())
+      {
+        vkCmdResetQueryPool (commandBuffer_, pipeline.vkquerypool (), 0, 2);
+        vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             pipeline.vkquerypool (), 0);
+      }
     vkCmdDispatch (commandBuffer_, pipeline.group_x (), pipeline.group_y (),
                    pipeline.group_z ());
-    vkCmdWriteTimestamp (commandBuffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                         pipeline.vkquerypool (), 1);
+    if (dev_->support_pipeline_statistics ())
+      {
+        vkCmdWriteTimestamp (commandBuffer_,
+                             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                             pipeline.vkquerypool (), 1);
+        defer_task_.push_back ([&pipeline] () {
+          pipeline.query_exec_timestamp ();
+          return VK_SUCCESS;
+        });
+      }
 
-    defer_task_.push_back ([&pipeline] () {
-      pipeline.query_exec_timestamp ();
-      return VK_SUCCESS;
-    });
     return VK_SUCCESS;
   }
 

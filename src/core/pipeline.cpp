@@ -61,7 +61,7 @@ Pipeline::init ()
     }
 
   ret = create_query_pool_ ();
-  if (ret != VK_SUCCESS)
+  if (ret != VK_SUCCESS && ret != VK_ERROR_FEATURE_NOT_PRESENT)
     {
       return ret;
     }
@@ -259,6 +259,11 @@ Pipeline::create_descriptor_update_template_ ()
 VkResult
 Pipeline::create_query_pool_ ()
 {
+  if (!device_->support_pipeline_statistics ())
+    {
+      return VK_ERROR_FEATURE_NOT_PRESENT;
+    }
+
   VkQueryPoolCreateInfo createInfo
       = { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
           nullptr,
@@ -380,6 +385,10 @@ Pipeline::vkquerypool ()
 void
 Pipeline::query_exec_timestamp ()
 {
+  if (!device_->support_pipeline_statistics ())
+    {
+      return;
+    }
   vkGetQueryPoolResults (device_->device (), queryPool_, 0, 2,
                          time_stamps_.size () * sizeof (uint64_t),
                          time_stamps_.data (), sizeof (uint64_t),
