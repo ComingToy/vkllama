@@ -33,6 +33,7 @@ private:
   VkTensor::DType dtype_;
   const float scale_;
   const float bias_;
+  Pipeline::ShaderInfo shader_info_;
 };
 }
 

@@ -24,6 +24,7 @@ def _glsl_shader(ctx):
         print('genereate spv file: %s' % spv_name)
         
         args = ctx.actions.args()
+        args.add('--target-spv=spv1.3')
         args.add('-o', spv_file.path)
         args.add(shader.path)
 
