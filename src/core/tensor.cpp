@@ -113,9 +113,11 @@ VkTensor::create ()
                 | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
       }
 
-    VmaAllocationCreateInfo allocInfo = {
-      flags, VMA_MEMORY_USAGE_AUTO, 0, 0, 0, VK_NULL_HANDLE, nullptr, 0
-    };
+    VmaAllocationCreateInfo allocInfo
+        = { flags,   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+            0,       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            0,       VK_NULL_HANDLE,
+            nullptr, 0 };
 
     auto ret = vmaCreateBuffer (dev_->allocator (), &createInfo, &allocInfo,
                                 &data_, &allocation_, &mem_);
