@@ -1,6 +1,7 @@
 #version 450 core
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_control_flow_attributes : enable
 
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
@@ -45,7 +46,8 @@ main ()
 
   float sum = .0;
 
-  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < K;
+                  i += gl_SubgroupSize)
     {
       uint bi = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
                                 : gid_z * N * K + i * N + gid_x;
