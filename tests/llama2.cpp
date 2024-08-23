@@ -181,7 +181,7 @@ main (const int argc, const char *argv[])
       auto milliseconds
           = std::chrono::duration_cast<std::chrono::milliseconds> (t1 - t0)
                 .count ();
-      std::cerr << "infer speed: " << toks.size () * 1000 / milliseconds
+      std::cerr << "infer speed: " << toks.size () * 1000.0f / milliseconds
                 << " tokens/s" << std::endl;
 
       std::vector<int> output;
