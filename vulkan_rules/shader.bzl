@@ -18,13 +18,14 @@ def _glsl_shader(ctx):
     output_spvs = []
 
     shaders = ctx.files.shaders
+
     for shader in shaders:
         spv_name = shader.basename + '.spv'
         spv_file = ctx.actions.declare_file(spv_name)
         print('genereate spv file: %s' % spv_name)
         
         args = ctx.actions.args()
-        args.add('--target-spv=spv1.3')
+        args.add_all(ctx.attr.extra_args)
         args.add('-o', spv_file.path)
         args.add(shader.path)
 
@@ -172,6 +173,7 @@ glsl_shader = rule(
     implementation = _glsl_shader,
     attrs = {
         'shaders': attr.label_list(allow_files=['.comp']),
+        'extra_args': attr.string_list(allow_empty=False),
         'tool': attr.label(executable=True, cfg='exec', allow_files=True),
     },
     toolchains = ['//vulkan_rules:toolchain_type'],

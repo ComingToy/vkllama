@@ -34,7 +34,7 @@ MatMul::init () noexcept
     }
 
   Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 16, 16, 1 };
-  if (transpose_b_ && dtype_ == VkTensor::FP16)
+  if (dtype_ == VkTensor::FP16)
     {
       info
           = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
@@ -57,34 +57,19 @@ MatMul::init () noexcept
           pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();        \
           code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size ();    \
         }                                                                        \
-      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ()      \
-               && transpose_b_)                                                  \
+      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())     \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_code (); \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
-      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())     \
-        {                                                                        \
-          pcode                                                                  \
-              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_code ();    \
-          code_size                                                              \
-              = __get_matmul_broadcast##__boradcast##_fp16a_comp_spv_size ();    \
-        }                                                                        \
-      else if (dtype_ == VkTensor::FP16 && transpose_b_)                         \
+      else if (dtype_ == VkTensor::FP16)                                         \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_code ();  \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_size ();  \
-        }                                                                        \
-      else if (dtype_ == VkTensor::FP16)                                         \
-        {                                                                        \
-          pcode                                                                  \
-              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_code ();     \
-          code_size                                                              \
-              = __get_matmul_broadcast##__boradcast##_fp16_comp_spv_size ();     \
         }                                                                        \
       else                                                                       \
         {                                                                        \
@@ -168,7 +153,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (transpose_b_ && VkTensor::FP16)
+  if (VkTensor::FP16)
     {
       uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
       pipeline_->set_group (groupx, groupy, groupz);
@@ -220,7 +205,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (transpose_b_ && VkTensor::FP16)
+  if (VkTensor::FP16)
     {
       uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
       pipeline_->set_group (groupx, groupy, groupz);

@@ -38,21 +38,21 @@ main ()
   uint gid_y = gl_WorkGroupID.y;
   uint gid_z = gl_WorkGroupID.z;
 
-  if (gid_z >= C || gid_y >= M || gid_x >= N || transpose_b != 1)
+  if (gid_z >= C || gid_y >= M || gid_x >= N)
     {
       return;
     }
 
   float sum = .0;
-  uint a_channel_base = 0;
-  uint b_channel_base = gid_z * N * K;
 
   for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
     {
+      uint bi = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
+                                : gid_z * N * K + i * N + gid_x;
       if (i < K)
         {
-          sum += (float (input_tensor0[a_channel_base + gid_y * K + i])
-                  * float (input_tensor1[b_channel_base + gid_x * K + i]));
+          sum += (float (input_tensor0[gid_y * K + i])
+                  * float (input_tensor1[bi]));
         }
     }
 

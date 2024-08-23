@@ -63,6 +63,9 @@ glsl_shader(
         "transpose_type0.comp",
         "transpose_type0_fp16.comp",
     ],
+    extra_args = [
+        "--target-spv=spv1.3",
+    ],
     tool = '//tools:binary_to_array',
     visibility = ["//visibility:public"]
 )
