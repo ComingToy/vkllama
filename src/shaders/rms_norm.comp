@@ -56,7 +56,7 @@ main (void)
     {
       float v = (input_tensor[c * H * W + h * W + ow]);
       float w = (input_weights[ow]);
-      output_tensor[c * H * W + h * W + ow] = float16_t (v * w * alpha);
+      output_tensor[c * H * W + h * W + ow] = (v * w * alpha);
     }
 }
 
