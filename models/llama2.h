@@ -27,7 +27,7 @@ extern "C"{
 #include <unordered_map>
 #include <vector>
 
-#define __VKLLAMA_LOG_COST 1
+#define __VKLLAMA_LOG_COST 0
 namespace vkllama
 {
 class InputLayer
@@ -697,7 +697,7 @@ public:
       }
     output_command_->wait ();
 
-#ifdef __VKLLAMA_LOG_COST
+#if __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
     auto record_cost
         = std::chrono::duration_cast<std::chrono::milliseconds> (t1 - t0)
@@ -714,7 +714,6 @@ public:
         stderr,
         "record cost = %lldms,  wait cost = %lldms, total cost = %lldms\n",
         record_cost, wait_cost, total_cost);
-#endif
 
     input_layer_->print_op_cost ();
     for (int i = 0; i < blocks_.size (); ++i)
@@ -722,6 +721,8 @@ public:
         blocks_[i]->print_op_cost ();
       }
     output_layer_->print_op_cost ();
+
+#endif
 
     return buf;
   }
