@@ -71,9 +71,6 @@ public:
         = (a.width () + dev_->subgroup_size () - 1) / dev_->subgroup_size (),
         group_y = a.height (), group_z = a.channels ();
 
-    std::cerr << "reduce groupx = " << group_x << ", groupy = " << group_y
-              << ", groupz = " << group_z << std::endl;
-
     auto ret = stage0_->set_group (group_x, group_y, group_z);
     if (ret != VK_SUCCESS)
       {
