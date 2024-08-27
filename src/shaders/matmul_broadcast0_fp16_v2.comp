@@ -1,7 +1,7 @@
 #version 450 core
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
-#extension GL_EXT_control_flow_attributes: enable
+#extension GL_EXT_control_flow_attributes : enable
 
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
@@ -45,15 +45,41 @@ main ()
     }
 
   float sum = .0;
-  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+  uint i = gl_SubgroupInvocationID.x;
+  uint a_stride = gl_SubgroupSize;
+  uint b_stride = transpose_b > 0 ? gl_SubgroupSize : gl_SubgroupSize * N;
+
+  [[unroll]] for (; i + 3 * gl_SubgroupSize < K; i += 4 * gl_SubgroupSize)
     {
-      uint ai = gid_z * M * K + gid_y * K + i;
-      uint bi = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
+      uint a0 = gid_z * M * K + gid_y * K + i;
+      uint a1 = a0 + a_stride;
+      uint a2 = a0 + 2 * a_stride;
+      uint a3 = a0 + 3 * a_stride;
+
+      uint b0 = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
                                 : gid_z * N * K + i * N + gid_x;
-      if (i < K)
-        {
-          sum += (float (input_tensor0[ai]) * float (input_tensor1[bi]));
-        }
+      uint b1 = b0 + b_stride;
+      uint b2 = b0 + 2 * b_stride;
+      uint b3 = b0 + 3 * b_stride;
+
+      vec4 a = vec4 (input_tensor0[a0], input_tensor0[a1], input_tensor0[a2],
+                     input_tensor0[a3]);
+      vec4 b = vec4 (input_tensor1[b0], input_tensor1[b1], input_tensor1[b2],
+                     input_tensor1[b3]);
+
+      sum += dot (a, b);
+    }
+
+  [[unroll]] for (; i < K; i += gl_SubgroupSize)
+    {
+      uint a0 = gid_z * M * K + gid_y * K + i;
+
+      uint b0 = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
+                                : gid_z * N * K + i * N + gid_x;
+
+      float a = float(input_tensor0[a0]);
+      float b = float(input_tensor1[b0]);
+      sum += (a * b);
     }
 
   float v = subgroupAdd (sum) * scale + offset;

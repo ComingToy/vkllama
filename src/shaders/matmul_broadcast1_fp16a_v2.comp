@@ -63,12 +63,12 @@ main ()
       uint b2 = b0 + 2 * b_stride;
       uint b3 = b0 + 3 * b_stride;
 
-      vec4 a = vec4 (input_tensor0[a0], input_tensor0[a1], input_tensor0[a2],
-                     input_tensor0[a3]);
-      vec4 b = vec4 (input_tensor1[b0], input_tensor1[b1], input_tensor1[b2],
-                     input_tensor1[b3]);
+      f16vec4 a = f16vec4 (input_tensor0[a0], input_tensor0[a1],
+                           input_tensor0[a2], input_tensor0[a3]);
+      f16vec4 b = f16vec4 (input_tensor1[b0], input_tensor1[b1],
+                           input_tensor1[b2], input_tensor1[b3]);
 
-      sum += float (dot (a, b));
+      sum += (dot (a, b));
     }
 
   for (; i < K; i += gl_SubgroupSize)
@@ -78,7 +78,7 @@ main ()
 
       float16_t a = (input_tensor0[a0]);
       float16_t b = (input_tensor1[b0]);
-      sum += float (a * b);
+      sum += (a * b);
     }
 
   float v = subgroupAdd (sum) * scale + offset;
