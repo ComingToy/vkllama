@@ -731,8 +731,6 @@ public:
       }
     output_command_->wait ();
 
-    fprintf (stderr, "output shape = (%zu, %zu, %zu)\n", output.channels (),
-             output.height (), output.width ());
     if (!output_logits)
       {
         return buf_tokens;
