@@ -42,7 +42,8 @@ main (void)
     return;
 
   float r = .0;
-  for (uint w = gl_SubgroupInvocationID.x; w < W; w += gl_SubgroupSize)
+  [[unroll]] for (uint w = gl_SubgroupInvocationID.x; w < W;
+                  w += gl_SubgroupSize)
     {
       float v = float (input_tensor[c * H * W + h * W + w]);
       v = pow (v, power);
@@ -51,7 +52,8 @@ main (void)
 
   float alpha = 1.0 / (sqrt (subgroupAdd (r) / float (W) + eps));
 
-  for (uint ow = gl_SubgroupInvocationID.x; ow < W; ow += gl_SubgroupSize)
+  [[unroll]] for (uint ow = gl_SubgroupInvocationID.x; ow < W;
+                  ow += gl_SubgroupSize)
     {
       float v = float (input_tensor[c * H * W + h * W + ow]);
       float w = float (input_weights[ow]);

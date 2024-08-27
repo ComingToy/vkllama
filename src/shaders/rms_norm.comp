@@ -1,5 +1,4 @@
 #version 450 core
-#extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_control_flow_attributes : enable
 
@@ -19,17 +18,17 @@ layout (push_constant) uniform constants
 
 layout (set = 0, binding = 0) readonly buffer InTensor0
 {
-  float16_t input_tensor[];
+  float input_tensor[];
 };
 
 layout (set = 0, binding = 1) readonly buffer InTensor1
 {
-  float16_t input_weights[];
+  float input_weights[];
 };
 
 layout (set = 0, binding = 2) writeonly buffer OutTensor
 {
-  float16_t output_tensor[];
+  float output_tensor[];
 };
 
 void
@@ -42,7 +41,8 @@ main (void)
     return;
 
   float r = .0;
-  for (uint w = gl_SubgroupInvocationID.x; w < W; w += gl_SubgroupSize)
+  [[unroll]] for (uint w = gl_SubgroupInvocationID.x; w < W;
+                  w += gl_SubgroupSize)
     {
       float v = (input_tensor[c * H * W + h * W + w]);
       v = pow (v, power);
@@ -51,7 +51,8 @@ main (void)
 
   float alpha = 1.0 / (sqrt (subgroupAdd (r) / (W) + eps));
 
-  for (uint ow = gl_SubgroupInvocationID.x; ow < W; ow += gl_SubgroupSize)
+  [[unroll]] for (uint ow = gl_SubgroupInvocationID.x; ow < W;
+                  ow += gl_SubgroupSize)
     {
       float v = (input_tensor[c * H * W + h * W + ow]);
       float w = (input_weights[ow]);
