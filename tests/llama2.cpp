@@ -152,6 +152,7 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
+  fprintf (stderr, "all weights are uploaded to device\n");
   for (int r = 0; r < 1; ++r)
     {
       std::vector<uint32_t> toks;
@@ -161,6 +162,8 @@ main (const int argc, const char *argv[])
 
       auto init_out = model (toks, 0);
       toks.push_back (init_out.back ());
+
+      fprintf (stderr, "prompt tokens are generated\n");
 
       int enable_kvcache = ::atoi (argv[3]);
       auto t0 = std::chrono::high_resolution_clock::now ();
