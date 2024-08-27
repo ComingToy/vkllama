@@ -48,16 +48,26 @@ main ()
   uint a_channel_base = gid_z * M * K;
   uint i = gl_SubgroupInvocationID.x;
 
-  for (; i + gl_SubgroupSize < K; i += 2 * gl_SubgroupSize)
+  uint a_stride = gl_SubgroupSize;
+  uint b_stride = transpose_b > 0 ? gl_SubgroupSize : gl_SubgroupSize * N;
+
+  for (; i + 3 * gl_SubgroupSize < K; i += 4 * gl_SubgroupSize)
     {
       uint a0 = a_channel_base + gid_y * K + i;
-      uint a1 = a0 + gl_SubgroupSize;
-      uint b0 = transpose_b > 0 ? gid_x * K + i : i * N + gid_x;
-      uint b1
-          = transpose_b > 0 ? b0 + gl_SubgroupSize : b0 + gl_SubgroupSize * N;
+      uint a1 = a0 + a_stride;
+      uint a2 = a0 + 2 * a_stride;
+      uint a3 = a0 + 3 * a_stride;
 
-      vec2 a = vec2 (input_tensor0[a0], input_tensor0[a1]);
-      vec2 b = vec2 (input_tensor1[b0], input_tensor1[b1]);
+      uint b0 = transpose_b > 0 ? gid_x * K + i : i * N + gid_x;
+      uint b1 = b0 + b_stride;
+      uint b2 = b0 + 2 * b_stride;
+      uint b3 = b0 + 3 * b_stride;
+
+      vec4 a = vec4 (input_tensor0[a0], input_tensor0[a1], input_tensor0[a2],
+                     input_tensor0[a3]);
+      vec4 b = vec4 (input_tensor1[b0], input_tensor1[b1], input_tensor1[b2],
+                     input_tensor1[b3]);
+
       sum += float (dot (a, b));
     }
 
