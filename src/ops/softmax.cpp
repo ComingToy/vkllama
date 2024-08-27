@@ -91,11 +91,6 @@ Softmax::time () noexcept
   auto softmax1_cost = softmax1_->time ();
   auto softmax2_cost = softmax2_->time ();
 
-  fprintf (stderr,
-           "softmax reduce cost = %llu, softmax0 cost = %llu, "
-           "softmax1 cost = %llu, softmax2 cost = %llu\n",
-           reduce_cost, softmax0_cost, softmax1_cost, softmax2_cost);
-
   return reduce_cost + softmax0_cost + softmax1_cost + softmax2_cost;
 }
 

@@ -1,4 +1,5 @@
 #include "models/llama2.h"
+#include <chrono>
 extern "C"
 {
 #include "gguflib.h"
@@ -151,6 +152,7 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
+  fprintf (stderr, "all weights are uploaded to device\n");
   for (int r = 0; r < 1; ++r)
     {
       std::vector<uint32_t> toks;
@@ -161,7 +163,10 @@ main (const int argc, const char *argv[])
       auto init_out = model (toks, 0);
       toks.push_back (init_out.back ());
 
+      fprintf (stderr, "prompt tokens are generated\n");
+
       int enable_kvcache = ::atoi (argv[3]);
+      auto t0 = std::chrono::high_resolution_clock::now ();
       for (int i = 1; i < 200; ++i)
         {
           auto output = enable_kvcache
@@ -175,6 +180,12 @@ main (const int argc, const char *argv[])
           toks.push_back (output.back ());
           fprintf (stderr, "output %d tokens\n", i);
         }
+      auto t1 = std::chrono::high_resolution_clock::now ();
+      auto milliseconds
+          = std::chrono::duration_cast<std::chrono::milliseconds> (t1 - t0)
+                .count ();
+      std::cerr << "infer speed: " << toks.size () * 1000.0f / milliseconds
+                << " tokens/s" << std::endl;
 
       std::vector<int> output;
       std::transform (

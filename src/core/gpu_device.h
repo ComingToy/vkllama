@@ -30,6 +30,8 @@ public:
   bool support_int8_arithmetic () const;
   bool support_pipeline_statistics () const;
 
+  size_t subgroup_size () const;
+
   ~GPUDevice ();
 
 private:
@@ -44,6 +46,9 @@ private:
   std::vector<VkExtensionProperties> physicalDevExts_;
   std::vector<VkQueueFamilyProperties> physicalDevQueueProperties_;
   VkPhysicalDeviceProperties physicalDevProperties_;
+  VkPhysicalDeviceProperties2 physicalDevProperties2_;
+  VkPhysicalDeviceSubgroupProperties subgroupProperties_;
+
   const int dev_;
   VmaAllocator allocator_;
   uint32_t version_;

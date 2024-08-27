@@ -192,6 +192,18 @@ GPUDevice::init_device_ ()
     vkGetPhysicalDeviceProperties (physicalDev_, &physicalDevProperties_);
   }
 
+  {
+    subgroupProperties_.sType
+        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+    subgroupProperties_.pNext = NULL;
+
+    physicalDevProperties2_.sType
+        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    physicalDevProperties2_.pNext = &subgroupProperties_;
+
+    vkGetPhysicalDeviceProperties2 (physicalDev_, &physicalDevProperties2_);
+  }
+
   std::vector<std::vector<float> > priorities;
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 
@@ -346,6 +358,12 @@ const float
 GPUDevice::timestamp_period () const
 {
   return physicalDevProperties_.limits.timestampPeriod;
+}
+
+size_t
+GPUDevice::subgroup_size () const
+{
+  return subgroupProperties_.subgroupSize;
 }
 }
 
