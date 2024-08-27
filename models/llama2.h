@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_MODELS_LLAMA2_H__
 #define __VKLLAMA_MODELS_LLAMA2_H__
 // clang-format off
+#include <iterator>
 #include <stddef.h>
 extern "C"{
 #include "gguflib.h"
@@ -10,6 +11,7 @@ extern "C"{
 #include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
+#include "src/ops/cast.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/embedding.h"
 #include "src/ops/feed_forward.h"
@@ -23,6 +25,7 @@ extern "C"{
 #include <map>
 #include <memory>
 #include <numeric>
+#include <random>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -203,7 +206,7 @@ public:
     fprintf (stderr,
              "block cost -- attn norm cost: %llu, attn cost: %lld, attn add "
              "cost: %lld, "
-             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %ld\n",
+             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
              norm_op_->time (), attn_op_->time (), 0llu,
              feedforward_op_->time (), 0llu, 0llu);
   }
@@ -256,12 +259,17 @@ public:
         return ret;
       }
 
+    cast_op_.reset (new Cast (gpu_, command_, VkTensor::FP16, VkTensor::FP32));
+    if ((ret = cast_op_->init ()) != VK_SUCCESS)
+      {
+        return ret;
+      }
     argmax_op_.reset (new ArgMax (gpu_, command_, VkTensor::FP16));
     return argmax_op_->init ();
   }
 
   VkTensor
-  operator() (VkTensor in)
+  operator() (VkTensor in, bool output_logits = false)
   {
     auto ret = norm_op_->operator() (in, norm_output_);
     if (ret != VK_SUCCESS)
@@ -276,9 +284,19 @@ public:
       }
 
     VkTensor out;
-    if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
+    if (output_logits)
       {
-        throw std::runtime_error ("failed at forwarding argmax");
+        if ((*cast_op_) (matmul_output_, out) != VK_SUCCESS)
+          {
+            throw std::runtime_error ("failed at forwarding cast");
+          }
+      }
+    else
+      {
+        if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
+          {
+            throw std::runtime_error ("failed at forwarding argmax");
+          }
       }
 
     return out;
@@ -303,13 +321,15 @@ private:
   std::unique_ptr<MatMul> matmul_op_;
   std::unique_ptr<RMSNorm> norm_op_;
   std::unique_ptr<ArgMax> argmax_op_;
+  std::unique_ptr<Cast> cast_op_;
 };
 
 class Model
 {
 public:
   Model ()
-      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr)
+      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr),
+        rd_ (), g_ (rd_ ())
   {
   }
 
@@ -681,10 +701,24 @@ public:
         command->submit ();
       }
 
+    bool output_logits = offset != 0;
     output_command_->begin ();
-    VkTensor output = (*output_layer_) (X);
-    std::vector<uint32_t> buf (output.size ());
-    output_command_->download (output, buf.data (), buf.size ());
+    VkTensor output = (*output_layer_) (X, output_logits);
+
+    std::vector<float> buf_logits;
+    std::vector<uint32_t> buf_tokens;
+    if (output_logits)
+      {
+        buf_logits.resize (output.size ());
+        output_command_->download (output, buf_logits.data (),
+                                   buf_logits.size ());
+      }
+    else
+      {
+        buf_tokens.resize (output.size ());
+        output_command_->download (output, buf_tokens.data (),
+                                   buf_tokens.size ());
+      }
 
     output_command_->end ();
     output_command_->submit ();
@@ -696,6 +730,61 @@ public:
         c->wait ();
       }
     output_command_->wait ();
+
+    fprintf (stderr, "output shape = (%zu, %zu, %zu)\n", output.channels (),
+             output.height (), output.width ());
+    if (!output_logits)
+      {
+        return buf_tokens;
+      }
+
+    // topk sampler
+    std::vector<std::pair<float, size_t> > p;
+    for (size_t i = 0; i < buf_logits.size (); ++i)
+      {
+        p.push_back ({ buf_logits[i], i });
+      }
+
+    std::sort (p.begin (), p.end (),
+               [] (auto &lhs, auto &rhs) { return lhs.first > rhs.first; });
+
+    auto softmax = [] (std::vector<float> &p) {
+      std::vector<float> tmp (p);
+      std::sort (tmp.begin (), tmp.end ());
+      auto m = tmp.back ();
+
+      for (size_t i = 0; i < p.size (); ++i)
+        {
+          p[i] = std::exp (p[i] - m);
+        }
+
+      auto acc = std::accumulate (p.cbegin (), p.cend (), .0f);
+      for (size_t i = 0; i < p.size (); ++i)
+        {
+          p[i] /= acc;
+        }
+    };
+
+    std::vector<float> topk_p;
+    for (size_t i = 0; i < 40; ++i)
+      {
+        topk_p.push_back (p[i].first);
+      }
+    softmax (topk_p);
+
+    std::uniform_real_distribution<float> dis (0, 1.0);
+    float v = dis (g_);
+
+    float acc = .0f;
+    for (size_t i = 0; i < topk_p.size (); ++i)
+      {
+        acc += topk_p[i];
+        if (acc > v)
+          {
+            return { (uint32_t)p[i].second };
+          }
+      }
+    return {};
 
 #if __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
@@ -723,8 +812,6 @@ public:
     output_layer_->print_op_cost ();
 
 #endif
-
-    return buf;
   }
 
 private:
@@ -735,6 +822,9 @@ private:
   InputLayer *input_layer_;
   OutputLayer *output_layer_;
   std::vector<Llama2Block *> blocks_;
+
+  std::random_device rd_;
+  std::mt19937 g_;
 };
 
 }
