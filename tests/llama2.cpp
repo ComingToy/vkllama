@@ -167,7 +167,7 @@ main (const int argc, const char *argv[])
 
       int enable_kvcache = ::atoi (argv[3]);
       auto t0 = std::chrono::high_resolution_clock::now ();
-      for (int i = 1; i < 200; ++i)
+      for (int i = 1; i < 2048; ++i)
         {
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)
