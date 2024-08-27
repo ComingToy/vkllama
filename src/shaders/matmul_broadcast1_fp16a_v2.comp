@@ -46,15 +46,29 @@ main ()
 
   float sum = .0;
   uint a_channel_base = gid_z * M * K;
+  uint i = gl_SubgroupInvocationID.x;
 
-  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+  for (; i + gl_SubgroupSize < K; i += 2 * gl_SubgroupSize)
     {
-      uint bi = transpose_b > 0 ? gid_x * K + i : i * N + gid_x;
-      if (i < K)
-        {
-          sum += float ((input_tensor0[a_channel_base + gid_y * K + i])
-                        * (input_tensor1[bi]));
-        }
+      uint a0 = a_channel_base + gid_y * K + i;
+      uint a1 = a0 + gl_SubgroupSize;
+      uint b0 = transpose_b > 0 ? gid_x * K + i : i * N + gid_x;
+      uint b1
+          = transpose_b > 0 ? b0 + gl_SubgroupSize : b0 + gl_SubgroupSize * N;
+
+      vec2 a = vec2 (input_tensor0[a0], input_tensor0[a1]);
+      vec2 b = vec2 (input_tensor1[b0], input_tensor1[b1]);
+      sum += float (dot (a, b));
+    }
+
+  for (; i < K; i += gl_SubgroupSize)
+    {
+      uint a0 = a_channel_base + gid_y * K + i;
+      uint b0 = transpose_b > 0 ? gid_x * K + i : i * N + gid_x;
+
+      float16_t a = (input_tensor0[a0]);
+      float16_t b = (input_tensor1[b0]);
+      sum += float (a * b);
     }
 
   float v = subgroupAdd (sum) * scale + offset;
