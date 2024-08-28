@@ -352,7 +352,7 @@ public:
   }
 
   VkResult
-  init (std::map<std::string, gguf_value *> &kv,
+  init (std::map<std::string, gguf_key> &kv,
         std::map<std::string, gguf_tensor> &tensors)
   {
     gpu_ = new GPUDevice ();
@@ -370,10 +370,10 @@ public:
         return ret;
       }
 
-    auto head_count = kv["llama.attention.head_count"]->uint32;
-    auto block_count = kv["llama.block_count"]->uint32;
-    auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"]->float32;
-    auto maxlen = kv["llama.context_length"]->uint32;
+    auto head_count = kv["llama.attention.head_count"].val->uint32;
+    auto block_count = kv["llama.block_count"].val->uint32;
+    auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"].val->float32;
+    auto maxlen = kv["llama.context_length"].val->uint32;
 
     input_command_->begin ();
     output_command_->begin ();
