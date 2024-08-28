@@ -2,33 +2,25 @@
 #include <cstdio>
 
 #if 0
-	{LLM_KV_TOKENIZER_MODEL, "tokenizer.ggml.model"},
-    {LLM_KV_TOKENIZER_PRE, "tokenizer.ggml.pre"},
-    {LLM_KV_TOKENIZER_LIST, "tokenizer.ggml.tokens"},
-    {LLM_KV_TOKENIZER_TOKEN_TYPE, "tokenizer.ggml.token_type"},
-    {LLM_KV_TOKENIZER_TOKEN_TYPE_COUNT, "tokenizer.ggml.token_type_count"},
-    {LLM_KV_TOKENIZER_SCORES, "tokenizer.ggml.scores"},
-    {LLM_KV_TOKENIZER_MERGES, "tokenizer.ggml.merges"},
-    {LLM_KV_TOKENIZER_BOS_ID, "tokenizer.ggml.bos_token_id"},
-    {LLM_KV_TOKENIZER_EOS_ID, "tokenizer.ggml.eos_token_id"},
-    {LLM_KV_TOKENIZER_UNK_ID, "tokenizer.ggml.unknown_token_id"},
-    {LLM_KV_TOKENIZER_SEP_ID, "tokenizer.ggml.seperator_token_id"},
-    {LLM_KV_TOKENIZER_PAD_ID, "tokenizer.ggml.padding_token_id"},
-    {LLM_KV_TOKENIZER_CLS_ID, "tokenizer.ggml.cls_token_id"},
-    {LLM_KV_TOKENIZER_MASK_ID, "tokenizer.ggml.mask_token_id"},
-    {LLM_KV_TOKENIZER_ADD_BOS, "tokenizer.ggml.add_bos_token"},
-    {LLM_KV_TOKENIZER_ADD_EOS, "tokenizer.ggml.add_eos_token"},
-    {LLM_KV_TOKENIZER_ADD_PREFIX, "tokenizer.ggml.add_space_prefix"},
-    {LLM_KV_TOKENIZER_REMOVE_EXTRA_WS,
-     "tokenizer.ggml.remove_extra_whitespaces"},
-    {LLM_KV_TOKENIZER_PRECOMPILED_CHARSMAP,
-     "tokenizer.ggml.precompiled_charsmap"},
-    {LLM_KV_TOKENIZER_HF_JSON, "tokenizer.huggingface.json"},
-    {LLM_KV_TOKENIZER_RWKV, "tokenizer.rwkv.world"},
-    {LLM_KV_TOKENIZER_PREFIX_ID, "tokenizer.ggml.prefix_token_id"},
-    {LLM_KV_TOKENIZER_SUFFIX_ID, "tokenizer.ggml.suffix_token_id"},
-    {LLM_KV_TOKENIZER_MIDDLE_ID, "tokenizer.ggml.middle_token_id"},
-    {LLM_KV_TOKENIZER_EOT_ID, "tokenizer.ggml.eot_token_id"},
+It is not guaranteed to be standardized across models, and may change in the future. It is recommended that model authors use a more standardized tokenizer if possible.
+
+tokenizer.ggml.model: string: The name of the tokenizer model.
+llama: Llama style SentencePiece (tokens and scores extracted from HF tokenizer.model)
+replit: Replit style SentencePiece (tokens and scores extracted from HF spiece.model)
+gpt2: GPT-2 / GPT-NeoX style BPE (tokens extracted from HF tokenizer.json)
+rwkv: RWKV tokenizer
+tokenizer.ggml.tokens: array[string]: A list of tokens indexed by the token ID used by the model.
+tokenizer.ggml.scores: array[float32]: If present, the score/probability of each token. If not present, all tokens are assumed to have equal probability. If present, it must have the same length and index as tokens.
+tokenizer.ggml.token_type: array[int32]: The token type (1=normal, 2=unknown, 3=control, 4=user defined, 5=unused, 6=byte). If present, it must have the same length and index as tokens.
+tokenizer.ggml.merges: array[string]: If present, the merges of the tokenizer. If not present, the tokens are assumed to be atomic.
+tokenizer.ggml.added_tokens: array[string]: If present, tokens that were added after training.
+Special tokens
+
+tokenizer.ggml.bos_token_id: uint32: Beginning of sequence marker
+tokenizer.ggml.eos_token_id: uint32: End of sequence marker
+tokenizer.ggml.unknown_token_id: uint32: Unknown token
+tokenizer.ggml.separator_token_id: uint32: Separator token
+tokenizer.ggml.padding_token_id: uint32: Padding token
 #endif
 
 static sentencepiece::util::Status
@@ -169,20 +161,35 @@ load_trainer_spec (std::map<std::string, gguf_key> const &gguf_kv,
             = std::string (tm.val->string.string, tm.val->string.len);
     }
 
-  std::string tokenizer_pre = "default";
-  if (gguf_kv.count ("tokenizer.ggml.pre") > 0)
-    {
-      auto pre = gguf_kv.find ("tokenizer.ggml.pre")->second;
-      if (pre.type == GGUF_VALUE_TYPE_STRING)
-        tokenizer_pre
-            = std::string (pre.val->string.string, pre.val->string.len);
-    }
-
   auto trainer_spec = model.mutable_trainer_spec ();
   trainer_spec->set_byte_fallback (true);
   if (tokenizer_model == "llama")
     {
       trainer_spec->set_model_type (sentencepiece::TrainerSpec_ModelType_BPE);
+    }
+
+  if (gguf_kv.count ("tokenizer.ggml.bos_token_id") > 0)
+    {
+      auto bos = gguf_kv.find ("tokenizer.ggml.bos_token_id")->second;
+      trainer_spec->set_bos_id ((int32_t)bos.val->uint32);
+    }
+
+  if (gguf_kv.count ("tokenizer.ggml.eos_token_id") > 0)
+    {
+      auto eos = gguf_kv.find ("tokenizer.ggml.eos_token_id")->second;
+      trainer_spec->set_eos_id ((int32_t)eos.val->uint32);
+    }
+
+  if (gguf_kv.count ("tokenizer.ggml.unknown_token_id") > 0)
+    {
+      auto unk = gguf_kv.find ("tokenizer.ggml.unknown_token_id")->second;
+      trainer_spec->set_unk_id ((int32_t)unk.val->uint32);
+    }
+
+  if (gguf_kv.count ("tokenizer.ggml.padding_token_id") > 0)
+    {
+      auto pad = gguf_kv.find ("tokenizer.ggml.padding_token_id")->second;
+      trainer_spec->set_unk_id ((int32_t)pad.val->uint32);
     }
 
   return sentencepiece::util::Status ();
