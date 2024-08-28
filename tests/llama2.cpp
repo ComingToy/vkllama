@@ -13,6 +13,25 @@
 #include <unordered_map>
 #include <vector>
 
+static void
+replace_all (std::string &s, const std::string &search,
+             const std::string &replace)
+{
+  std::string result;
+  for (size_t pos = 0;; pos += search.length ())
+    {
+      auto new_pos = s.find (search, pos);
+      if (new_pos == std::string::npos)
+        {
+          result += s.substr (pos, s.size () - pos);
+          break;
+        }
+      result += s.substr (pos, new_pos - pos) + replace;
+      pos = new_pos;
+    }
+  s = std::move (result);
+}
+
 void
 string_process_escapes (std::string &input)
 {
@@ -106,9 +125,6 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
-  std::string buffer = argv[3];
-  string_process_escapes (buffer);
-
   auto *gguf = gguf_open (argv[1]);
   if (!gguf)
     {
@@ -146,18 +162,42 @@ main (const int argc, const char *argv[])
       return -1;
     }
 
-  std::vector<int> prompt_tmp;
-  sp.Encode (buffer, &prompt_tmp);
-  std::cerr << "input tokens: ";
-  for (auto t : prompt_tmp)
+  int eot_token_id = -1;
+  for (uint32_t i = 0; i < sp.GetPieceSize (); ++i)
     {
-      std::cerr << t << " ";
+      auto piece = sp.IdToPiece (i);
+      if (
+          // TODO: gemma "<end_of_turn>" is exported as a normal
+          // token, so the following check does not work
+          //       need to fix convert script
+          // vocab.id_to_token[t.second].type ==
+          // LLAMA_TOKEN_TYPE_CONTROL &&
+          (piece == "<|eot_id|>" || piece == "<|im_end|>" || piece == "<|end|>"
+           || piece == "<end_of_turn>" || piece == "<|endoftext|>"))
+        {
+          eot_token_id = i;
+          fprintf (stderr, "use eot token id = %d\n", eot_token_id);
+          break;
+        }
     }
-  std::cerr << std::endl;
+
+  std::vector<int> prompt_tmp;
+  std::string buffer = argv[3];
+  // replace_all (buffer, " ", "\xe2\x96\x81");
+  // string_process_escapes (buffer);
+
+  sp.Encode (buffer, &prompt_tmp);
 
   std::vector<int> prompt = { sp.bos_id () };
   std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
              std::back_inserter (prompt));
+
+  std::cerr << "input tokens: ";
+  for (auto t : prompt)
+    {
+      std::cerr << t << " ";
+    }
+  std::cerr << std::endl;
 
   vkllama::Model model;
   auto ret = model.init (gguf_kv, tensors);
@@ -183,13 +223,14 @@ main (const int argc, const char *argv[])
 
       int enable_kvcache = ::atoi (argv[2]);
       auto t0 = std::chrono::high_resolution_clock::now ();
-      for (int i = 1; i < 200; ++i)
+      for (int i = 1; i < 500; ++i)
         {
           auto output = enable_kvcache
                             ? model ({ toks.back () }, toks.size () - 1)
                             : model (toks, 0);
           if ((int)output.back () == sp.eos_id ()
-              || sp.bos_id () == (int)output.back ())
+              || sp.bos_id () == (int)output.back ()
+              || output.back () == eot_token_id)
             {
               break;
             }
@@ -208,9 +249,11 @@ main (const int argc, const char *argv[])
           toks.cbegin (), toks.cend (), std::back_inserter (output),
           [] (uint32_t const tok) { return static_cast<int> (tok); });
 
-      std::string content;
+      std::string content, decoded_prompt;
       sp.Decode (output, &content);
-      std::cerr << "prompt: " << argv[3] << std::endl
+      sp.Decode (prompt, &decoded_prompt);
+
+      std::cerr << "prompt: " << decoded_prompt << std::endl
                 << "output: " << content << std::endl;
     }
 

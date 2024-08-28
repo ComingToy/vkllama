@@ -770,19 +770,9 @@ public:
       }
     softmax (topk_p);
 
-    std::uniform_real_distribution<float> dis (0, 1.0);
-    float v = dis (g_);
-
-    float acc = .0f;
-    for (size_t i = 0; i < topk_p.size (); ++i)
-      {
-        acc += topk_p[i];
-        if (acc > v)
-          {
-            return { (uint32_t)p[i].second };
-          }
-      }
-    return {};
+    std::discrete_distribution<> dis (topk_p.begin (), topk_p.end ());
+    auto result = dis (g_);
+    return { (uint32_t)p[result].second };
 
 #if __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
