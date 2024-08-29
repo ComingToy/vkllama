@@ -22,26 +22,12 @@ There are no annotations like (30 seconds passed...) or (to himself), just what 
 The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
 The transcript includes text or markup like HTML and Markdown.
 
-[[USER_NAME]]: Hello, [[AI_NAME]]!
-[[AI_NAME]]: Hello [[USER_NAME]]! How may I help you today?
-[[USER_NAME]]: What year is it?
-[[AI_NAME]]: We are in [[DATE_YEAR]].
-[[USER_NAME]]: Please tell me the largest city in Europe.
-[[AI_NAME]]: The largest city in Europe is Moscow, the capital of Russia.
-[[USER_NAME]]: What can you tell me about Moscow?
-[[AI_NAME]]: Moscow, on the Moskva River in western Russia, is the nation's cosmopolitan capital. In its historic core is the Kremlin, a complex that's home to the president and tsarist treasures in the Armoury. Outside its walls is Red Square, Russia’s symbolic center.
-[[USER_NAME]]: What is a cat?
-[[AI_NAME]]: A cat is a domestic species of small carnivorous mammal. It is the only domesticated species in the family Felidae.
 [[USER_NAME]]: How do I pass command line arguments to a Node.js program?
 [[AI_NAME]]: The arguments are stored in process.argv.
     argv[0] is the path to the Node. js executable.
     argv[1] is the path to the script file.
     argv[2] is the first argument passed to the script.
     argv[3] is the second argument passed to the script and so on.
-[[USER_NAME]]: Name a color.
-[[AI_NAME]]: Blue.
-[[USER_NAME]]: What time is it?
-[[AI_NAME]]: It is [[DATE_TIME]].
 [[USER_NAME]]:)";
 
 static void
@@ -239,7 +225,7 @@ main (const int argc, const char *argv[])
 
   fprintf (stderr, "all weights are uploaded to device\n");
 
-  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (100));
 
   for (int r = 0; r < 1; ++r)
     {
