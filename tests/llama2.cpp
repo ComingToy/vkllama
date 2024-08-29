@@ -20,7 +20,7 @@ Text transcript of a dialog, where [[USER_NAME]] interacts with an AI assistant 
 [[AI_NAME]] is helpful, kind, honest, friendly, good at writing and never fails to answer [[USER_NAME]]'s requests immediately and with details and precision.
 There are no annotations like (30 seconds passed...) or (to himself), just what [[USER_NAME]] and [[AI_NAME]] say aloud to each other.
 The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
-The transcript includes text or markup like HTML and Markdown.
+The transcript includes text or Markdown, don't use HTML.
 
 [[USER_NAME]]: How do I pass command line arguments to a Node.js program?
 [[AI_NAME]]: The arguments are stored in process.argv.
@@ -128,6 +128,20 @@ print_sp_model (sentencepiece::ModelProto const &model)
                piece.has_piece () ? piece.piece ().c_str () : "null",
                piece.score (), piece.type ());
     }
+}
+
+std::string
+escape_byte (std::string const &b)
+{
+  auto pos = b.find ("0x");
+  std::string result;
+  if (pos != std::string::npos)
+    {
+      char v = (char)std::strtol (b.substr (pos).c_str (), NULL, 16);
+      result.push_back (v);
+      return result;
+    }
+  return b;
 }
 
 int
@@ -253,15 +267,31 @@ main (const int argc, const char *argv[])
                prompt.size () * 1000.f / milliseconds);
 
       auto t2 = std::chrono::high_resolution_clock::now ();
-      for (int i = 1; i < 512; ++i)
+      for (int i = 1; i < 4096; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
           toks.push_back (samplers->sample (output.data (), output.size ()));
+
+          auto piece = sp.IdToPiece (toks.back ());
+
+          if (sp.IsByte (toks.back ()))
+            {
+              piece = escape_byte (piece);
+            }
+
+          if (sp.IsControl (toks.back ()))
+            {
+              piece = piece + "[CONTROL]";
+            }
+
+          replace_all (piece, "▁", " ");
+          std::cerr << piece;
 
           if ((int)toks.back () == sp.eos_id ()
               || sp.bos_id () == (int)toks.back ()
               || toks.back () == eot_token_id)
             {
+              std::cerr << "[end of text]" << std::endl;
               break;
             }
         }

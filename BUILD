@@ -11,6 +11,7 @@ refresh_compile_commands(
     targets = {
         "//src:all": "",
         "//tests:all": "",
+        "//app:all": "",
     },
 )
 

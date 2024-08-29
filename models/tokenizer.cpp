@@ -192,6 +192,8 @@ load_trainer_spec (std::map<std::string, gguf_key> const &gguf_kv,
       trainer_spec->set_unk_id ((int32_t)pad.val->uint32);
     }
 
+  trainer_spec->set_allow_whitespace_only_pieces (true);
+  trainer_spec->set_treat_whitespace_as_suffix (true);
   return sentencepiece::util::Status ();
 }
 
@@ -210,6 +212,9 @@ load_tokenizer (sentencepiece::SentencePieceProcessor &sp,
     {
       return s;
     }
+
+  // auto *normalizer_spec = model.mutable_normalizer_spec ();
+  // normalizer_spec->set_escape_whitespaces (false);
 
   return sp.Load (model);
 }
