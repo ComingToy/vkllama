@@ -28,8 +28,18 @@ The transcript includes text or Markdown, don't use HTML.
     argv[1] is the path to the script file.
     argv[2] is the first argument passed to the script.
     argv[3] is the second argument passed to the script and so on.
-[[USER_NAME]]:)";
+[[USER_NAME]]: )";
 
+static bool is_anti_prompt(std::string const& output_buf, std::string const& anti)
+{
+  if (output_buf.size () < anti.size ())
+    {
+      return false;
+    }
+
+  auto start = output_buf.size () - anti.size ();
+  return output_buf.substr (start, anti.size ()) == anti;
+}
 static void
 replace_all (std::string &s, const std::string &search,
              const std::string &replace)
@@ -267,6 +277,7 @@ main (const int argc, const char *argv[])
                prompt.size () * 1000.f / milliseconds);
 
       auto t2 = std::chrono::high_resolution_clock::now ();
+      std::string output_buf;
       for (int i = 1; i < 4096; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
@@ -279,6 +290,11 @@ main (const int argc, const char *argv[])
               piece = escape_byte (piece);
             }
 
+          if (piece == "<0x09>")
+            {
+              piece = "\t";
+            }
+
           if (sp.IsControl (toks.back ()))
             {
               piece = piece + "[CONTROL]";
@@ -286,10 +302,13 @@ main (const int argc, const char *argv[])
 
           replace_all (piece, "▁", " ");
           std::cerr << piece;
+          output_buf.append (piece);
+
+          auto is_anti = is_anti_prompt (output_buf, "[[USER_NAME]]:");
 
           if ((int)toks.back () == sp.eos_id ()
               || sp.bos_id () == (int)toks.back ()
-              || toks.back () == eot_token_id)
+              || toks.back () == eot_token_id || is_anti)
             {
               std::cerr << "[end of text]" << std::endl;
               break;
