@@ -1,5 +1,7 @@
 #include "models/llama2.h"
+#include "models/samplers.h"
 #include "models/tokenizer.h"
+#include "sentencepiece.pb.h"
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -12,6 +14,35 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
+
+static std::string prompt_template = R"(
+Text transcript of a dialog, where [[USER_NAME]] interacts with an AI assistant named [[AI_NAME]].
+[[AI_NAME]] is helpful, kind, honest, friendly, good at writing and never fails to answer [[USER_NAME]]'s requests immediately and with details and precision.
+There are no annotations like (30 seconds passed...) or (to himself), just what [[USER_NAME]] and [[AI_NAME]] say aloud to each other.
+The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
+The transcript includes text or markup like HTML and Markdown.
+
+[[USER_NAME]]: Hello, [[AI_NAME]]!
+[[AI_NAME]]: Hello [[USER_NAME]]! How may I help you today?
+[[USER_NAME]]: What year is it?
+[[AI_NAME]]: We are in [[DATE_YEAR]].
+[[USER_NAME]]: Please tell me the largest city in Europe.
+[[AI_NAME]]: The largest city in Europe is Moscow, the capital of Russia.
+[[USER_NAME]]: What can you tell me about Moscow?
+[[AI_NAME]]: Moscow, on the Moskva River in western Russia, is the nation's cosmopolitan capital. In its historic core is the Kremlin, a complex that's home to the president and tsarist treasures in the Armoury. Outside its walls is Red Square, Russia’s symbolic center.
+[[USER_NAME]]: What is a cat?
+[[AI_NAME]]: A cat is a domestic species of small carnivorous mammal. It is the only domesticated species in the family Felidae.
+[[USER_NAME]]: How do I pass command line arguments to a Node.js program?
+[[AI_NAME]]: The arguments are stored in process.argv.
+    argv[0] is the path to the Node. js executable.
+    argv[1] is the path to the script file.
+    argv[2] is the first argument passed to the script.
+    argv[3] is the second argument passed to the script and so on.
+[[USER_NAME]]: Name a color.
+[[AI_NAME]]: Blue.
+[[USER_NAME]]: What time is it?
+[[AI_NAME]]: It is [[DATE_TIME]].
+[[USER_NAME]]:)";
 
 static void
 replace_all (std::string &s, const std::string &search,
@@ -116,12 +147,9 @@ print_sp_model (sentencepiece::ModelProto const &model)
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 4)
+  if (argc != 3)
     {
-      fprintf (stderr,
-               "usage: %s <path to checkpoitns> <enable kv "
-               "cache> <prompt>\n",
-               argv[0]);
+      fprintf (stderr, "usage: %s <path to checkpoitns> <prompt>\n", argv[0]);
       return -1;
     }
 
@@ -182,9 +210,10 @@ main (const int argc, const char *argv[])
     }
 
   std::vector<int> prompt_tmp;
-  std::string buffer = argv[3];
+  std::string buffer = argv[2];
   // replace_all (buffer, " ", "\xe2\x96\x81");
   // string_process_escapes (buffer);
+  buffer = prompt_template + buffer + "\n[[AI_NAME]]: ";
 
   sp.Encode (buffer, &prompt_tmp);
 
@@ -209,52 +238,63 @@ main (const int argc, const char *argv[])
     }
 
   fprintf (stderr, "all weights are uploaded to device\n");
+
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
+
   for (int r = 0; r < 1; ++r)
     {
-      std::vector<uint32_t> toks;
+      std::vector<uint32_t> prompt_inp;
       std::transform (
-          prompt.cbegin (), prompt.cend (), std::back_inserter (toks),
+          prompt.cbegin (), prompt.cend (), std::back_inserter (prompt_inp),
           [] (const int tok) { return static_cast<uint32_t> (tok); });
 
-      auto init_out = model (toks, 0);
-      toks.push_back (init_out.back ());
-
-      fprintf (stderr, "prompt tokens are generated\n");
-
-      int enable_kvcache = ::atoi (argv[2]);
       auto t0 = std::chrono::high_resolution_clock::now ();
-      for (int i = 1; i < 500; ++i)
-        {
-          auto output = enable_kvcache
-                            ? model ({ toks.back () }, toks.size () - 1)
-                            : model (toks, 0);
-          if ((int)output.back () == sp.eos_id ()
-              || sp.bos_id () == (int)output.back ()
-              || output.back () == eot_token_id)
-            {
-              break;
-            }
-          toks.push_back (output.back ());
-          fprintf (stderr, "output %d tokens\n", i);
-        }
+      auto init_out = model (prompt_inp, 0);
       auto t1 = std::chrono::high_resolution_clock::now ();
+      size_t candidate_size = init_out.size () / prompt_inp.size ();
+
+      std::vector<int> toks (prompt);
+
+      toks.push_back (samplers->sample (init_out.data () + init_out.size ()
+                                            - candidate_size,
+                                        candidate_size));
+
       auto milliseconds
           = std::chrono::duration_cast<std::chrono::milliseconds> (t1 - t0)
                 .count ();
-      std::cerr << "infer speed: " << toks.size () * 1000.0f / milliseconds
+      fprintf (stderr,
+               "prompt tokens are generated. prompt speed: %f tokens/s\n",
+               prompt.size () * 1000.f / milliseconds);
+
+      auto t2 = std::chrono::high_resolution_clock::now ();
+      for (int i = 1; i < 512; ++i)
+        {
+          auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
+          toks.push_back (samplers->sample (output.data (), output.size ()));
+
+          if ((int)toks.back () == sp.eos_id ()
+              || sp.bos_id () == (int)toks.back ()
+              || toks.back () == eot_token_id)
+            {
+              break;
+            }
+        }
+
+      std::string resp;
+      sp.Decode (toks, &resp);
+
+      std::cerr << "prompt: " << argv[2] << std::endl;
+      std::cerr << "output: " << resp
+                << (toks.back () == sp.eos_id () ? "" : "[end of text]")
+                << std::endl;
+
+      auto t3 = std::chrono::high_resolution_clock::now ();
+      milliseconds
+          = std::chrono::duration_cast<std::chrono::milliseconds> (t3 - t2)
+                .count ();
+      std::cerr << "eval speed: "
+                << (toks.size () - prompt.size ()) * 1000.0f / milliseconds
                 << " tokens/s" << std::endl;
-
-      std::vector<int> output;
-      std::transform (
-          toks.cbegin (), toks.cend (), std::back_inserter (output),
-          [] (uint32_t const tok) { return static_cast<int> (tok); });
-
-      std::string content, decoded_prompt;
-      sp.Decode (output, &content);
-      sp.Decode (prompt, &decoded_prompt);
-
-      std::cerr << "prompt: " << decoded_prompt << std::endl
-                << "output: " << content << std::endl;
     }
 
   return 0;

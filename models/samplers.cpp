@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-Sampler::Sampler () : rd_ (), g_ (rd_) {}
+Sampler::Sampler () : rd_ (), g_ (rd_ ()) {}
 
 size_t
 Sampler::sample_from_prob (const float *probs, size_t n)
@@ -21,12 +21,13 @@ Sampler::softmax (std::vector<std::pair<float, int> > &logits)
 
   auto m = logits[0].first;
 
+  float acc = .0f;
   for (size_t i = 0; i < logits.size (); ++i)
     {
       logits[i].first = std::exp (logits[i].first - m);
+      acc += logits[i].first;
     }
 
-  auto acc = std::accumulate (logits, logits, .0f);
   for (size_t i = 0; i < logits.size (); ++i)
     {
       logits[i].first /= acc;
