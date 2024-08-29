@@ -269,7 +269,7 @@ public:
   }
 
   VkTensor
-  operator() (VkTensor in, bool output_logits = false)
+  operator() (VkTensor in)
   {
     auto ret = norm_op_->operator() (in, norm_output_);
     if (ret != VK_SUCCESS)
@@ -284,19 +284,9 @@ public:
       }
 
     VkTensor out;
-    if (output_logits)
+    if ((*cast_op_) (matmul_output_, out) != VK_SUCCESS)
       {
-        if ((*cast_op_) (matmul_output_, out) != VK_SUCCESS)
-          {
-            throw std::runtime_error ("failed at forwarding cast");
-          }
-      }
-    else
-      {
-        if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
-          {
-            throw std::runtime_error ("failed at forwarding argmax");
-          }
+        throw std::runtime_error ("failed at forwarding cast");
       }
 
     return out;
@@ -328,8 +318,7 @@ class Model
 {
 public:
   Model ()
-      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr),
-        rd_ (), g_ (rd_ ())
+      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr)
   {
   }
 
@@ -667,7 +656,7 @@ public:
     return VK_SUCCESS;
   }
 
-  std::vector<uint32_t>
+  std::vector<float>
   operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
@@ -701,24 +690,12 @@ public:
         command->submit ();
       }
 
-    bool output_logits = offset != 0;
     output_command_->begin ();
-    VkTensor output = (*output_layer_) (X, output_logits);
+    VkTensor output = (*output_layer_) (X);
 
     std::vector<float> buf_logits;
-    std::vector<uint32_t> buf_tokens;
-    if (output_logits)
-      {
-        buf_logits.resize (output.size ());
-        output_command_->download (output, buf_logits.data (),
-                                   buf_logits.size ());
-      }
-    else
-      {
-        buf_tokens.resize (output.size ());
-        output_command_->download (output, buf_tokens.data (),
-                                   buf_tokens.size ());
-      }
+    buf_logits.resize (output.size ());
+    output_command_->download (output, buf_logits.data (), buf_logits.size ());
 
     output_command_->end ();
     output_command_->submit ();
@@ -730,49 +707,6 @@ public:
         c->wait ();
       }
     output_command_->wait ();
-
-    if (!output_logits)
-      {
-        return buf_tokens;
-      }
-
-    // topk sampler
-    std::vector<std::pair<float, size_t> > p;
-    for (size_t i = 0; i < buf_logits.size (); ++i)
-      {
-        p.push_back ({ buf_logits[i], i });
-      }
-
-    std::sort (p.begin (), p.end (),
-               [] (auto &lhs, auto &rhs) { return lhs.first > rhs.first; });
-
-    auto softmax = [] (std::vector<float> &p) {
-      std::vector<float> tmp (p);
-      std::sort (tmp.begin (), tmp.end ());
-      auto m = tmp.back ();
-
-      for (size_t i = 0; i < p.size (); ++i)
-        {
-          p[i] = std::exp (p[i] - m);
-        }
-
-      auto acc = std::accumulate (p.cbegin (), p.cend (), .0f);
-      for (size_t i = 0; i < p.size (); ++i)
-        {
-          p[i] /= acc;
-        }
-    };
-
-    std::vector<float> topk_p;
-    for (size_t i = 0; i < 40; ++i)
-      {
-        topk_p.push_back (p[i].first);
-      }
-    softmax (topk_p);
-
-    std::discrete_distribution<> dis (topk_p.begin (), topk_p.end ());
-    auto result = dis (g_);
-    return { (uint32_t)p[result].second };
 
 #if __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();
@@ -800,6 +734,7 @@ public:
     output_layer_->print_op_cost ();
 
 #endif
+    return buf_logits;
   }
 
 private:
@@ -810,9 +745,6 @@ private:
   InputLayer *input_layer_;
   OutputLayer *output_layer_;
   std::vector<Llama2Block *> blocks_;
-
-  std::random_device rd_;
-  std::mt19937 g_;
 };
 
 }
