@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_MODELS_LLAMA2_H__
 #define __VKLLAMA_MODELS_LLAMA2_H__
 // clang-format off
+#include <iterator>
 #include <stddef.h>
 extern "C"{
 #include "gguflib.h"
@@ -10,6 +11,7 @@ extern "C"{
 #include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
+#include "src/ops/cast.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/embedding.h"
 #include "src/ops/feed_forward.h"
@@ -23,6 +25,7 @@ extern "C"{
 #include <map>
 #include <memory>
 #include <numeric>
+#include <random>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -203,7 +206,7 @@ public:
     fprintf (stderr,
              "block cost -- attn norm cost: %llu, attn cost: %lld, attn add "
              "cost: %lld, "
-             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %ld\n",
+             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
              norm_op_->time (), attn_op_->time (), 0llu,
              feedforward_op_->time (), 0llu, 0llu);
   }
@@ -256,6 +259,11 @@ public:
         return ret;
       }
 
+    cast_op_.reset (new Cast (gpu_, command_, VkTensor::FP16, VkTensor::FP32));
+    if ((ret = cast_op_->init ()) != VK_SUCCESS)
+      {
+        return ret;
+      }
     argmax_op_.reset (new ArgMax (gpu_, command_, VkTensor::FP16));
     return argmax_op_->init ();
   }
@@ -276,9 +284,9 @@ public:
       }
 
     VkTensor out;
-    if (argmax_op_->operator() (matmul_output_, out) != VK_SUCCESS)
+    if ((*cast_op_) (matmul_output_, out) != VK_SUCCESS)
       {
-        throw std::runtime_error ("failed at forwarding argmax");
+        throw std::runtime_error ("failed at forwarding cast");
       }
 
     return out;
@@ -303,6 +311,7 @@ private:
   std::unique_ptr<MatMul> matmul_op_;
   std::unique_ptr<RMSNorm> norm_op_;
   std::unique_ptr<ArgMax> argmax_op_;
+  std::unique_ptr<Cast> cast_op_;
 };
 
 class Model
@@ -332,7 +341,7 @@ public:
   }
 
   VkResult
-  init (std::map<std::string, gguf_value *> &kv,
+  init (std::map<std::string, gguf_key> &kv,
         std::map<std::string, gguf_tensor> &tensors)
   {
     gpu_ = new GPUDevice ();
@@ -350,10 +359,10 @@ public:
         return ret;
       }
 
-    auto head_count = kv["llama.attention.head_count"]->uint32;
-    auto block_count = kv["llama.block_count"]->uint32;
-    auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"]->float32;
-    auto maxlen = kv["llama.context_length"]->uint32;
+    auto head_count = kv["llama.attention.head_count"].val->uint32;
+    auto block_count = kv["llama.block_count"].val->uint32;
+    auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"].val->float32;
+    auto maxlen = kv["llama.context_length"].val->uint32;
 
     input_command_->begin ();
     output_command_->begin ();
@@ -647,7 +656,7 @@ public:
     return VK_SUCCESS;
   }
 
-  std::vector<uint32_t>
+  std::vector<float>
   operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
@@ -683,8 +692,10 @@ public:
 
     output_command_->begin ();
     VkTensor output = (*output_layer_) (X);
-    std::vector<uint32_t> buf (output.size ());
-    output_command_->download (output, buf.data (), buf.size ());
+
+    std::vector<float> buf_logits;
+    buf_logits.resize (output.size ());
+    output_command_->download (output, buf_logits.data (), buf_logits.size ());
 
     output_command_->end ();
     output_command_->submit ();
@@ -723,8 +734,7 @@ public:
     output_layer_->print_op_cost ();
 
 #endif
-
-    return buf;
+    return buf_logits;
   }
 
 private:
