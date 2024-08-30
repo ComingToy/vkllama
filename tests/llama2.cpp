@@ -276,6 +276,8 @@ main (const int argc, const char *argv[])
                "prompt tokens are generated. prompt speed: %f tokens/s\n",
                prompt.size () * 1000.f / milliseconds);
 
+      std::cerr << buffer;
+
       auto t2 = std::chrono::high_resolution_clock::now ();
       std::string output_buf;
       for (int i = 1; i < 4096; ++i)
@@ -315,14 +317,6 @@ main (const int argc, const char *argv[])
               break;
             }
         }
-
-      std::string resp;
-      sp.Decode (toks, &resp);
-
-      std::cerr << "prompt: " << argv[2] << std::endl;
-      std::cerr << "output: " << resp
-                << (toks.back () == sp.eos_id () ? "" : "[end of text]")
-                << std::endl;
 
       auto t3 = std::chrono::high_resolution_clock::now ();
       milliseconds
