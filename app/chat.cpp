@@ -26,14 +26,15 @@ show_usage (int argc, char *const argv[])
 _H (NAME)"\n"
 "    chat - chat with llama2 interactive \n\n"
 _H (SYNOPSIS)"\n"
-"    chat " _H(-m) " path" _H(-t) " path " "[" _H(-s) " {top_k, top_p}] [" _H(-k) " value] " "[" _H(-p) " value]" "\n"
+"    chat " _H(-m) " path " _H(-t) " path " "[" _H(-s) " {top_k|top_p}] [" _H(-k) " value] " "[" _H(-p) " value]" "\n"
 "\n"
 _H(DESCRIPTION)"\n"
 "    the options are follow:\n"
-"    " _H(-m) " path to the gguf model file\n"
-"    " _H(-m) " path to the gguf model file\n"
-"    " _H(-m) " path to the gguf model file\n"
-"    " _H(-m) " path to the gguf model file\n"
+"    " _H(-m) "\tpath to the gguf model file\n"
+"    " _H(-t) "\tpath to the prompt template file\n"
+"    " _H(-s) "\tsampler. top_k or top_p are supported. (default: top_k)\n"
+"    " _H(-k) "\tthe k option of top_k sampler. (default: 40)\n"
+"    " _H(-p) "\tthe p option of top_k sampler. (default: 0.75)\n"
 ;
   // clang-format on
   fprintf (stdout, fmt);
