@@ -304,7 +304,8 @@ main (const int argc, const char *argv[])
           std::cerr << piece;
           output_buf.append (piece);
 
-          auto is_anti = is_anti_prompt (output_buf, "[[USER_NAME]]:");
+          auto is_anti = is_anti_prompt (output_buf, "[[USER_NAME]]:")
+                         || is_anti_prompt (output_buf, "[[AI_NAME]]:");
 
           if ((int)toks.back () == sp.eos_id ()
               || sp.bos_id () == (int)toks.back ()
