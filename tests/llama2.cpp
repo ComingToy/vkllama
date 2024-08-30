@@ -20,14 +20,13 @@ Text transcript of a dialog, where [[USER_NAME]] interacts with an AI assistant 
 [[AI_NAME]] is helpful, kind, honest, friendly, good at writing and never fails to answer [[USER_NAME]]'s requests immediately and with details and precision.
 There are no annotations like (30 seconds passed...) or (to himself), just what [[USER_NAME]] and [[AI_NAME]] say aloud to each other.
 The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
-The transcript includes text or Markdown, don't use HTML.
+The transcript includes text or Markdown, but if you wanna show some source code, Markdown would be preferred.
 
-[[USER_NAME]]: How do I pass command line arguments to a Node.js program?
-[[AI_NAME]]: The arguments are stored in process.argv.
-    argv[0] is the path to the Node. js executable.
-    argv[1] is the path to the script file.
-    argv[2] is the first argument passed to the script.
-    argv[3] is the second argument passed to the script and so on.
+[[USER_NAME]]: How do I pass command line arguments to a main function in C programming language?
+[[AI_NAME]]: The arguments are stored in argv.
+    argv[0] is the path to the main function.
+    argv[1] is the first argument passed to the main function.
+    argv[2] is the second argument passed to the main function and so on.
 [[USER_NAME]]: )";
 
 static bool is_anti_prompt(std::string const& output_buf, std::string const& anti)
