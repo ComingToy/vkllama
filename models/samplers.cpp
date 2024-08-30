@@ -15,9 +15,6 @@ Sampler::sample_from_prob (const float *probs, size_t n)
 void
 Sampler::softmax (std::vector<std::pair<float, int> > &logits)
 {
-  std::sort (
-      logits.begin (), logits.end (),
-      [] (auto const &lhs, auto const &rhs) { return lhs.first > rhs.first; });
 
   auto m = logits[0].first;
 
@@ -45,11 +42,22 @@ TopkSampler::sample (const float *logits, size_t n)
       tmp.push_back (std::make_pair (logits[i], (int)i));
     }
 
-  softmax (tmp);
+  std::sort (tmp.begin (), tmp.end (), [] (auto const &lhs, auto const &rhs) {
+    return lhs.first > rhs.first;
+  });
+
+  std::vector<std::pair<float, int> > topk;
+  for (size_t i = 0; i < topk_; ++i)
+    {
+      topk.push_back (tmp[i]);
+    }
+
+  softmax (topk);
+
   std::vector<float> probs;
-  std::transform (tmp.cbegin (), tmp.cbegin () + std::min (topk_, tmp.size ()),
-                  std::back_inserter (probs),
-                  [] (auto const &v) { return v.first; });
+  std::transform (
+      topk.cbegin (), topk.cbegin () + std::min (topk_, topk.size ()),
+      std::back_inserter (probs), [] (auto const &v) { return v.first; });
 
   auto i = sample_from_prob (probs.data (), probs.size ());
 
