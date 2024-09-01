@@ -4,9 +4,4 @@ There are no annotations like (30 seconds passed...) or (to himself), just what 
 The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
 The transcript includes text or Markdown, but if you wanna show some source code, Markdown would be preferred.
 
-[[USER_NAME]]: How do I pass command line arguments to a main function in C programming language?
-[[AI_NAME]]: The arguments are stored in argv.
-    argv[0] is the path to the main function.
-    argv[1] is the first argument passed to the main function.
-    argv[2] is the second argument passed to the main function and so on.
-[[USER_NAME]]: 
+[[USER_NAME]]:
