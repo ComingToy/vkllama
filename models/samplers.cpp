@@ -1,4 +1,5 @@
 #include "samplers.h"
+#include <algorithm>
 #include <iterator>
 #include <utility>
 #include <vector>
