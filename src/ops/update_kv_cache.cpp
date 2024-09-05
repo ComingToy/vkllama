@@ -16,12 +16,12 @@ VkResult
 UpdateKVCache::init () noexcept
 {
   const auto *spv_code = dtype_ == VkTensor::FP32
-                             ? __get_concat_comp_spv_code ()
-                             : __get_concat_fp16_comp_spv_code ();
+                             ? nullptr
+                             : __get_update_kvcache_fp16_comp_spv_code ();
 
   size_t spv_size = dtype_ == VkTensor::FP32
-                        ? __get_concat_comp_spv_size ()
-                        : __get_concat_fp16_comp_spv_size ();
+                        ? 0
+                        : __get_update_kvcache_fp16_comp_spv_size ();
 
   Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
   ShaderConstants specs;
@@ -48,7 +48,7 @@ UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
   ShaderConstants constants
       = { (uint32_t)key_or_value.channels (), (uint32_t)key_or_value.height (),
           (uint32_t)key_or_value.width (),    (uint32_t)cache.height (),
-          (uint32_t)cache.width (),           flat_offset };
+          (uint32_t)cache.width (),           (uint32_t)offset[1] };
 
   const uint32_t group_x = (key_or_value.width () + 15) / 16,
                  group_y = (key_or_value.height () + 15) / 16,

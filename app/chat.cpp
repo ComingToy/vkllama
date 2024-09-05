@@ -358,7 +358,7 @@ main (int argc, char *const argv[])
                     .system_message = "",
                     .anti_prompt = {},
                     .sampler = "top_k",
-                    .sampler_option = { .topk = 40, .p = 0.9 } };
+                    .sampler_option = { .topk = 10, .p = 0.9 } };
 
   if ((ret = parse_params_from_cmdline (argc, argv, &params)) != 0)
     {
