@@ -256,6 +256,7 @@ start_sess (const Params &params, vkllama::Model &model,
   fflush (stdout);
   while (true)
     {
+      fprintf (stdout, "[INFO]: total %zu toks output.\n", sess.toks.size ());
       fprintf (stdout, "\n[[USER]]: ");
       fflush (stdout);
 
