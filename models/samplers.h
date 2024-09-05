@@ -12,7 +12,7 @@ public:
   virtual ~Sampler () = default;
 
 protected:
-  virtual size_t sample_from_prob (const float *probs, size_t n);
+  size_t sample_from_prob (const float *probs, size_t n);
   void softmax (std::vector<std::pair<float, int> > &);
 
 private:
@@ -29,4 +29,15 @@ public:
 private:
   size_t topk_;
 };
+
+class TopPSampler : public Sampler
+{
+public:
+  TopPSampler (const float p);
+  int sample (const float *logits, size_t n) override;
+
+private:
+  const float p_;
+};
+
 #endif

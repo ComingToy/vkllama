@@ -1,7 +1,6 @@
 #include "models/llama2.h"
 #include "models/samplers.h"
-#include "models/tokenizer.h"
-#include "sentencepiece_processor.h"
+#include "models/tokenizer.h" #include "sentencepiece_processor.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -243,7 +242,16 @@ start_sess (const Params &params, vkllama::Model &model,
 {
   Session sess = { {}, {}, 0 };
 
-  TopkSampler sampler (params.sampler_option.topk);
+  std::shared_ptr<Sampler> sampler;
+
+  if (std::string ("top_k") == params.sampler)
+    {
+      sampler = std::make_shared<TopkSampler> (params.sampler_option.topk);
+    }
+  else
+    {
+      sampler = std::make_shared<TopPSampler> (params.sampler_option.p);
+    }
 
   fflush (stdout);
   while (true)
@@ -282,7 +290,7 @@ start_sess (const Params &params, vkllama::Model &model,
         auto logits = model (inp, sess.offset);
         auto dim = logits.size () / inp.size ();
         next_token_id
-            = sampler.sample (logits.data () + logits.size () - dim, dim);
+            = sampler->sample (logits.data () + logits.size () - dim, dim);
         sess.offset += inp.size ();
       }
 
@@ -331,7 +339,7 @@ start_sess (const Params &params, vkllama::Model &model,
 #endif
 
           auto logits = model ({ (uint32_t)next_token_id }, sess.offset);
-          next_token_id = sampler.sample (logits.data (), logits.size ());
+          next_token_id = sampler->sample (logits.data (), logits.size ());
           sess.offset += 1;
           sess.toks.push_back (next_token_id);
         }
@@ -348,8 +356,8 @@ main (int argc, char *const argv[])
   Params params = { .model_file = nullptr,
                     .system_message = "",
                     .anti_prompt = {},
-                    .sampler = "topk",
-                    .sampler_option = { .topk = 40, .p = 0.75 } };
+                    .sampler = "top_p",
+                    .sampler_option = { .topk = 40, .p = 0.9 } };
 
   if ((ret = parse_params_from_cmdline (argc, argv, &params)) != 0)
     {
@@ -393,6 +401,7 @@ main (int argc, char *const argv[])
       fprintf (stderr, "failed at init model\n");
       return -1;
     }
+  gguf_close (gguf);
 
   fflush (stderr);
 
