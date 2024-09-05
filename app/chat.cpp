@@ -15,10 +15,10 @@
 
 struct Params
 {
-  const char *model_file;
-  const char *system_message;
-  std::vector<const char *> anti_prompt;
-  const char *sampler;
+  std::string model_file;
+  std::string system_message;
+  std::vector<std::string> anti_prompt;
+  std::string sampler;
   struct
   {
     int topk;
@@ -242,20 +242,21 @@ start_sess (const Params &params, vkllama::Model &model,
 {
   Session sess = { {}, {}, 0 };
 
-  std::shared_ptr<Sampler> sampler;
+  TopkSampler sampler (40);
 
-  if (std::string ("top_k") == params.sampler)
-    {
-      sampler = std::make_shared<TopkSampler> (params.sampler_option.topk);
-    }
-  else
-    {
-      sampler = std::make_shared<TopPSampler> (params.sampler_option.p);
-    }
+  // if (std::string ("top_k") == params.sampler)
+  //   {
+  //     sampler = std::make_shared<TopkSampler> (params.sampler_option.topk);
+  //   }
+  // else
+  //   {
+  //     sampler = std::make_shared<TopPSampler> (params.sampler_option.p);
+  //   }
 
   fflush (stdout);
   while (true)
     {
+      fprintf (stdout, "[INFO]: total %zu toks output.\n", sess.toks.size ());
       fprintf (stdout, "\n[[USER]]: ");
       fflush (stdout);
 
@@ -290,7 +291,7 @@ start_sess (const Params &params, vkllama::Model &model,
         auto logits = model (inp, sess.offset);
         auto dim = logits.size () / inp.size ();
         next_token_id
-            = sampler->sample (logits.data () + logits.size () - dim, dim);
+            = sampler.sample (logits.data () + logits.size () - dim, dim);
         sess.offset += inp.size ();
       }
 
@@ -339,7 +340,7 @@ start_sess (const Params &params, vkllama::Model &model,
 #endif
 
           auto logits = model ({ (uint32_t)next_token_id }, sess.offset);
-          next_token_id = sampler->sample (logits.data (), logits.size ());
+          next_token_id = sampler.sample (logits.data (), logits.size ());
           sess.offset += 1;
           sess.toks.push_back (next_token_id);
         }
@@ -353,10 +354,10 @@ main (int argc, char *const argv[])
 {
   int ret = 0;
 
-  Params params = { .model_file = nullptr,
+  Params params = { .model_file = "",
                     .system_message = "",
                     .anti_prompt = {},
-                    .sampler = "top_p",
+                    .sampler = "top_k",
                     .sampler_option = { .topk = 40, .p = 0.9 } };
 
   if ((ret = parse_params_from_cmdline (argc, argv, &params)) != 0)
@@ -366,18 +367,21 @@ main (int argc, char *const argv[])
 
   fprintf (stderr,
            "model_file: %s\nsystem message: %s\nsampler: %s\ntopk: %d\np:%f\n",
-           params.model_file, params.system_message, params.sampler,
-           params.sampler_option.topk, params.sampler_option.p);
+           params.model_file.c_str (), params.system_message.c_str (),
+           params.sampler.c_str (), params.sampler_option.topk,
+           params.sampler_option.p);
 
   for (size_t i = 0; i < params.anti_prompt.size (); ++i)
     {
-      fprintf (stderr, "anti_prompt[%zu]: %s\n", i, params.anti_prompt[i]);
+      fprintf (stderr, "anti_prompt[%zu]: %s\n", i,
+               params.anti_prompt[i].c_str ());
     }
 
-  auto gguf = gguf_open (params.model_file);
+  auto gguf = gguf_open (params.model_file.c_str ());
   if (!gguf)
     {
-      fprintf (stderr, "open model file %s failed.\n", params.model_file);
+      fprintf (stderr, "open model file %s failed.\n",
+               params.model_file.c_str ());
       return -1;
     }
 
