@@ -20,16 +20,25 @@ Text transcript of a dialog, where [[USER_NAME]] interacts with an AI assistant 
 [[AI_NAME]] is helpful, kind, honest, friendly, good at writing and never fails to answer [[USER_NAME]]'s requests immediately and with details and precision.
 There are no annotations like (30 seconds passed...) or (to himself), just what [[USER_NAME]] and [[AI_NAME]] say aloud to each other.
 The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
-The transcript includes text or markup like HTML and Markdown.
+The transcript includes text or Markdown, but if you wanna show some source code, Markdown would be preferred.
 
-[[USER_NAME]]: How do I pass command line arguments to a Node.js program?
-[[AI_NAME]]: The arguments are stored in process.argv.
-    argv[0] is the path to the Node. js executable.
-    argv[1] is the path to the script file.
-    argv[2] is the first argument passed to the script.
-    argv[3] is the second argument passed to the script and so on.
-[[USER_NAME]]:)";
+[[USER_NAME]]: How do I pass command line arguments to a main function in C programming language?
+[[AI_NAME]]: The arguments are stored in argv.
+    argv[0] is the path to the main function.
+    argv[1] is the first argument passed to the main function.
+    argv[2] is the second argument passed to the main function and so on.
+[[USER_NAME]]: )";
 
+static bool is_anti_prompt(std::string const& output_buf, std::string const& anti)
+{
+  if (output_buf.size () < anti.size ())
+    {
+      return false;
+    }
+
+  auto start = output_buf.size () - anti.size ();
+  return output_buf.substr (start, anti.size ()) == anti;
+}
 static void
 replace_all (std::string &s, const std::string &search,
              const std::string &replace)
@@ -130,6 +139,20 @@ print_sp_model (sentencepiece::ModelProto const &model)
     }
 }
 
+std::string
+escape_byte (std::string const &b)
+{
+  auto pos = b.find ("0x");
+  std::string result;
+  if (pos != std::string::npos)
+    {
+      char v = (char)std::strtol (b.substr (pos).c_str (), NULL, 16);
+      result.push_back (v);
+      return result;
+    }
+  return b;
+}
+
 int
 main (const int argc, const char *argv[])
 {
@@ -225,7 +248,7 @@ main (const int argc, const char *argv[])
 
   fprintf (stderr, "all weights are uploaded to device\n");
 
-  std::unique_ptr<TopkSampler> samplers (new TopkSampler (100));
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
 
   for (int r = 0; r < 1; ++r)
     {
@@ -252,27 +275,47 @@ main (const int argc, const char *argv[])
                "prompt tokens are generated. prompt speed: %f tokens/s\n",
                prompt.size () * 1000.f / milliseconds);
 
+      std::cerr << buffer;
+
       auto t2 = std::chrono::high_resolution_clock::now ();
-      for (int i = 1; i < 512; ++i)
+      std::string output_buf;
+      for (int i = 1; i < 4096; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
           toks.push_back (samplers->sample (output.data (), output.size ()));
 
+          auto piece = sp.IdToPiece (toks.back ());
+
+          if (sp.IsByte (toks.back ()))
+            {
+              piece = escape_byte (piece);
+            }
+
+          if (piece == "<0x09>")
+            {
+              piece = "\t";
+            }
+
+          if (sp.IsControl (toks.back ()))
+            {
+              piece = piece + "[CONTROL]";
+            }
+
+          replace_all (piece, "▁", " ");
+          std::cerr << piece;
+          output_buf.append (piece);
+
+          auto is_anti = is_anti_prompt (output_buf, "[[USER_NAME]]:")
+                         || is_anti_prompt (output_buf, "[[AI_NAME]]:");
+
           if ((int)toks.back () == sp.eos_id ()
               || sp.bos_id () == (int)toks.back ()
-              || toks.back () == eot_token_id)
+              || toks.back () == eot_token_id || is_anti)
             {
+              std::cerr << "[end of text]" << std::endl;
               break;
             }
         }
-
-      std::string resp;
-      sp.Decode (toks, &resp);
-
-      std::cerr << "prompt: " << argv[2] << std::endl;
-      std::cerr << "output: " << resp
-                << (toks.back () == sp.eos_id () ? "" : "[end of text]")
-                << std::endl;
 
       auto t3 = std::chrono::high_resolution_clock::now ();
       milliseconds
