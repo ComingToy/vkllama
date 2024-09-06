@@ -179,13 +179,13 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
       auto &kcache_slice_op = *kcache_slice_op_;
       auto &vcache_slice_op = *vcache_slice_op_;
 
-      if ((ret = update_kcache_op (kcache_, transposed_k, { 0, offset }))
+      if ((ret = update_kcache_op (kcache_, transposed_k, (uint32_t)offset))
           != VK_SUCCESS)
         {
           return ret;
         }
 
-      if ((ret = update_vcache_op (vcache_, transposed_v, { 0, offset })))
+      if ((ret = update_vcache_op (vcache_, transposed_v, (uint32_t)offset)))
         {
           return ret;
         }
