@@ -43,6 +43,7 @@ glsl_shader(
         "concat.comp",
         "concat_fp16.comp",
         "update_kvcache_fp16.comp",
+        "read_kvcache_fp16.comp",
         "slice.comp",
         "slice_fp16.comp",
         "embedding.comp",

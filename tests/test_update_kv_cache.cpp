@@ -79,7 +79,7 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   UpdateKVCache update_op (gpu_, command_, (VkTensor::DType)params.dtype);
 
   ASSERT_EQ (update_op.init (), VK_SUCCESS);
-  ASSERT_EQ (update_op (cache, input, params.offset), VK_SUCCESS);
+  ASSERT_EQ (update_op (cache, input, params.offset[1]), VK_SUCCESS);
 
   std::vector<float> output_buf (cache.size ());
 

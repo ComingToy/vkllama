@@ -16,18 +16,11 @@
 #include <vector>
 
 static std::string prompt_template = R"(
-Text transcript of a dialog, where [[USER_NAME]] interacts with an AI assistant named [[AI_NAME]].
-[[AI_NAME]] is helpful, kind, honest, friendly, good at writing and never fails to answer [[USER_NAME]]'s requests immediately and with details and precision.
-There are no annotations like (30 seconds passed...) or (to himself), just what [[USER_NAME]] and [[AI_NAME]] say aloud to each other.
-The dialog lasts for years, the entirety of it is shared below. It's 10000 pages long.
-The transcript includes text or Markdown, but if you wanna show some source code, Markdown would be preferred.
-
-[[USER_NAME]]: How do I pass command line arguments to a main function in C programming language?
-[[AI_NAME]]: The arguments are stored in argv.
-    argv[0] is the path to the main function.
-    argv[1] is the first argument passed to the main function.
-    argv[2] is the second argument passed to the main function and so on.
-[[USER_NAME]]: )";
+User: Hello, Bob.
+Bob: Hello. How may I help you today?
+User: Please tell me the largest city in Europe.
+Bob: Sure. The largest city in Europe is Moscow, the capital of Russia.
+User: )";
 
 static bool is_anti_prompt(std::string const& output_buf, std::string const& anti)
 {
@@ -222,7 +215,7 @@ main (const int argc, const char *argv[])
   std::string buffer = argv[2];
   // replace_all (buffer, " ", "\xe2\x96\x81");
   // string_process_escapes (buffer);
-  buffer = prompt_template + buffer + "\n[[AI_NAME]]: ";
+  buffer = prompt_template + buffer;
 
   sp.Encode (buffer, &prompt_tmp);
 
@@ -248,7 +241,7 @@ main (const int argc, const char *argv[])
 
   fprintf (stderr, "all weights are uploaded to device\n");
 
-  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (20));
 
   for (int r = 0; r < 1; ++r)
     {
@@ -279,9 +272,9 @@ main (const int argc, const char *argv[])
 
       auto t2 = std::chrono::high_resolution_clock::now ();
       std::string output_buf;
-      for (int i = 1; i < 4096; ++i)
+      for (int i = 1; i < 8192; ++i)
         {
-          auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
+          auto output = model ({ (uint32_t)toks.back () }, toks.size ());
           toks.push_back (samplers->sample (output.data (), output.size ()));
 
           auto piece = sp.IdToPiece (toks.back ());
@@ -305,15 +298,17 @@ main (const int argc, const char *argv[])
           std::cerr << piece;
           output_buf.append (piece);
 
-          auto is_anti = is_anti_prompt (output_buf, "[[USER_NAME]]:")
-                         || is_anti_prompt (output_buf, "[[AI_NAME]]:");
-
           if ((int)toks.back () == sp.eos_id ()
               || sp.bos_id () == (int)toks.back ()
-              || toks.back () == eot_token_id || is_anti)
+              || toks.back () == eot_token_id)
             {
               std::cerr << "[end of text]" << std::endl;
-              break;
+              // break;
+            }
+
+          if (toks.size () >= 4096)
+            {
+              fprintf (stderr, "\n\ncontext overflow.!!!!!!!!!!\n\n");
             }
         }
 

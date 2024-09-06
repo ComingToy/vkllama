@@ -54,8 +54,8 @@ ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
     }
 
   ShaderConstants constants
-      = { (uint32_t)key_or_value.channels (), (uint32_t)key_or_value.height (),
-          (uint32_t)key_or_value.width (), offset, len };
+      = { (uint32_t)cache.channels (), (uint32_t)cache.height (),
+          (uint32_t)cache.width (), offset, len };
 
   auto ret = command_->record_pipeline (*pipeline_, { cache, key_or_value },
                                         constants);
