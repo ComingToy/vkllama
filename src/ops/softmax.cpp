@@ -57,12 +57,6 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
       = (a.width () + dev_->subgroup_size () - 1) / dev_->subgroup_size (),
       group_y = a.height (), group_z = a.channels ();
 
-  fprintf (stderr,
-           "softmax input shape = (%zu, %zu, %zu), subgroup_size = %zu, "
-           "groups = (%u, %u, %u))\n",
-           a.channels (), a.height (), a.width (), dev_->subgroup_size (),
-           group_x, group_y, group_z);
-
   auto ret = softmax0_->set_group (group_x, group_y, group_z);
   if (ret != VK_SUCCESS)
     {

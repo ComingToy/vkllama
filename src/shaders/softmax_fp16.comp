@@ -30,34 +30,41 @@ main (void)
     }
 
   uint row_base = glb_tid_z * H * W + glb_tid_y * W;
-  float max_val = float (input0[row_base]);
+  float local_max = float (input0[row_base]);
 
   [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
-                  i += gl_SubgroupInvocationID.x)
+                  i += gl_SubgroupSize)
     {
       float v = float (input0[row_base + i]);
-      max_val = max (v, max_val);
-    }
-
-  max_val = subgroupMax (max_val);
-  float sum = .0;
-  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
-                  i += gl_SubgroupInvocationID.x)
-    {
-      float v = float (input0[row_base + i]);
-      if (seq_mask > 0 && i <= glb_tid_y + OFFSET)
+      if (seq_mask > 0 && i > glb_tid_y + OFFSET)
         {
-          sum += exp (v - max_val);
+          v = .0;
         }
+
+      local_max = max (v, local_max);
     }
 
-  sum = subgroupAdd (sum);
+  float maxval = subgroupMax (local_max);
 
+  float local_sum = .0;
   [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
-                  i += gl_SubgroupInvocationID.x)
+                  i += gl_SubgroupSize)
     {
       float v = float (input0[row_base + i]);
-      v = exp (v - max_val) / sum;
+      if (seq_mask > 0 && i > glb_tid_y + OFFSET)
+        {
+          continue;
+        }
+      local_sum += exp (v - maxval);
+    }
+
+  float glb_sum = subgroupAdd (local_sum);
+
+  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
+                  i += gl_SubgroupSize)
+    {
+      float v = float (input0[row_base + i]);
+      v = exp (v - maxval) / glb_sum;
       output0[row_base + i] = float16_t (v);
     }
 }
