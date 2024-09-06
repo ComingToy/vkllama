@@ -1,0 +1,63 @@
+#version 450 core
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_control_flow_attributes : enable
+
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+layout (constant_id = 0) const int seq_mask = 0;
+layout (push_constant) uniform constants
+{
+  uint C;
+  uint H;
+  uint W;
+  uint OFFSET;
+};
+
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+layout (binding = 1) writeonly buffer OutTensor0 { float16_t output0[]; };
+
+void
+main (void)
+{
+  uint glb_tid_y = gl_GlobalInvocationID.y;
+  uint glb_tid_z = gl_GlobalInvocationID.z;
+
+  if (glb_tid_z >= C || glb_tid_y >= H)
+    {
+      return;
+    }
+
+  uint row_base = glb_tid_z * H * W + glb_tid_y * W;
+  float max_val = float (input0[row_base]);
+
+  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
+                  i += gl_SubgroupInvocationID.x)
+    {
+      float v = float (input0[row_base + i]);
+      max_val = max (v, max_val);
+    }
+
+  max_val = subgroupMax (max_val);
+  float sum = .0;
+  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
+                  i += gl_SubgroupInvocationID.x)
+    {
+      float v = float (input0[row_base + i]);
+      if (seq_mask > 0 && i <= glb_tid_y + OFFSET)
+        {
+          sum += exp (v - max_val);
+        }
+    }
+
+  sum = subgroupAdd (sum);
+
+  [[unroll]] for (uint i = gl_SubgroupInvocationID.x; i < W;
+                  i += gl_SubgroupInvocationID.x)
+    {
+      float v = float (input0[row_base + i]);
+      v = exp (v - max_val) / sum;
+      output0[row_base + i] = float16_t (v);
+    }
+}

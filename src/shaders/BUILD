@@ -33,6 +33,7 @@ glsl_shader(
         "reduce.comp",
         "reduce_fp16.comp",
         "softmax_stage0.comp",
+        "softmax_fp16.comp",
         "softmax_stage1.comp",
         "softmax_stage2.comp",
         "softmax_stage0_fp16.comp",

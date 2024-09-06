@@ -19,16 +19,8 @@ public:
   VkResult operator() (VkTensor a, VkTensor &b, size_t offset = 0) noexcept;
 
 private:
-  std::unique_ptr<Reduce> reduce_;
   std::unique_ptr<Pipeline> softmax0_;
-  std::unique_ptr<Pipeline> softmax1_;
-  std::unique_ptr<Pipeline> softmax2_;
 
-  VkTensor bias_;
-  VkTensor m_;
-  VkTensor exps_;
-  VkTensor n_;
-  VkTensor sum_;
   bool seq_mask_;
   VkTensor::DType dtype_;
 
