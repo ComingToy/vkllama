@@ -33,11 +33,12 @@ MatMul::init () noexcept
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
     }
 
-  Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 8, 16, 1 };
   if (dtype_ == VkTensor::FP16)
     {
-      info
-          = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
+      info = {
+        4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1
+      };
     }
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
@@ -153,9 +154,10 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (VkTensor::FP16)
+  if (dtype_ == VkTensor::FP16)
     {
-      uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+      uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
+               groupz = channels;
       pipeline_->set_group (groupx, groupy, groupz);
     }
   else
@@ -205,9 +207,10 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (VkTensor::FP16)
+  if (dtype_ == VkTensor::FP16)
     {
-      uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+      uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
+               groupz = channels;
       pipeline_->set_group (groupx, groupy, groupz);
     }
   else
