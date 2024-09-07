@@ -237,7 +237,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   // TODO: could be funsed
   VkTensor softmax_attn_scores;
 
-  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores, offset))
+  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores, offset % maxlen_))
       != VK_SUCCESS)
     {
       return ret;
