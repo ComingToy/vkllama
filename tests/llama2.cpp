@@ -306,7 +306,7 @@ main (const int argc, const char *argv[])
               // break;
             }
 
-          if (toks.size () >= 4096)
+          if (toks.size () == 512)
             {
               fprintf (stderr, "\n\ncontext overflow.!!!!!!!!!!\n\n");
             }

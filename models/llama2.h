@@ -362,8 +362,8 @@ public:
     auto head_count = kv["llama.attention.head_count"].val->uint32;
     auto block_count = kv["llama.block_count"].val->uint32;
     auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"].val->float32;
-    // uint32_t maxlen = 50000;
-    auto maxlen = kv["llama.context_length"].val->uint32;
+    uint32_t maxlen = 512;
+    // auto maxlen = kv["llama.context_length"].val->uint32;
 
     input_command_->begin ();
     output_command_->begin ();
