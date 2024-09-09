@@ -4,5 +4,5 @@ def repo():
     git_repository(
         name = "abseil-cpp",
         remote = "https://github.com/abseil/abseil-cpp",
-        tag = "20240722.0",
+        tag = "20211102.0",
     )

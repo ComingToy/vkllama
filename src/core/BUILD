@@ -12,7 +12,8 @@ cc_library(
 	],
     deps = [
 		"//vulkan_rules:vulkan_cc_library",
-		"@VulkanMemoryAllocator//:vma"
+        "@abseil-cpp//absl/status",
+		"@VulkanMemoryAllocator//:vma",
 	],
     copts = select({
         '//:debug_build': ['-std=c++17', '-D__VKLLAMA_DEBUG__'],

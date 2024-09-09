@@ -41,7 +41,7 @@ cc_library(
     deps = [
         "//src/core:core",
         "//src/shaders:vkllama_shaders",
-        "@abseil-cpp//absl/strings"
+        "@abseil-cpp//absl/status"
     ],
     copts = select({
             '//:debug_build': ['-std=c++17', '-D__VKLLAMA_DEBUG__'],

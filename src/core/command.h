@@ -267,7 +267,7 @@ public:
             = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
                 nullptr,
                 tensor.access_flags (),
-                VK_ACCESS_SHADER_READ_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 VK_QUEUE_FAMILY_IGNORED,
                 VK_QUEUE_FAMILY_IGNORED,
                 tensor.data (),
