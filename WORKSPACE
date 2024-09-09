@@ -10,6 +10,9 @@ eigen3_repo()
 load('//thirdparty/gtest:repo.bzl', gtest_repo='repo')
 gtest_repo()
 
+load('//thirdparty/abseil:repo.bzl', abseil_repo='repo')
+abseil_repo()
+
 http_archive(
     name = "rules_python",
     sha256 = "4912ced70dc1a2a8e4b86cec233b192ca053e82bc72d877b98e126156e8f228d",

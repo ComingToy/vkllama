@@ -38,7 +38,11 @@ cc_library(
         'read_kvcache_op.h',
         'transpose.h',
     ],
-    deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
+    deps = [
+        "//src/core:core",
+        "//src/shaders:vkllama_shaders",
+        "@abseil-cpp//absl/strings"
+    ],
     copts = select({
             '//:debug_build': ['-std=c++17', '-D__VKLLAMA_DEBUG__'],
             '//conditions:default': ['-std=c++17']
