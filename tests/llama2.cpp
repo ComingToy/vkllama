@@ -241,7 +241,7 @@ main (const int argc, const char *argv[])
 
   fprintf (stderr, "all weights are uploaded to device\n");
 
-  std::unique_ptr<TopkSampler> samplers (new TopkSampler (20));
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
 
   for (int r = 0; r < 1; ++r)
     {

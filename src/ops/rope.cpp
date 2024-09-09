@@ -105,7 +105,11 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
       return ret;
     }
 
-  int key_offset = std::max (int (offset - key.height ()), 0);
+  int key_offset = int (offset + query.height () - key.height ());
+  if (key_offset < 0)
+    {
+      return VK_ERROR_UNKNOWN;
+    }
 
   ShaderConstants key_shape
       = { (uint32_t)key.channels (), (uint32_t)key.height (),
