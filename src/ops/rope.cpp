@@ -107,7 +107,7 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
 
   ShaderConstants key_shape
       = { (uint32_t)key.channels (), (uint32_t)key.height (),
-          (uint32_t)key.width (), (uint32_t)0 };
+          (uint32_t)key.width (), (uint32_t)offset };
 
   ret = command_->record_pipeline (*pipeline_k_, { key, out_key }, key_shape);
   if (ret != VK_SUCCESS)
