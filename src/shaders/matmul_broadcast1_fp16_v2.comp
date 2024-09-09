@@ -35,8 +35,8 @@ void
 main ()
 {
   uint gid_x = gl_WorkGroupID.x;
-  uint gid_y = gl_WorkGroupID.y;
-  uint gid_z = gl_WorkGroupID.z;
+  uint gid_y = gl_GlobalInvocationID.y;
+  uint gid_z = gl_GlobalInvocationID.z;
 
   if (gid_z >= C || gid_y >= M || gid_x >= N)
     {

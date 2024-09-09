@@ -15,6 +15,7 @@ cc_library(
 	    'multiheadattention_v2.cpp',
 	    'cast.cpp',
         'update_kv_cache.cpp',
+        'read_kvcache_op.cpp',
         'transpose.cpp',
     ],
     hdrs = [
@@ -34,6 +35,7 @@ cc_library(
         'argop.h',
         'cast.h',
         'update_kv_cache.h',
+        'read_kvcache_op.h',
         'transpose.h',
     ],
     deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],

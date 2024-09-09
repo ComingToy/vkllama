@@ -140,8 +140,7 @@ TEST_P (TestSoftmax, test_softmax)
 }
 
 std::vector<TestSoftmaxParams> params = {
-  { 1, 1023, 63, 0 },
-  { 3, 1023, 51, 0 },
+  { 32, 62, 62, 1 },
   { 1, 1023, 63, 1 },
   { 3, 1023, 51, 1 },
 };

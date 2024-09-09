@@ -16,7 +16,7 @@ public:
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
   VkResult operator() (VkTensor cache, VkTensor key_or_value,
-                       std::array<size_t, 2> const &offset) noexcept;
+                       uint32_t offset) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

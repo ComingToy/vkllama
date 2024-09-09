@@ -16,12 +16,12 @@ VkResult
 UpdateKVCache::init () noexcept
 {
   const auto *spv_code = dtype_ == VkTensor::FP32
-                             ? __get_concat_comp_spv_code ()
-                             : __get_concat_fp16_comp_spv_code ();
+                             ? nullptr
+                             : __get_update_kvcache_fp16_comp_spv_code ();
 
   size_t spv_size = dtype_ == VkTensor::FP32
-                        ? __get_concat_comp_spv_size ()
-                        : __get_concat_fp16_comp_spv_size ();
+                        ? 0
+                        : __get_update_kvcache_fp16_comp_spv_size ();
 
   Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
   ShaderConstants specs;
@@ -32,23 +32,19 @@ UpdateKVCache::init () noexcept
 
 VkResult
 UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
-                           const std::array<size_t, 2> &offset) noexcept
+                           const uint32_t offset) noexcept
 {
-  if (cache.height () < key_or_value.height () + offset[1]
-      || cache.channels () < key_or_value.channels () + offset[0]
+  if (cache.height () < key_or_value.height ()
+      || cache.channels () < key_or_value.channels ()
       || cache.width () != key_or_value.width ())
     {
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
 
-  uint32_t flat_offset
-      = static_cast<uint32_t> (offset[0] * cache.width () * cache.height ()
-                               + offset[1] * cache.width ());
-
   ShaderConstants constants
       = { (uint32_t)key_or_value.channels (), (uint32_t)key_or_value.height (),
           (uint32_t)key_or_value.width (),    (uint32_t)cache.height (),
-          (uint32_t)cache.width (),           flat_offset };
+          (uint32_t)cache.width (),           offset };
 
   const uint32_t group_x = (key_or_value.width () + 15) / 16,
                  group_y = (key_or_value.height () + 15) / 16,

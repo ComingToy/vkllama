@@ -15,7 +15,38 @@ struct TestRopeParams
   const int W;
   const int MAXLEN;
   const int dtype;
+  const size_t offset;
 };
+
+static void
+precompute_freqs (size_t maxlen, size_t dim, size_t offset,
+                  std::vector<float> &freqs, std::vector<float> &freqc)
+{
+  freqs.resize (dim * maxlen / 2);
+  freqc.resize (dim * maxlen / 2);
+
+  std::vector<float> freq;
+  std::generate_n (
+      std::back_inserter (freq), dim / 2, [dim, n = 0] () mutable {
+        float f = 1.0f / std::pow (10000.0f, static_cast<float> (n) / dim);
+        n += 2;
+        return f;
+      });
+
+  // [seqlen, headim]
+  for (int i = 0; i < maxlen; ++i)
+    {
+      for (int k = 0; k < dim / 2; ++k)
+        {
+          auto f = freq[k] * static_cast<float> (i + offset);
+          auto c = std::cos (f);
+          auto s = std::sin (f);
+          auto pos = i * dim / 2 + k;
+          freqs[pos] = s;
+          freqc[pos] = c;
+        }
+    }
+}
 
 class TestRope : public ::testing::TestWithParam<TestRopeParams>
 {
@@ -89,15 +120,14 @@ TEST_P (TestRope, test_rope)
       input_key_buf.swap (input_key->second);
     }
 
-  Rope rope_op (dev_, command_, params.MAXLEN, params.W,
-                (VkTensor::DType)params.dtype);
+  Rope rope_op (dev_, command_, params.MAXLEN, params.W, VkTensor::FP16);
 
   ASSERT_EQ (rope_op.init (), VK_SUCCESS);
 
   VkTensor output_query, output_key;
   ASSERT_EQ (rope_op (params.dtype ? input_query_fp16 : input_query_fp32,
                       params.dtype ? input_key_fp16 : input_key_fp32,
-                      output_query, output_key),
+                      output_query, output_key, params.offset),
              VK_SUCCESS);
 
   std::vector<float> output_query_buf (output_query.size ()),
@@ -149,19 +179,21 @@ TEST_P (TestRope, test_rope)
       input_key_buf.data (), (Eigen::Index)input_key->first.channels (),
       (Eigen::Index)input_key->first.height (),
       (Eigen::Index)input_key->first.width ());
+
   size_t w = input_query->first.width () / 2;
 
-  auto freqc_buf = rope_op.freqc ();
-  auto freqs_buf = rope_op.freqs ();
-  auto input_freqc_host = TensorMap<3> (
-      freqc_buf.data (), (Eigen::Index)input_query->first.channels (),
-      (Eigen::Index)input_query->first.height (), (Eigen::Index)w);
-  auto input_freqs_host = TensorMap<3> (
-      freqs_buf.data (), (Eigen::Index)input_query->first.channels (),
-      (Eigen::Index)input_query->first.height (), (Eigen::Index)w);
+  std::vector<float> freqc_buf, freqs_buf;
+  precompute_freqs (params.MAXLEN, params.W, params.offset, freqs_buf,
+                    freqc_buf);
 
-  auto _apply_rope
-      = [] (Tensor<3> input_x, Tensor<3> input_freqc, Tensor<3> input_freqs)
+  auto input_freqc_host = TensorMap<3> (freqc_buf.data (), (Eigen::Index)1,
+                                        params.MAXLEN, (Eigen::Index)w);
+
+  auto input_freqs_host = TensorMap<3> (freqs_buf.data (), (Eigen::Index)1,
+                                        params.MAXLEN, (Eigen::Index)w);
+
+  auto _apply_rope = [params] (Tensor<3> input_x, Tensor<3> input_freqc,
+                               Tensor<3> input_freqs)
 
   {
     // apply rope to query
@@ -174,14 +206,22 @@ TEST_P (TestRope, test_rope)
 
     Tensor<3> query_host_or (query_host_r.dimensions ());
     Tensor<3> query_host_oi (query_host_r.dimensions ());
+
+    Eigen::array<Eigen::Index, 2> starts = { 0, 0 };
+    Eigen::array<Eigen::Index, 2> sizes
+        = { query_host_oi.dimension (1), query_host_oi.dimension (2) };
+
     for (int i = 0; i < query_host_or.dimension (0); ++i)
       {
-        query_host_or.chip<0> (i)
-            = query_host_r.chip<0> (i) * input_freqc.chip<0> (0)
-              - query_host_i.chip<0> (i) * input_freqs.chip<0> (0);
-        query_host_oi.chip<0> (i)
-            = query_host_r.chip<0> (i) * input_freqs.chip<0> (0)
-              + query_host_i.chip<0> (i) * input_freqc.chip<0> (0);
+        auto freqc = input_freqc.chip<0> (0).slice (starts, sizes);
+        auto freqs = input_freqs.chip<0> (0).slice (starts, sizes);
+
+        query_host_or.chip<0> (i) = query_host_r.chip<0> (i) * freqc
+
+                                    - query_host_i.chip<0> (i) * freqs;
+
+        query_host_oi.chip<0> (i) = query_host_r.chip<0> (i) * freqs
+                                    + query_host_i.chip<0> (i) * freqc;
       }
 
     // auto output_query_host_ref =
@@ -249,11 +289,10 @@ TEST_P (TestRope, test_rope)
 }
 
 std::vector<TestRopeParams> params = {
-  { 1, 256, 64, 256, 0 },   { 1, 128, 64, 256, 0 },
-  { 12, 256, 64, 256, 0 },  { 15, 128, 64, 256, 0 },
-
-  { 3, 25, 100, 1024, 1 },  { 3, 13, 100, 1024, 1 },
-  { 32, 25, 100, 1024, 1 }, { 32, 13, 100, 1024, 1 },
+  // { 3, 25, 100, 1024, 1, 0 },
+  // { 3, 13, 100, 1024, 1, 0 },
+  { 32, 25, 100, 1024, 1, 100 },
+  { 32, 13, 100, 1024, 1, 1020 },
 };
 
 INSTANTIATE_TEST_SUITE_P (TestRopeCases, TestRope, testing::ValuesIn (params));

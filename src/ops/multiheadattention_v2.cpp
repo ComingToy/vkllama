@@ -101,12 +101,12 @@ MultiHeadAttentionV2::init () noexcept
       update_vcache_op_
           = std::make_unique<UpdateKVCache> (dev_, command_, dtype_);
 
-      kcache_slice_op_ = std::make_unique<Slice> (dev_, command_, dtype_);
-      vcache_slice_op_ = std::make_unique<Slice> (dev_, command_, dtype_);
+      kcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
+      vcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
       if ((ret = update_kcache_op_->init ()) != VK_SUCCESS
           || (ret = update_vcache_op_->init ()) != VK_SUCCESS
-          || (ret = kcache_slice_op_->init ()) != VK_SUCCESS
-          || (ret = vcache_slice_op_->init ()) != VK_SUCCESS)
+          || (ret = kcache_read_op_->init ()) != VK_SUCCESS
+          || (ret = vcache_read_op_->init ()) != VK_SUCCESS)
         {
           return ret;
         }
@@ -176,36 +176,35 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
     {
       auto &update_kcache_op = *update_kcache_op_;
       auto &update_vcache_op = *update_vcache_op_;
-      auto &kcache_slice_op = *kcache_slice_op_;
-      auto &vcache_slice_op = *vcache_slice_op_;
+      auto &kcache_read_op = *kcache_read_op_;
+      auto &vcache_read_op = *vcache_read_op_;
 
-      if ((ret = update_kcache_op (kcache_, transposed_k, { 0, offset }))
+      if ((ret = update_kcache_op (kcache_, transposed_k, (uint32_t)offset))
           != VK_SUCCESS)
         {
           return ret;
         }
 
-      if ((ret = update_vcache_op (vcache_, transposed_v, { 0, offset })))
+      if ((ret = update_vcache_op (vcache_, transposed_v, (uint32_t)offset)))
         {
           return ret;
         }
 
-      ret = kcache_slice_op (kcache_, { 0, 0, 0 },
-                             { (uint32_t)transposed_k.channels (),
-                               (uint32_t)(offset + transposed_k.height ()),
-                               (uint32_t)dim_ },
-                             transposed_k);
+      uint32_t read_offset = offset >= (size_t)maxlen_
+                                 ? (uint32_t)offset % (uint32_t)maxlen_
+                                 : 0;
+
+      uint32_t read_len = std::min (
+          (uint32_t)(offset + transposed_k.height ()), (uint32_t)maxlen_);
+
+      ret = kcache_read_op (kcache_, read_offset, read_len, transposed_k);
 
       if (ret != VK_SUCCESS)
         {
           return ret;
         }
 
-      ret = vcache_slice_op (vcache_, { 0, 0, 0 },
-                             { (uint32_t)transposed_v.channels (),
-                               (uint32_t)(offset + transposed_v.height ()),
-                               (uint32_t)dim_ },
-                             transposed_v);
+      ret = vcache_read_op (vcache_, read_offset, read_len, transposed_v);
 
       if (ret != VK_SUCCESS)
         {
@@ -238,7 +237,8 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   // TODO: could be funsed
   VkTensor softmax_attn_scores;
 
-  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores, offset))
+  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores,
+                          attn_scores.width () - attn_scores.height ()))
       != VK_SUCCESS)
     {
       return ret;
@@ -289,7 +289,7 @@ MultiHeadAttentionV2::time () noexcept
       auto update_cost
           = std::max (update_kcache_op_->time (), update_vcache_op_->time ());
       auto slice_cost
-          = std::max (kcache_slice_op_->time (), vcache_slice_op_->time ());
+          = std::max (kcache_read_op_->time (), vcache_read_op_->time ());
       kvcache_cost = update_cost + slice_cost;
     }
 
