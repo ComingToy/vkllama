@@ -9,7 +9,7 @@ ReadKVCache::ReadKVCache (GPUDevice *gpu, Command *command) : Op (gpu, command)
 {
 }
 
-VkResult
+absl::Status
 ReadKVCache::init () noexcept
 {
   auto spv = __get_read_kvcache_fp16_comp_spv_code ();
@@ -26,19 +26,20 @@ ReadKVCache::time () noexcept
   return pipeline_->time ();
 }
 
-VkResult
+absl::Status
 ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
                          VkTensor &key_or_value) noexcept
 {
   if (len > cache.height ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "read %d len but size of cache is %zu", int (len), cache.height ()));
     }
 
   key_or_value = VkTensor (cache.channels (), len, cache.width (), dev_,
                            cache.dtype (), false);
 
-  if (auto ret = key_or_value.create (); ret != VK_SUCCESS)
+  if (auto ret = key_or_value.create (); !ret.ok ())
     {
       return ret;
     }
@@ -47,8 +48,7 @@ ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
   uint32_t groupy = (key_or_value.height () + 15) / 16;
   uint32_t groupz = key_or_value.channels ();
 
-  if (auto ret = pipeline_->set_group (groupx, groupy, groupz);
-      ret != VK_SUCCESS)
+  if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
       return ret;
     }
@@ -59,7 +59,7 @@ ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
 
   auto ret = command_->record_pipeline (*pipeline_, { cache, key_or_value },
                                         constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -67,6 +67,6 @@ ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
   key_or_value.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   key_or_value.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 };

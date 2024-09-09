@@ -1,4 +1,5 @@
 #include "gpu_device.h"
+#include "absl/strings/str_format.h"
 #include <algorithm>
 #include <cstdio>
 #include <iterator>
@@ -18,21 +19,27 @@ GPUDevice::GPUDevice (int dev)
 {
 }
 
-VkResult
+absl::Status
 GPUDevice::init ()
 {
   auto ret = create_instance_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     return ret;
+
   ret = init_device_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     return ret;
 
   VmaAllocatorCreateInfo createInfo
       = { 0,       physicalDev_, device_,   0,        nullptr, nullptr,
           nullptr, nullptr,      instance_, version_, nullptr };
-  ret = vmaCreateAllocator (&createInfo, &allocator_);
-  return ret;
+  auto vkret = vmaCreateAllocator (&createInfo, &allocator_);
+  if (vkret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("failed at vmaCreateAllocator: %d", int (vkret)));
+    }
+  return absl::OkStatus ();
 }
 
 GPUDevice::~GPUDevice ()
@@ -83,15 +90,17 @@ GPUDevice::find_mem (uint32_t typeBits, VkMemoryPropertyFlags properties) const
   return 0;
 }
 
-VkResult
+absl::Status
 GPUDevice::create_instance_ ()
 {
 
   auto ret = vkEnumerateInstanceVersion (&version_);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "failed at enumerate vulkan instance: %d", int (ret)));
     }
+
   static VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO,
                                        nullptr,
                                        "vkllama.cpp",
@@ -128,29 +137,39 @@ GPUDevice::create_instance_ ()
   ret = vkCreateInstance (&instanceCreateInfo, nullptr, &instance_);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (
+          absl::StrFormat ("create vulkan instance failed: %d", int (ret)));
     }
 
   uint32_t nExts = 0;
   ret = vkEnumerateInstanceExtensionProperties (nullptr, &nExts, nullptr);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "enumerate vulkan instance extention properties failed: %d",
+          int (ret)));
     }
+
   instanceExts_.resize (nExts);
   ret = vkEnumerateInstanceExtensionProperties (nullptr, &nExts,
                                                 instanceExts_.data ());
-  return ret;
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (absl::StrFormat (
+          "enumerate instance extention properties failed: %d", int (ret)));
+    }
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 GPUDevice::init_device_ ()
 {
   uint32_t ndev = 0;
   auto ret = vkEnumeratePhysicalDevices (instance_, &ndev, nullptr);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "enumerate physical devices failed: %d", int (ret)));
     }
 
   std::vector<VkPhysicalDevice> vkdev;
@@ -158,12 +177,14 @@ GPUDevice::init_device_ ()
   ret = vkEnumeratePhysicalDevices (instance_, &ndev, vkdev.data ());
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "enumerate physical devices failed: %d", int (ret)));
     }
 
   if (vkdev.size () < (size_t)dev_)
     {
-      return VK_ERROR_DEVICE_LOST;
+      return absl::InternalError (
+          absl::StrFormat ("target device %d not found.", dev_));
     }
 
   physicalDev_ = vkdev[dev_];
@@ -175,7 +196,9 @@ GPUDevice::init_device_ ()
     auto ret = vkEnumerateDeviceExtensionProperties (physicalDev_, nullptr, &n,
                                                      nullptr);
     if (ret != VK_SUCCESS)
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "enumerate device extension properties failed: %d", int (ret)));
+
     physicalDevExts_.resize (n);
     vkEnumerateDeviceExtensionProperties (physicalDev_, nullptr, &n,
                                           physicalDevExts_.data ());
@@ -300,7 +323,14 @@ GPUDevice::init_device_ ()
           devExts.data (),
           &physicalFeats_ };
 
-  return vkCreateDevice (physicalDev_, &devCreateInfo, nullptr, &device_);
+  ret = vkCreateDevice (physicalDev_, &devCreateInfo, nullptr, &device_);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("create device failed: %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
 uint32_t

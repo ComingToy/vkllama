@@ -13,9 +13,9 @@ public:
   UpdateKVCache (GPUDevice *gpu, Command *command,
                  const VkTensor::DType dtype);
 
-  VkResult init () noexcept override;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor cache, VkTensor key_or_value,
+  absl::Status operator() (VkTensor cache, VkTensor key_or_value,
                        uint32_t offset) noexcept;
 
 private:

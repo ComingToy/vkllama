@@ -25,25 +25,27 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const float scale,
 {
 }
 
-VkResult
+absl::Status
 MatMul::init () noexcept
 {
   if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("fp16 is unsupported on device");
     }
 
   Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 8, 16, 1 };
   if (dtype_ == VkTensor::FP16)
     {
-      info = {
-        4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1
-      };
+      info
+          = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1 };
     }
 
   if (weight_.size () > 0 && weight_.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("matmul operator defined as %d dtype but dtype of "
+                           "weight tensor is %d",
+                           int (dtype_), int (weight_.dtype ())));
     }
 
   const uint8_t *pcode = nullptr;
@@ -74,7 +76,8 @@ MatMul::init () noexcept
         }                                                                        \
       else                                                                       \
         {                                                                        \
-          return VK_ERROR_FORMAT_NOT_SUPPORTED;                                  \
+          return absl::InvalidArgumentError (                                    \
+              absl::StrFormat ("%d dtype is unsupported", int (dtype_)));        \
         }                                                                        \
     }                                                                            \
   while (0)
@@ -93,7 +96,8 @@ MatMul::init () noexcept
     }
   else
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "broadcast_type %d is unsupported.", broadcast_type_));
     }
 
   pipeline_.reset (new Pipeline (dev_, pcode, code_size,
@@ -101,21 +105,21 @@ MatMul::init () noexcept
                                  info));
 
   auto ret = pipeline_->init ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   if (weight_.size () == 0)
-    return VK_SUCCESS;
+    return absl::OkStatus ();
 
   ret = pipeline_->update_bindings ({ weight_ }, { 1 });
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t
@@ -124,19 +128,31 @@ MatMul::time () noexcept
   return pipeline_->time ();
 }
 
-VkResult
+absl::Status
 MatMul::operator() (VkTensor a, VkTensor &c) noexcept
 {
   if (weight_.size () == 0 || a.dtype () != weight_.dtype ()
       || a.dtype () != dtype_)
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("matmul op defined with %d dtype but %d given.",
+                           int (dtype_), int (a.dtype ())));
     }
 
-  if ((broadcast_type_ == 0 && weight_.channels () != a.channels ())
-      || (broadcast_type_ == 1 && weight_.channels () != 1))
+  if (broadcast_type_ == 0 && weight_.channels () != a.channels ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "matmul op defined with broadcast_type = %d but weight channels = "
+          "%zu != a.channels = %zu",
+          broadcast_type_, weight_.channels (), a.channels ()));
+    }
+
+  if (broadcast_type_ == 1 && weight_.channels () != 1)
+    {
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("matmul op defined with broadcast_type = %d but "
+                           "weight channels = %zu != 1",
+                           broadcast_type_, weight_.channels ()));
     }
 
   size_t out_h = a.height (),
@@ -145,7 +161,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
                 dev_, dtype_, false);
 
   auto ret = c.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -158,38 +174,50 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
     {
       uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
                groupz = channels;
-      pipeline_->set_group (groupx, groupy, groupz);
+      if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
+        {
+          return ret;
+        }
     }
   else
     {
       uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
                groupz = channels;
-      pipeline_->set_group (groupx, groupy, groupz);
+      if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
+        {
+          return ret;
+        }
     }
 
   ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
 {
   if (b.size () == 0 || a.dtype () != b.dtype () || a.dtype () != dtype_)
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("matmul op defined with %d dtype but inputs "
+                           "a.dtype() = %d, b.dtype() = %d",
+                           int (dtype_), int (a.dtype ()), int (b.dtype ())));
     }
 
   if ((broadcast_type_ == 0 && b.channels () != a.channels ())
       || (broadcast_type_ == 1 && b.channels () != 1))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("matmul defined with %d broadcast_type but "
+                           "a.channels() = %zu, b.channels() = %zu",
+                           broadcast_type_, a.channels (), b.channels ()));
     }
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
@@ -197,7 +225,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
                 dtype_, false);
 
   auto ret = c.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -211,24 +239,30 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
     {
       uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
                groupz = channels;
-      pipeline_->set_group (groupx, groupy, groupz);
+      auto s = pipeline_->set_group (groupx, groupy, groupz);
+      if (!s.ok ())
+        return s;
     }
   else
     {
       uint32_t groupx = (out_w + 31) / 32, groupy = (a.height () + 31) / 32,
                groupz = channels;
-      pipeline_->set_group (groupx, groupy, groupz);
+      auto s = pipeline_->set_group (groupx, groupy, groupz);
+      if (!s.ok ())
+        {
+          return s;
+        }
     }
 
   ret = command_->record_pipeline (*pipeline_, { a, b, c }, constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 }
 

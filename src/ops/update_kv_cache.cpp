@@ -12,7 +12,7 @@ UpdateKVCache::UpdateKVCache (GPUDevice *gpu, Command *command,
 {
 }
 
-VkResult
+absl::Status
 UpdateKVCache::init () noexcept
 {
   const auto *spv_code = dtype_ == VkTensor::FP32
@@ -30,7 +30,7 @@ UpdateKVCache::init () noexcept
   return pipeline_->init ();
 }
 
-VkResult
+absl::Status
 UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
                            const uint32_t offset) noexcept
 {
@@ -38,7 +38,12 @@ UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
       || cache.channels () < key_or_value.channels ()
       || cache.width () != key_or_value.width ())
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (
+          absl::StrFormat ("size of value is larger than cache. value.shape = "
+                           "(%zu, %zu, %zu), cache.shape = (%zu, %zu, %zu)",
+                           key_or_value.channels (), key_or_value.height (),
+                           key_or_value.width (), cache.channels (),
+                           cache.height (), cache.width ()));
     }
 
   ShaderConstants constants
@@ -50,21 +55,21 @@ UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
                  group_y = (key_or_value.height () + 15) / 16,
                  group_z = key_or_value.channels ();
   auto ret = pipeline_->set_group (group_x, group_y, group_z);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = command_->record_pipeline (*pipeline_, { key_or_value, cache },
                                    constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   cache.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   cache.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t

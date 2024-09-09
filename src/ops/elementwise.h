@@ -15,9 +15,9 @@ class ElementWise : public Op
 public:
   ElementWise (GPUDevice *dev, Command *command_, const int type,
                VkTensor::DType dtype = VkTensor::FP32);
-  VkResult operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept;
-  VkResult operator() (VkTensor x, float y, VkTensor &out) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept;
+  absl::Status operator() (VkTensor x, float y, VkTensor &out) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

@@ -10,7 +10,7 @@ Cast::Cast (GPUDevice *gpu, Command *command, const VkTensor::DType from,
 {
 }
 
-VkResult
+absl::Status
 Cast::init () noexcept
 {
   const uint8_t *spv_code = nullptr;
@@ -27,7 +27,8 @@ Cast::init () noexcept
     }
   else
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          "only fp32 -> fp16 and fp16 -> fp32 are supported.");
     }
 
   Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t), 128, 1, 1 };
@@ -42,23 +43,25 @@ Cast::time () noexcept
   return pipeline_->time ();
 }
 
-VkResult
+absl::Status
 Cast::operator() (VkTensor from, VkTensor &to) noexcept
 {
   if (from.dtype () != from_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "operator defined as casting from %d dtype but %d given",
+          int (from_), int (from.dtype ())));
     }
 
   to = VkTensor (from.channels (), from.height (), from.width (), dev_, to_);
   auto ret = to.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = pipeline_->set_group ((from.size () + 127) / 128, 1, 1);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -68,7 +71,7 @@ Cast::operator() (VkTensor from, VkTensor &to) noexcept
   to.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   to.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 }
 

@@ -12,12 +12,12 @@ Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
 {
 }
 
-VkResult
+absl::Status
 Embedding::init () noexcept
 {
   if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("fp16 is unsupported on device.");
     }
 
   Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
@@ -33,7 +33,7 @@ Embedding::init () noexcept
 
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, unk, info));
   auto ret = pipeline_->init ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -41,20 +41,22 @@ Embedding::init () noexcept
   return pipeline_->update_bindings ({ vocab_ }, { 0 });
 }
 
-VkResult
+absl::Status
 Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
 {
-  if (vocab_.channels () != 1 || indices.channels () != 1
-      || indices.dtype () != VkTensor::UINT32 || vocab_.dtype () != dtype_)
+  if (vocab_.channels () != 1 || indices.channels () != 1)
     {
-      return VK_ERROR_UNKNOWN;
+    }
+
+  if (indices.dtype () != VkTensor::UINT32 || vocab_.dtype () != dtype_)
+    {
     }
 
   out = VkTensor (indices.height (), indices.width (), vocab_.width (), dev_,
                   vocab_.dtype ());
   auto ret = out.create ();
 
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -66,14 +68,14 @@ Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
   uint32_t group_x = (indices.width () + 15) / 16,
            group_y = (indices.height () + 15) / 16;
 
-  if ((ret = pipeline_->set_group (group_x, group_y, 1)) != VK_SUCCESS)
+  if (!(ret = pipeline_->set_group (group_x, group_y, 1)).ok ())
     {
       return ret;
     }
 
   ret = command_->record_pipeline (*pipeline_, { indices, out }, { 1, 2 },
                                    constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -81,7 +83,7 @@ Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t

@@ -19,9 +19,9 @@ public:
           const int broadcast_type = 0, const bool transpose_b = false,
           const VkTensor::DType dtype = VkTensor::FP32);
 
-  VkResult operator() (VkTensor a, VkTensor &c) noexcept;
-  VkResult operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor a, VkTensor &c) noexcept;
+  absl::Status operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

@@ -23,23 +23,32 @@ MultiHeadAttentionV2::MultiHeadAttentionV2 (
 {
 }
 
-VkResult
+absl::Status
 MultiHeadAttentionV2::init () noexcept
 {
   if (wk_.dtype () != dtype_ || wq_.dtype () != dtype_
       || wv_.dtype () != dtype_ || wo_.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "dtype of weights error. wk.dtype = %d, wv.dtype = %d, wq.dtype = "
+          "%d, wo.dtype = %d",
+          wk_.dtype (), wq_.dtype (), wv_.dtype (), wo_.dtype ()));
     }
 
   if (wk_.channels () != wq_.channels () || wk_.height () != wq_.height ()
       || wk_.width () != wq_.width () || wq_.channels () != wv_.channels ()
       || wq_.width () != wv_.width () || wq_.height () != wv_.height ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "shape of weights error"
+          "wk.shape = (%zu, %zu, %zu), wq.shape = (%zu, %zu, %zu), wv.shape = "
+          "(%zu, %zu, %zu), wo.shape = (%zu, %zu, %zu)",
+          wk_.channels (), wk_.height (), wk_.width (), wq_.channels (),
+          wq_.height (), wq_.width (), wv_.channels (), wv_.height (),
+          wv_.width (), wo_.channels (), wo_.height (), wo_.width ()));
     }
 
-  VkResult ret = VK_SUCCESS;
+  absl::Status ret;
   matmul_k_ = std::make_unique<MatMul> (dev_, command_, wk_, 1.0, .0, 0, 0,
                                         transposed_weight_, dtype_);
   matmul_q_ = std::make_unique<MatMul> (dev_, command_, wq_, 1.0, .0, 0, 0,
@@ -66,19 +75,17 @@ MultiHeadAttentionV2::init () noexcept
   transpose_v_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
   transpose_heads_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
 
-  if ((ret = matmul_k_->init ()) != VK_SUCCESS
-      || (ret = matmul_q_->init ()) != VK_SUCCESS
-      || (ret = matmul_v_->init ()) != VK_SUCCESS
-      || (ret != matmul_o_->init ()) != VK_SUCCESS
-      || (ret = matmul_qk_->init ()) != VK_SUCCESS
-      || (ret = matmul_weighted_->init ()) != VK_SUCCESS
-      || (ret = rope_->init ()) != VK_SUCCESS
-      || (ret = matmul_attn_score_->init ()) != VK_SUCCESS
-      || (ret = transpose_k_->init ()) != VK_SUCCESS
-      || (ret = transpose_q_->init ()) != VK_SUCCESS
-      || (ret = transpose_v_->init ()) != VK_SUCCESS
-      || (ret = transpose_heads_->init ()) != VK_SUCCESS
-      || (ret = softmax_->init ()) != VK_SUCCESS)
+  if (!(ret = matmul_k_->init ()).ok () || !(ret = matmul_q_->init ()).ok ()
+      || !(ret = matmul_v_->init ()).ok () || !(ret = matmul_o_->init ()).ok ()
+      || !(ret = matmul_qk_->init ()).ok ()
+      || !(ret = matmul_weighted_->init ()).ok ()
+      || !(ret = rope_->init ()).ok ()
+      || !(ret = matmul_attn_score_->init ()).ok ()
+      || !(ret = transpose_k_->init ()).ok ()
+      || !(ret = transpose_q_->init ()).ok ()
+      || !(ret = transpose_v_->init ()).ok ()
+      || !(ret = transpose_heads_->init ()).ok ()
+      || !(ret = softmax_->init ()).ok ())
     {
       return ret;
     }
@@ -90,8 +97,7 @@ MultiHeadAttentionV2::init () noexcept
       vcache_
           = VkTensor (wv_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
 
-      if ((ret = kcache_.create ()) != VK_SUCCESS
-          || (ret = vcache_.create ()) != VK_SUCCESS)
+      if (!(ret = kcache_.create ()).ok () || !(ret = vcache_.create ()).ok ())
         {
           return ret;
         }
@@ -103,41 +109,47 @@ MultiHeadAttentionV2::init () noexcept
 
       kcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
       vcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
-      if ((ret = update_kcache_op_->init ()) != VK_SUCCESS
-          || (ret = update_vcache_op_->init ()) != VK_SUCCESS
-          || (ret = kcache_read_op_->init ()) != VK_SUCCESS
-          || (ret = vcache_read_op_->init ()) != VK_SUCCESS)
+      if (!(ret = update_kcache_op_->init ()).ok ()
+          || !(ret = update_vcache_op_->init ()).ok ()
+          || !(ret = kcache_read_op_->init ()).ok ()
+          || !(ret = vcache_read_op_->init ()).ok ())
         {
           return ret;
         }
     }
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
                                   const size_t offset) noexcept
 {
-  VkResult ret = VK_SUCCESS;
+  absl::Status ret;
 
   if (X.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("multiheadattention op defined with %d dtype but "
+                           "input0's dtype = %d",
+                           int (dtype_), int (X.dtype ())));
     }
 
   if ((!transposed_weight_ && wv_.height () != X.width ())
       || (transposed_weight_ && wv_.width () != X.width ()))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("shape error. wv.shape = (%zu, %zu, %zu), "
+                           "input0.shape = (%zu, %zu, %zu)",
+                           wv_.channels (), wv_.height (), wv_.width (),
+                           X.channels (), X.height (), X.width ()));
     }
 
   tmp_tensors_.clear ();
 
   VkTensor k, q, v;
-  if ((ret = (*matmul_k_) (X, k)) != VK_SUCCESS
-      || (ret = (*matmul_q_) (X, q)) != VK_SUCCESS
-      || (ret = (*matmul_v_) (X, v)) != VK_SUCCESS)
+  if (!(ret = (*matmul_k_) (X, k)).ok () || !(ret = (*matmul_q_) (X, q)).ok ()
+      || !(ret = (*matmul_v_) (X, v)).ok ())
     {
       return ret;
     }
@@ -147,23 +159,33 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (v);
 
   // [seqlen, heads, dim]
-  k.reshape (k.height (), k.width () / dim_, dim_);
-  q.reshape (q.height (), q.width () / dim_, dim_);
-  v.reshape (v.height (), v.width () / dim_, dim_);
+  if (auto ret = k.reshape (k.height (), k.width () / dim_, dim_); !ret.ok ())
+    {
+      return ret;
+    }
+  if (auto ret = q.reshape (q.height (), q.width () / dim_, dim_); !ret.ok ())
+    {
+      return ret;
+    }
+
+  if (auto ret = v.reshape (v.height (), v.width () / dim_, dim_); !ret.ok ())
+    {
+      return ret;
+    }
 
   //[heads, seqlen, dim]
   VkTensor transposed_k, transposed_q, transposed_v;
-  if ((ret = (*transpose_k_) (k, transposed_k)) != VK_SUCCESS)
+  if (!(ret = (*transpose_k_) (k, transposed_k)).ok ())
     {
       return ret;
     }
 
-  if ((ret = (*transpose_q_) (q, transposed_q)) != VK_SUCCESS)
+  if (!(ret = (*transpose_q_) (q, transposed_q)).ok ())
     {
       return ret;
     }
 
-  if ((ret = (*transpose_v_) (v, transposed_v)) != VK_SUCCESS)
+  if (!(ret = (*transpose_v_) (v, transposed_v)).ok ())
     {
       return ret;
     }
@@ -179,13 +201,14 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
       auto &kcache_read_op = *kcache_read_op_;
       auto &vcache_read_op = *vcache_read_op_;
 
-      if ((ret = update_kcache_op (kcache_, transposed_k, (uint32_t)offset))
-          != VK_SUCCESS)
+      if (!(ret = update_kcache_op (kcache_, transposed_k, (uint32_t)offset))
+               .ok ())
         {
           return ret;
         }
 
-      if ((ret = update_vcache_op (vcache_, transposed_v, (uint32_t)offset)))
+      if (!(ret = update_vcache_op (vcache_, transposed_v, (uint32_t)offset))
+               .ok ())
         {
           return ret;
         }
@@ -199,14 +222,14 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 
       ret = kcache_read_op (kcache_, read_offset, read_len, transposed_k);
 
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
 
       ret = vcache_read_op (vcache_, read_offset, read_len, transposed_v);
 
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
@@ -216,8 +239,8 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
     }
 
   VkTensor roped_k, roped_q;
-  if ((ret = (*rope_) (transposed_q, transposed_k, roped_q, roped_k, offset))
-      != VK_SUCCESS)
+  if (!(ret = (*rope_) (transposed_q, transposed_k, roped_q, roped_k, offset))
+           .ok ())
     {
       return ret;
     }
@@ -227,7 +250,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 
   // [heads, seqlen, seqlen]
   VkTensor attn_scores;
-  if ((ret = (*matmul_qk_) (roped_q, roped_k, attn_scores)) != VK_SUCCESS)
+  if (!(ret = (*matmul_qk_) (roped_q, roped_k, attn_scores)).ok ())
     {
       return ret;
     }
@@ -237,9 +260,9 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   // TODO: could be funsed
   VkTensor softmax_attn_scores;
 
-  if ((ret = (*softmax_) (attn_scores, softmax_attn_scores,
-                          attn_scores.width () - attn_scores.height ()))
-      != VK_SUCCESS)
+  if (!(ret = (*softmax_) (attn_scores, softmax_attn_scores,
+                           attn_scores.width () - attn_scores.height ()))
+           .ok ())
     {
       return ret;
     }
@@ -248,8 +271,8 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 
   // [heads, seqlen, dim]
   VkTensor heads;
-  if ((ret = (*matmul_weighted_) (softmax_attn_scores, transposed_v, heads))
-      != VK_SUCCESS)
+  if (!(ret = (*matmul_weighted_) (softmax_attn_scores, transposed_v, heads))
+           .ok ())
     {
       return ret;
     }
@@ -257,22 +280,27 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 
   //[seqlen, heads, dim]
   VkTensor concated;
-  if ((ret = (*transpose_heads_) (heads, concated)) != VK_SUCCESS)
+  if (!(ret = (*transpose_heads_) (heads, concated)).ok ())
     {
       return ret;
     }
 
   //[1, seqlen, heads*dim]
-  concated.reshape (1, concated.channels (),
-                    concated.height () * concated.width ());
-  tmp_tensors_.push_back (concated);
-
-  if ((ret = (*matmul_o_) (concated, out)) != VK_SUCCESS)
+  ret = concated.reshape (1, concated.channels (),
+                          concated.height () * concated.width ());
+  if (!ret.ok ())
     {
       return ret;
     }
 
-  return VK_SUCCESS;
+  tmp_tensors_.push_back (concated);
+
+  if (!(ret = (*matmul_o_) (concated, out)).ok ())
+    {
+      return ret;
+    }
+
+  return absl::OkStatus ();
 }
 
 uint64_t

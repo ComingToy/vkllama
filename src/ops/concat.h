@@ -12,9 +12,9 @@ class Concat : public Op
 public:
   Concat (GPUDevice *gpu, Command *command, const int num, const int axis,
           VkTensor::DType const dtype = VkTensor::FP32);
-  VkResult init () noexcept override;
-  VkResult operator() (std::vector<VkTensor> const &inputs,
-                       VkTensor &output) noexcept;
+  absl::Status init () noexcept override;
+  absl::Status operator() (std::vector<VkTensor> const &inputs,
+                           VkTensor &output) noexcept;
   uint64_t time () noexcept override;
 
 private:

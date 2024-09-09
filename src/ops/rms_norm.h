@@ -12,8 +12,8 @@ public:
   RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
            const float eps = 1e-3,
            const VkTensor::DType dtype = VkTensor::FP32);
-  VkResult operator() (VkTensor a, VkTensor &c) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor a, VkTensor &c) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

@@ -11,7 +11,7 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
 {
 }
 
-VkResult
+absl::Status
 ElementWise::init () noexcept
 {
   Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 128, 1, 1 };
@@ -41,13 +41,14 @@ ElementWise::init () noexcept
     }
   else
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          "fp16 dtype is unsupported on device");
     }
 
   pipeline0_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info));
 
   auto ret = pipeline0_->init ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -66,10 +67,6 @@ ElementWise::init () noexcept
                      ? __get_element_wise_constant_fp16a_comp_spv_size ()
                      : __get_element_wise_constant_fp16_comp_spv_size ();
     }
-  else
-    {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    }
 
   pipeline1_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info1));
   return pipeline1_->init ();
@@ -81,62 +78,69 @@ ElementWise::time () noexcept
   return std::max (pipeline0_->time (), pipeline1_->time ());
 }
 
-VkResult
+absl::Status
 ElementWise::operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept
 {
   if (x.dtype () != y.dtype () || x.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          "elementwise op: x.dtype() != y.dtype()");
     }
 
   if (x.channels () != y.channels () || x.height () != y.height ()
       || x.width () != y.width ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("elementwise op: shape error. shape of x = (%zu, "
+                           "%zu, %zu), y = (%zu, %zu, %zu)",
+                           x.channels (), x.height (), x.width (),
+                           y.channels (), y.height (), y.width ()));
     }
 
   out = VkTensor::like (x);
-  VkResult ret = VK_SUCCESS;
-  if ((ret = out.create ()) != VK_SUCCESS)
+
+  auto ret = absl::OkStatus ();
+  if (!(ret = out.create ()).ok ())
     {
       return ret;
     }
 
   ret = pipeline0_->set_group ((x.size () + 127) / 128, 1, 1);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ShaderConstants constants = { static_cast<int> (x.size ()) };
-  if ((ret = command_->record_pipeline (*pipeline0_, { x, y, out }, constants))
-      != VK_SUCCESS)
+  if (!(ret
+        = command_->record_pipeline (*pipeline0_, { x, y, out }, constants))
+           .ok ())
     {
       return ret;
     }
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
 {
   if (x.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::OkStatus ();
     }
 
   out = VkTensor::like (x);
-  VkResult ret = VK_SUCCESS;
-  if ((ret = out.create ()) != VK_SUCCESS)
+  absl::Status ret;
+  if (!(ret = out.create ()).ok ())
     {
       return ret;
     }
 
   ret = pipeline1_->set_group ((x.size () + 127) / 128, 1, 1);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -153,14 +157,14 @@ ElementWise::operator() (VkTensor x, float y, VkTensor &out) noexcept
       constants.push_back (__fp32_to_fp16 (0)); // padding
     }
   ret = command_->record_pipeline (*pipeline1_, { x, out }, constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 }
 

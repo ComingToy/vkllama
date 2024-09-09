@@ -233,9 +233,9 @@ main (const int argc, const char *argv[])
   vkllama::Model model;
   auto ret = model.init (gguf_kv, tensors);
 
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
-      fprintf (stderr, "failed at init model\n");
+      fprintf (stderr, "failed at init model: %s\n", ret.ToString ().c_str ());
       return -1;
     }
 

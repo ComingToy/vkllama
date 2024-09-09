@@ -29,9 +29,9 @@ public:
                         VkTensor::DType dtype = VkTensor::FP32,
                         const bool use_kvcache = false);
 
-  VkResult operator() (VkTensor X, VkTensor &out,
-                       const size_t offset = 0) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor X, VkTensor &out,
+                           const size_t offset = 0) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

@@ -15,8 +15,8 @@ public:
              VkTensor::DType const dtype = VkTensor::FP32);
 
   uint64_t time () noexcept override;
-  VkResult init () noexcept override;
-  VkResult operator() (VkTensor in, VkTensor &out) noexcept;
+  absl::Status init () noexcept override;
+  absl::Status operator() (VkTensor in, VkTensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

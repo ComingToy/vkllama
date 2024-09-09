@@ -18,13 +18,14 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num,
   axis_ = axis_ < 0 ? 2 : axis_;
 }
 
-VkResult
+absl::Status
 Concat::init () noexcept
 {
   if (axis_ > 2
       || (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ()))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          "fp16 dtype is unsupported on device");
     }
 
   const auto *spv_code = dtype_ == VkTensor::FP32
@@ -46,7 +47,7 @@ Concat::init () noexcept
           = std::make_unique<Pipeline> (dev_, spv_code, spv_size, specs, info);
 
       auto ret = pipeline->init ();
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
@@ -54,22 +55,23 @@ Concat::init () noexcept
     }
 
   pipelines_.swap (pipelines);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Concat::operator() (const std::vector<VkTensor> &inputs,
                     VkTensor &output) noexcept
 {
   if (inputs.size () != num_)
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "operator has %zu inputs but %zu are given", num_, inputs.size ()));
     }
 
   if (std::any_of (inputs.cbegin (), inputs.end (),
                    [this] (auto const &t) { return t.dtype () != dtype_; }))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("dtype of inputs are unsupported.");
     }
 
   if (axis_ == 0
@@ -79,7 +81,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
                                || item.width () != inputs.front ().width ();
                       }))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("inputs shape error on axis 0");
     }
 
   if (axis_ == 1
@@ -89,7 +91,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
                                || inputs.front ().width () != item.width ();
                       }))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("inputs shape error on axis 1");
     }
 
   if (axis_ == 2
@@ -99,7 +101,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
                                || inputs.front ().height () != item.height ();
                       }))
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError ("inputs shape error on axis 2");
     }
 
   auto const &ref = inputs[0];
@@ -124,7 +126,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
 
   output = VkTensor (c, h, w, dev_, dtype_);
   auto ret = output.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -148,7 +150,8 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
         }
       else
         {
-          return VK_ERROR_FORMAT_NOT_SUPPORTED;
+          return absl::InvalidArgumentError (
+              absl::StrFormat ("axis %d is unsupported.", axis_));
         }
     }
 
@@ -164,10 +167,14 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
 
       uint32_t group_x = (inp.width () + 15) / 16,
                group_y = (inp.height () + 15) / 16, group_z = inp.channels ();
-      pipelines_[i]->set_group (group_x, group_y, group_z);
+      auto ret = pipelines_[i]->set_group (group_x, group_y, group_z);
+      if (!ret.ok ())
+        {
+          return ret;
+        }
       ret = command_->record_pipeline (*pipelines_[i], { inp, output },
                                        constants);
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
@@ -175,7 +182,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
 
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t

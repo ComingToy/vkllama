@@ -9,7 +9,7 @@ Slice::Slice (GPUDevice *gpu, Command *command, VkTensor::DType dtype)
 {
 }
 
-VkResult
+absl::Status
 Slice::init () noexcept
 {
   constexpr int binding_count = 9;
@@ -27,7 +27,7 @@ Slice::init () noexcept
   return pipeline_->init ();
 }
 
-VkResult
+absl::Status
 Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
                    const std::array<uint32_t, 3> &extents,
                    VkTensor &out) noexcept
@@ -36,7 +36,10 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
       || starts[1] + extents[1] > in.height ()
       || starts[2] + extents[2] > in.width ())
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "slice starts = (%zu, %zu, %zu) from (%zu, %zu, %zu) shape tensor",
+          size_t (starts[0]), size_t (starts[1]), size_t (starts[2]),
+          in.channels (), in.height (), in.width ()));
     }
 
   ShaderConstants constants = { (uint32_t)in.channels (),
@@ -51,7 +54,7 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
 
   out = VkTensor (extents[0], extents[1], extents[2], dev_, dtype_);
   auto ret = out.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -60,13 +63,13 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
            groupx = (extents[2] + 7) / 8;
 
   ret = pipeline_->set_group (groupx, groupy, groupz);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = command_->record_pipeline (*pipeline_, { in, out }, constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }

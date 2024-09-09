@@ -14,9 +14,10 @@ public:
   Softmax (GPUDevice *dev, Command *command, bool seq_mask = false,
            const float temp = 1.0,
            VkTensor::DType const dtype = VkTensor::FP32);
-  VkResult init () noexcept override;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor a, VkTensor &b, size_t offset = 0) noexcept;
+  absl::Status operator() (VkTensor a, VkTensor &b,
+                           size_t offset = 0) noexcept;
 
 private:
   std::unique_ptr<Pipeline> softmax0_;

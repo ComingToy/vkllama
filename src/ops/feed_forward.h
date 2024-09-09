@@ -17,8 +17,8 @@ public:
   FeedForward (GPUDevice *, Command *, VkTensor, VkTensor, VkTensor,
                const bool transposed_weight = false,
                const VkTensor::DType dtype = VkTensor::FP32);
-  VkResult operator() (VkTensor X, VkTensor &output) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor X, VkTensor &output) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

@@ -15,8 +15,8 @@ public:
   Cast (GPUDevice *dev, Command *command, const VkTensor::DType from,
         const VkTensor::DType to);
 
-  VkResult operator() (VkTensor from, VkTensor &to) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (VkTensor from, VkTensor &to) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:

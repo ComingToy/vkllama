@@ -1,4 +1,5 @@
 #include "tensor.h"
+#include "absl/strings/str_format.h"
 #include "gpu_device.h"
 #include "vk_mem_alloc.h"
 #include <atomic>
@@ -88,7 +89,7 @@ VkTensor::elem_bytes () const
     }
 }
 
-VkResult
+absl::Status
 VkTensor::create ()
 {
   const size_t align = dev_->limits ().nonCoherentAtomSize;
@@ -123,7 +124,8 @@ VkTensor::create ()
                                 &data_, &allocation_, &mem_);
     if (ret != VK_SUCCESS)
       {
-        return ret;
+        return absl::InternalError (
+            absl::StrFormat ("failed at creating vma buffer: %d", int (ret)));
       }
   }
 
@@ -131,7 +133,7 @@ VkTensor::create ()
   status_->access_flags_.store (0);
   status_->pipeline_stage_.store (0);
   status_->ref_.store (1);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 size_t
@@ -207,19 +209,21 @@ VkTensor::size () const
   return c_ * h_ * w_;
 }
 
-VkResult
+absl::Status
 VkTensor::reshape (size_t const c, size_t const h, size_t const w)
 {
   if (c * h * w != c_ * h_ * w_)
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "reshape from (%zu, %zu, %zu) to (%zu, %zu, %zu) error.", c_, h_, w_,
+          c, h, w));
     }
 
   c_ = c;
   h_ = h;
   w_ = w;
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 VkBuffer &
@@ -228,32 +232,48 @@ VkTensor::data ()
   return data_;
 }
 
-VkResult
+absl::Status
 VkTensor::flush ()
 {
   if (!visable_)
     {
-      return VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS;
+      return absl::UnimplementedError (
+          absl::StrFormat ("cannot flush to invisable tensor"));
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
                                 mem_.deviceMemory, mem_.offset, mem_.size };
 
-  return vkFlushMappedMemoryRanges (dev_->device (), 1, &range);
+  auto ret = vkFlushMappedMemoryRanges (dev_->device (), 1, &range);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("failed at flushing to tensor %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 VkTensor::invalid ()
 {
   if (!visable_)
     {
-      return VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS;
+      return absl::UnimplementedError (
+          absl::StrFormat ("cannot invalid an invisable tensor"));
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
                                 mem_.deviceMemory, mem_.offset, mem_.size };
 
-  return vkInvalidateMappedMemoryRanges (dev_->device (), 1, &range);
+  auto ret = vkInvalidateMappedMemoryRanges (dev_->device (), 1, &range);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (absl::StrFormat (
+          "failed at invaliding tensor memory, ret = %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
 void

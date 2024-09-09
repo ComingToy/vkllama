@@ -13,9 +13,9 @@ public:
   Embedding (GPUDevice *dev, Command *, VkTensor vocab, const uint32_t UNK,
              VkTensor::DType dtype = VkTensor::FP32);
 
-  VkResult init () noexcept override;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor indices, VkTensor &out) noexcept;
+  absl::Status operator() (VkTensor indices, VkTensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_TENSOR__
 #define __VKLLAMA_TENSOR__
 
+#include "absl/status/status.h"
 #include "gpu_device.h"
 #include "src/core/float.h"
 #include <atomic>
@@ -52,7 +53,7 @@ public:
   size_t width () const;
   size_t size () const;
 
-  VkResult reshape (size_t const c, size_t const h, size_t const w);
+  absl::Status reshape (size_t const c, size_t const h, size_t const w);
   VkAccessFlags access_flags () const;
   VkPipelineStageFlags pipeline_stage () const;
   void set_access_flags (VkAccessFlags access_flags);
@@ -60,13 +61,13 @@ public:
 
   VkBuffer &data ();
 
-  VkResult create ();
+  absl::Status create ();
   size_t bytes () const;
   bool visable () const;
   DType dtype () const;
   size_t elem_bytes () const;
-  VkResult flush ();
-  VkResult invalid ();
+  absl::Status flush ();
+  absl::Status invalid ();
 
   void *host ();
 

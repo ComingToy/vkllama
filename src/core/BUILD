@@ -13,6 +13,7 @@ cc_library(
     deps = [
 		"//vulkan_rules:vulkan_cc_library",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
 		"@VulkanMemoryAllocator//:vma",
 	],
     copts = select({
