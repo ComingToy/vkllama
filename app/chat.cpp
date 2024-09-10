@@ -289,9 +289,16 @@ start_sess (const Params &params, vkllama::Model &model,
                         [] (auto v) { return (uint32_t)v; });
 
         auto logits = model (inp, sess.offset);
-        auto dim = logits.size () / inp.size ();
+        if (!logits.ok ())
+          {
+            std::cerr << "model infer failed: " << logits.status ()
+                      << std::endl;
+            return -1;
+          }
+
+        auto dim = logits->size () / inp.size ();
         next_token_id
-            = sampler.sample (logits.data () + logits.size () - dim, dim);
+            = sampler.sample (logits->data () + logits->size () - dim, dim);
         sess.offset += inp.size ();
       }
 
@@ -340,7 +347,7 @@ start_sess (const Params &params, vkllama::Model &model,
 #endif
 
           auto logits = model ({ (uint32_t)next_token_id }, sess.offset);
-          next_token_id = sampler.sample (logits.data (), logits.size ());
+          next_token_id = sampler.sample (logits->data (), logits->size ());
           sess.offset += 1;
           sess.toks.push_back (next_token_id);
         }

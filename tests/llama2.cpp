@@ -252,12 +252,18 @@ main (const int argc, const char *argv[])
 
       auto t0 = std::chrono::high_resolution_clock::now ();
       auto init_out = model (prompt_inp, 0);
+      if (!init_out.ok ())
+        {
+          std::cerr << "model infer failed: " << init_out.status ()
+                    << std::endl;
+          return -1;
+        }
       auto t1 = std::chrono::high_resolution_clock::now ();
-      size_t candidate_size = init_out.size () / prompt_inp.size ();
+      size_t candidate_size = init_out->size () / prompt_inp.size ();
 
       std::vector<int> toks (prompt);
 
-      toks.push_back (samplers->sample (init_out.data () + init_out.size ()
+      toks.push_back (samplers->sample (init_out->data () + init_out->size ()
                                             - candidate_size,
                                         candidate_size));
 
@@ -275,7 +281,12 @@ main (const int argc, const char *argv[])
       for (int i = 1; i < 8192; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size ());
-          toks.push_back (samplers->sample (output.data (), output.size ()));
+          if (!output.ok ())
+            {
+              std::cerr << "model infer failed: " << output.status ()
+                        << std::endl;
+            }
+          toks.push_back (samplers->sample (output->data (), output->size ()));
 
           auto piece = sp.IdToPiece (toks.back ());
 

@@ -7,6 +7,7 @@ extern "C"{
 #include "gguflib.h"
 }
 // clang-format on
+#include "absl/status/statusor.h"
 #include "src/core/command.h"
 #include "src/core/float.h"
 #include "src/core/tensor.h"
@@ -56,14 +57,14 @@ public:
     return absl::OkStatus ();
   }
 
-  VkTensor
+  absl::StatusOr<VkTensor>
   operator() (VkTensor toks)
   {
     VkTensor out;
     auto ret = embedding_op_->operator() (toks, out);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding embedding op");
+        return ret;
       }
 
     return out;
@@ -155,44 +156,44 @@ public:
     return absl::OkStatus ();
   }
 
-  VkTensor
+  absl::StatusOr<VkTensor>
   operator() (VkTensor in, const size_t offset)
   {
     auto ret = norm_op_->operator() (in, normed_);
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     ret = attn_op_->operator() (normed_, transformed_, offset);
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     ret = add_op_->operator() (transformed_, in, added_);
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     ret = norm_op2_->operator() (added_, normed2_);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding RMSNorm op");
+        return ret;
       }
 
     VkTensor out;
     ret = feedforward_op_->operator() (normed2_, feed_);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding FeedForward op");
+        return ret;
       }
 
     ret = add_op2_->operator() (feed_, added_, out);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding add op");
+        return ret;
       }
 
     return out;
@@ -266,25 +267,25 @@ public:
     return argmax_op_->init ();
   }
 
-  VkTensor
+  absl::StatusOr<VkTensor>
   operator() (VkTensor in)
   {
     auto ret = norm_op_->operator() (in, norm_output_);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding rms norm");
+        return ret;
       }
 
     ret = matmul_op_->operator() (norm_output_, matmul_output_);
     if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding MatMul op");
+        return ret;
       }
 
     VkTensor out;
     if (!(*cast_op_) (matmul_output_, out).ok ())
       {
-        throw std::runtime_error ("failed at forwarding cast");
+        return ret;
       }
 
     return out;
@@ -683,7 +684,7 @@ public:
     return absl::OkStatus ();
   }
 
-  std::vector<float>
+  absl::StatusOr<std::vector<float> >
   operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
@@ -705,20 +706,24 @@ public:
         throw std::runtime_error (ret.ToString ());
       }
 
-    VkTensor X = (*input_layer_) (vktoks);
+    auto X = (*input_layer_) (vktoks);
+    if (!X.ok ())
+      {
+        return X.status ();
+      }
 
     if (auto ret = input_command_->end (); !ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     if (auto ret = input_command_->submit (); !ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     std::vector<VkTensor> tmps;
-    tmps.push_back (X);
+    tmps.push_back (*X);
 
     for (int i = 0; i < blocks_.size (); ++i)
       {
@@ -730,9 +735,13 @@ public:
           }
 
         auto *block = blocks_[i];
-        X = (*block) (X, offset);
+        X = (*block) (*X, offset);
+        if (!X.ok ())
+          {
+            return X.status ();
+          }
 
-        tmps.push_back (X);
+        tmps.push_back (*X);
 
         if (auto ret = command->end (); !ret.ok ())
           {
@@ -750,35 +759,35 @@ public:
         throw std::runtime_error (ret.ToString ());
       }
 
-    VkTensor output = (*output_layer_) (X);
+    auto output = (*output_layer_) (*X);
 
     std::vector<float> buf_logits;
-    buf_logits.resize (output.size ());
+    buf_logits.resize (output->size ());
 
-    auto ret = output_command_->download (output, buf_logits.data (),
+    auto ret = output_command_->download (*output, buf_logits.data (),
                                           buf_logits.size ());
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     ret = output_command_->end ();
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     ret = output_command_->submit ();
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     auto t1 = std::chrono::high_resolution_clock::now ();
     ret = input_command_->wait ();
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
     for (auto *c : block_commands_)
@@ -786,14 +795,14 @@ public:
         ret = c->wait ();
         if (!ret.ok ())
           {
-            throw std::runtime_error (ret.ToString ());
+            return ret;
           }
       }
 
     ret = output_command_->wait ();
     if (!ret.ok ())
       {
-        throw std::runtime_error (ret.ToString ());
+        return ret;
       }
 
 #if __VKLLAMA_LOG_COST
