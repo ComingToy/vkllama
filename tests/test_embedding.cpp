@@ -105,15 +105,15 @@ TEST_P (TestEmbedding, test_embedding)
   ASSERT_EQ (command_->end (), absl::OkStatus ());
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ());
 
-  Tensor<2> eigen_vocab_tensor
+  _Tensor<float, 2> eigen_vocab_tensor
       = TensorMap<2> (vocab_buf.data (), params.VH, params.VW);
   _Tensor<uint32_t, 2> eigen_indices_tensor
       = _TensorMap<uint32_t, 2> (indices->second.data (), params.H, params.W);
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       vk_output_buf.data (), (Eigen::Index)vk_output.channels (),
       (Eigen::Index)vk_output.height (), (Eigen::Index)vk_output.width ());
-  Tensor<3> eigen_output_tensor (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> eigen_output_tensor (vk_output_tensor.dimensions ());
 
   for (int i = 0; i < eigen_output_tensor.dimension (0); ++i)
     {
@@ -145,7 +145,7 @@ TEST_P (TestEmbedding, test_embedding)
     }
 #endif
 
-  Tensor<3> err (eigen_output_tensor.dimensions ());
+  _Tensor<float, 3> err (eigen_output_tensor.dimensions ());
   err.setConstant (1e-2);
 
   _Tensor<int, 0> diff

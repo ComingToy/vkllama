@@ -115,7 +115,7 @@ TEST_P (TestConcat, test_concat)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  std::vector<Tensor<3> > input_eigen_tensors (input_tensors.size ());
+  std::vector<_Tensor<float, 3> > input_eigen_tensors (input_tensors.size ());
   for (int i = 0; i < input_eigen_tensors.size (); ++i)
     {
       auto const &t = input_tensors[i];
@@ -124,8 +124,8 @@ TEST_P (TestConcat, test_concat)
                           (Eigen::Index)t.height (), (Eigen::Index)t.width ());
     }
 
-  Tensor<3> tmp = input_eigen_tensors[0];
-  Tensor<3> eigen_output_tensor;
+  _Tensor<float, 3> tmp = input_eigen_tensors[0];
+  _Tensor<float, 3> eigen_output_tensor;
   for (int i = 1; i < input_eigen_tensors.size (); ++i)
     {
       eigen_output_tensor
@@ -133,13 +133,13 @@ TEST_P (TestConcat, test_concat)
       tmp = eigen_output_tensor;
     }
 
-  // Tensor<3> eigen_output_tensor = concat_expr;
+  // _Tensor<float, 3> eigen_output_tensor = concat_expr;
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - eigen_output_tensor).abs () > err)

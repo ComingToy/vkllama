@@ -26,7 +26,7 @@ struct TestMultiheadattnParams
   const int MAXLEN;
 };
 
-static std::pair<Tensor<3>, Tensor<3> >
+static std::pair<_Tensor<float, 3>, _Tensor<float, 3> >
 precompute_freq (const int maxlen, const int dim)
 {
   std::vector<float> freq;
@@ -48,30 +48,30 @@ precompute_freq (const int maxlen, const int dim)
         }
     }
 
-  Tensor<3> freqc_tensor = TensorMap<3> (freqc.data (), 1, maxlen, dim / 2);
-  Tensor<3> freqs_tensor = TensorMap<3> (freqs.data (), 1, maxlen, dim / 2);
+  _Tensor<float, 3> freqc_tensor = TensorMap<3> (freqc.data (), 1, maxlen, dim / 2);
+  _Tensor<float, 3> freqs_tensor = TensorMap<3> (freqs.data (), 1, maxlen, dim / 2);
 
   return { freqc_tensor, freqs_tensor };
 }
 
-static std::pair<Tensor<3>, Tensor<3> >
-apply_rope (Tensor<3> const &query, Tensor<3> const &key,
-            Tensor<3> const &freqc, Tensor<3> const &freqs)
+static std::pair<_Tensor<float, 3>, _Tensor<float, 3> >
+apply_rope (_Tensor<float, 3> const &query, _Tensor<float, 3> const &key,
+            _Tensor<float, 3> const &freqc, _Tensor<float, 3> const &freqs)
 {
   auto _apply_rope
-      = [] (Tensor<3> input_x, Tensor<3> input_freqc, Tensor<3> input_freqs)
+      = [] (_Tensor<float, 3> input_x, _Tensor<float, 3> input_freqc, _Tensor<float, 3> input_freqs)
 
   {
     // apply rope to query
     Eigen::array<Eigen::Index, 4> dims
         = { input_x.dimension (0), input_x.dimension (1),
             input_x.dimension (2) / 2, (Eigen::Index)2 };
-    Tensor<4> query_host = input_x.reshape (dims);
-    Tensor<3> query_host_r = query_host.chip<3> (0);
-    Tensor<3> query_host_i = query_host.chip<3> (1);
+    _Tensor<float, 4> query_host = input_x.reshape (dims);
+    _Tensor<float, 3> query_host_r = query_host.chip<3> (0);
+    _Tensor<float, 3> query_host_i = query_host.chip<3> (1);
 
-    Tensor<3> query_host_or (query_host_r.dimensions ());
-    Tensor<3> query_host_oi (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_or (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_oi (query_host_r.dimensions ());
     for (int i = 0; i < query_host_or.dimension (0); ++i)
       {
         query_host_or.chip<0> (i)
@@ -92,12 +92,12 @@ apply_rope (Tensor<3> const &query, Tensor<3> const &key,
     Eigen::array<Eigen::Index, 4> out_dims
         = { query_host_or.dimension (0), query_host_or.dimension (1),
             query_host_or.dimension (2), (Eigen::Index)1 };
-    Tensor<4> reshaped_query_host_or = query_host_or.reshape (out_dims);
-    Tensor<4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
-    Tensor<4> output
+    _Tensor<float, 4> reshaped_query_host_or = query_host_or.reshape (out_dims);
+    _Tensor<float, 4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
+    _Tensor<float, 4> output
         = reshaped_query_host_or.concatenate (reshaped_query_host_oi, 3);
 
-    Tensor<3> output_ = output.reshape (input_x.dimensions ());
+    _Tensor<float, 3> output_ = output.reshape (input_x.dimensions ());
     return output_;
   };
 
@@ -188,22 +188,22 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
   // std::cerr << "mean of vk_output_tensor: " << vk_output_tensor.mean ()
   //           << std::endl;
 
-  // std::vector<Tensor<3> > K (wk.size ()), Q (wq.size ()), V (wv.size ());
-  Tensor<3> input_tensor = TensorMap<3> (
+  // std::vector<_Tensor<float, 3> > K (wk.size ()), Q (wq.size ()), V (wv.size ());
+  _Tensor<float, 3> input_tensor = TensorMap<3> (
       input0->second.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
   auto [freqc, freqs] = precompute_freq (input0->first.height (), params.HDIM);
-  Tensor<3> eigen_output_tensor;
+  _Tensor<float, 3> eigen_output_tensor;
   {
-    std::vector<Tensor<3> > heads;
+    std::vector<_Tensor<float, 3> > heads;
     for (int i = 0; i < params.HEADS; ++i)
       {
         auto k = TensorMap<3> (
@@ -228,11 +228,11 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
             = { Eigen::IndexPair<int> (1, 0) };
 
         Eigen::array<Eigen::Index, 3> trans = { 0, 2, 1 };
-        Tensor<3> rotated_transpoed_k = rotated_k.shuffle (trans);
+        _Tensor<float, 3> rotated_transpoed_k = rotated_k.shuffle (trans);
 
         float scale = 1.0f / std::sqrt (static_cast<float> (Q.dimension (2)));
 
-        Tensor<3> attn_scores (V.dimension (0), V.dimension (1),
+        _Tensor<float, 3> attn_scores (V.dimension (0), V.dimension (1),
                                V.dimension (1));
 
         for (int c = 0; c < V.dimension (0); ++c)
@@ -243,10 +243,10 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
                   * scale;
           }
 
-        Tensor<3> normalized_attn_scores (attn_scores.dimensions ());
+        _Tensor<float, 3> normalized_attn_scores (attn_scores.dimensions ());
         {
-          Tensor<3> exps;
-          Tensor<3> m;
+          _Tensor<float, 3> exps;
+          _Tensor<float, 3> m;
           Eigen::array<Eigen::Index, 1> max_dims = { 2 };
           Eigen::array<Eigen::Index, 3> bias_dims
               = { attn_scores.dimension (0), attn_scores.dimension (1), 1 };
@@ -261,7 +261,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
           normalized_attn_scores = exps / m;
         }
 
-        Tensor<3> head (V.dimensions ());
+        _Tensor<float, 3> head (V.dimensions ());
         {
           for (int c = 0; c < normalized_attn_scores.dimension (0); ++c)
             {
@@ -284,15 +284,15 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
 #endif
       }
 
-    Tensor<3> tmp = heads[0];
-    Tensor<3> concated_head;
+    _Tensor<float, 3> tmp = heads[0];
+    _Tensor<float, 3> concated_head;
     for (int i = 1; i < heads.size (); ++i)
       {
         concated_head = tmp.concatenate (heads[i], 2);
         tmp = concated_head;
       }
 
-    Tensor<3> wo_tensor
+    _Tensor<float, 3> wo_tensor
         = TensorMap<3> (wo_bufs.data (), (Eigen::Index)wo.channels (),
                         (Eigen::Index)wo.height (), (Eigen::Index)wo.width ());
 
@@ -304,7 +304,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
   Tensor<0> m0 = vk_output_tensor.mean ();
   Tensor<0> m1 = eigen_output_tensor.mean ();
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-3);
   Tensor<0> diff = ((vk_output_tensor - eigen_output_tensor).abs () > err)
                        .cast<float> ()

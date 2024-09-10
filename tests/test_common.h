@@ -75,18 +75,15 @@ template <typename Scalar, int NumIndices_ = 3>
 using _TensorMap
     = Eigen::TensorMap<Eigen::Tensor<Scalar, NumIndices_, Eigen::RowMajor> >;
 
-template <int NumIndices_>
-using Tensor = Eigen::Tensor<float, NumIndices_, Eigen::RowMajor>;
-
 template <typename Scalar, int NumIndices_>
 using _Tensor = Eigen::Tensor<Scalar, NumIndices_, Eigen::RowMajor>;
 
-inline Tensor<3>
-eigen_tensor_matmul (Tensor<3> lhs, Tensor<3> rhs_, const int broadcast_type,
+inline _Tensor<float, 3>
+eigen_tensor_matmul (_Tensor<float, 3> lhs, _Tensor<float, 3> rhs_, const int broadcast_type,
                      const bool transpose_b = false)
 {
 
-  Tensor<3> rhs;
+  _Tensor<float, 3> rhs;
 
   if (transpose_b)
     {
@@ -98,7 +95,7 @@ eigen_tensor_matmul (Tensor<3> lhs, Tensor<3> rhs_, const int broadcast_type,
       rhs = rhs_;
     }
 
-  Tensor<3> eigen_output (lhs.dimension (0), lhs.dimension (1),
+  _Tensor<float, 3> eigen_output (lhs.dimension (0), lhs.dimension (1),
                           rhs.dimension (2));
   Eigen::array<Eigen::IndexPair<int>, 1> dims
       = { Eigen::IndexPair<int> (1, 0) };

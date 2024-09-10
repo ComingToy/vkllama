@@ -105,17 +105,17 @@ TEST_P (TestTranspose, test_transpose)
   ASSERT_EQ (command_->end (), absl::OkStatus ());
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ());
 
-  Tensor<3> input_tensor
+  _Tensor<float, 3> input_tensor
       = TensorMap<3> (input_buf.data (), (Eigen::Index)params.C,
                       (Eigen::Index)params.H, (Eigen::Index)params.W);
 
   Eigen::array<Eigen::Index, 3> shuffle = { 1, 0, 2 };
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output_fp32.channels (),
       (Eigen::Index)output_fp32.height (), (Eigen::Index)output_fp32.width ());
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
 
   if (params.dtype)

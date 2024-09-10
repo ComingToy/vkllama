@@ -97,11 +97,11 @@ TEST_P (TestSlice, test_slice)
   ASSERT_EQ (command_->submit (), absl::OkStatus ());
   ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)out_fp32.channels (),
       (Eigen::Index)out_fp32.height (), (Eigen::Index)out_fp32.width ());
 
-  Tensor<3> input_eigen_tensor = TensorMap<3> (
+  _Tensor<float, 3> input_eigen_tensor = TensorMap<3> (
       input0->second.data (), (Eigen::Index)params.shape.C,
       (Eigen::Index)params.shape.H, (Eigen::Index)params.shape.W);
 
@@ -110,7 +110,7 @@ TEST_P (TestSlice, test_slice)
   Eigen::array<Eigen::Index, 3> extents
       = { params.extents[0], params.extents[1], params.extents[2] };
 
-  Tensor<3> output_tensor;
+  _Tensor<float, 3> output_tensor;
   if (params.dtype)
     {
       output_tensor = input_eigen_tensor.cast<Eigen::half> ()
@@ -122,7 +122,7 @@ TEST_P (TestSlice, test_slice)
       output_tensor = input_eigen_tensor.slice (starts, extents);
     }
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();

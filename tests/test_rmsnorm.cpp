@@ -105,16 +105,16 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> input_tensor0 = TensorMap<3> (
+  _Tensor<float, 3> input_tensor0 = TensorMap<3> (
       input0_buf.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
-  Tensor<3> input_tensor1 = TensorMap<3> (
+  _Tensor<float, 3> input_tensor1 = TensorMap<3> (
       input1_buf.data (), (Eigen::Index)input1->first.channels (),
       (Eigen::Index)input1->first.height (),
       (Eigen::Index)input1->first.width ());
@@ -127,7 +127,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   Eigen::array<Eigen::Index, 3> weight_broadcasts
       = { input_tensor0.dimension (0), input_tensor0.dimension (1), 1 };
 
-  Tensor<3> eigen_output_tensor
+  _Tensor<float, 3> eigen_output_tensor
       = (input_tensor0.pow (2.0f).mean (mean_dims) + 1e-3f)
             .rsqrt ()
             .reshape (dims)
@@ -136,7 +136,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   // std::cerr << "input tensor: " << input_tensor0 << std::endl
   //           << "vk output tensor: " << vk_output_tensor << std::endl
   //           << "eigen output tensor: " << eigen_output_tensor << std::endl;
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-3);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - eigen_output_tensor).abs () > err)

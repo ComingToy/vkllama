@@ -105,19 +105,19 @@ TEST_P (TestSoftmax, test_softmax)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> input_tensor = TensorMap<3> (
+  _Tensor<float, 3> input_tensor = TensorMap<3> (
       input0_buf.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
-  Tensor<3> output_tensor (input_tensor.dimensions ());
+  _Tensor<float, 3> output_tensor (input_tensor.dimensions ());
   Eigen::array<Eigen::Index, 1> dims = { 2 };
 
-  Tensor<3> exps;
-  Tensor<3> m;
+  _Tensor<float, 3> exps;
+  _Tensor<float, 3> m;
   {
     Eigen::array<Eigen::Index, 3> bias_dims
         = { input_tensor.dimension (0), input_tensor.dimension (1), 1 };
@@ -135,7 +135,7 @@ TEST_P (TestSoftmax, test_softmax)
   //           << "eigen output tensor: " << output_tensor << std::endl
   //           << "vk output tensor: " << vk_output_tensor << std::endl;
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-2);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();

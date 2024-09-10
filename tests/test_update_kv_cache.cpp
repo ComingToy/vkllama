@@ -93,7 +93,7 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   ASSERT_EQ (command_->submit (), absl::OkStatus ());
   ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  Tensor<3> vk_output = TensorMap<3> (
+  _Tensor<float, 3> vk_output = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output_fp32.channels (),
       (Eigen::Index)output_fp32.height (), (Eigen::Index)output_fp32.width ());
 
@@ -114,7 +114,7 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   //           << "cache: " << vk_output << std::endl
   //           << "cache eigen: " << cache_eigen_tensor << std::endl;
 
-  Tensor<3> err (vk_output.dimensions ());
+  _Tensor<float, 3> err (vk_output.dimensions ());
   err.setConstant (1e-2);
 
   _Tensor<int, 0> diff

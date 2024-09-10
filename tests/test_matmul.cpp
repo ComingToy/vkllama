@@ -169,15 +169,15 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   // eigen matmul
   using TensorMap
       = Eigen::TensorMap<Eigen::Tensor<float, 3, Eigen::RowMajor> >;
-  Tensor<3> in0_tensor
+  _Tensor<float, 3> in0_tensor
       = TensorMap (input0_buf.data (), (Eigen::Index)input0->first.channels (),
                    (Eigen::Index)input0->first.height (),
                    (Eigen::Index)input0->first.width ());
-  Tensor<3> in1_tmp
+  _Tensor<float, 3> in1_tmp
       = TensorMap (input1_buf.data (), (Eigen::Index)input1->first.channels (),
                    (Eigen::Index)input1->first.height (),
                    (Eigen::Index)input1->first.width ());
-  Tensor<3> in1_tensor;
+  _Tensor<float, 3> in1_tensor;
 
   if (params.transpose_b)
     {
@@ -223,7 +223,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> err (eigen_output.dimensions ());
+  _Tensor<float, 3> err (eigen_output.dimensions ());
   err.setConstant (1e-2);
   _Tensor<int, 0> diff
       = ((eigen_output - output_mapped).abs () > err).cast<int> ().sum ();

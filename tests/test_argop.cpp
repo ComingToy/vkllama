@@ -115,7 +115,7 @@ TEST_P (TestArgOp, test_argop)
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height ());
 
-  Tensor<3> input0_tensor = TensorMap<3> (
+  _Tensor<float, 3> input0_tensor = TensorMap<3> (
       input_buf.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());

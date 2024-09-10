@@ -107,16 +107,16 @@ TEST_P (TestReduce, test_reduce)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  Tensor<2> vk_output_tensor
+  _Tensor<float, 2> vk_output_tensor
       = TensorMap<2> (output_buf.data (), (Eigen::Index)output.channels (),
                       (Eigen::Index)output.height ());
 
-  Tensor<3> input0_tensor = TensorMap<3> (
+  _Tensor<float, 3> input0_tensor = TensorMap<3> (
       input0_buf.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
-  Tensor<2> output_tensor;
+  _Tensor<float, 2> output_tensor;
   Eigen::array<Eigen::Index, 1> dims = { 2 };
   if (op_type == 0)
     {
@@ -139,7 +139,7 @@ TEST_P (TestReduce, test_reduce)
   //           << "vulkan output: " << vk_output_tensor << std::endl
   //           << "host output: " << output_tensor << std::endl;
 
-  Tensor<2> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 2> err (vk_output_tensor.dimensions ());
   err.setConstant (5e-2);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();

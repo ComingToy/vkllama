@@ -194,20 +194,20 @@ TEST_P (TestRope, test_rope)
   auto input_freqs_host = TensorMap<3> (freqs_buf.data (), (Eigen::Index)1,
                                         params.MAXLEN, (Eigen::Index)w);
 
-  auto _apply_rope = [params] (Tensor<3> input_x, Tensor<3> input_freqc,
-                               Tensor<3> input_freqs)
+  auto _apply_rope = [params] (_Tensor<float, 3> input_x, _Tensor<float, 3> input_freqc,
+                               _Tensor<float, 3> input_freqs)
 
   {
     // apply rope to query
     Eigen::array<Eigen::Index, 4> dims
         = { input_x.dimension (0), input_x.dimension (1),
             input_x.dimension (2) / 2, (Eigen::Index)2 };
-    Tensor<4> query_host = input_x.reshape (dims);
-    Tensor<3> query_host_r = query_host.chip<3> (0);
-    Tensor<3> query_host_i = query_host.chip<3> (1);
+    _Tensor<float, 4> query_host = input_x.reshape (dims);
+    _Tensor<float, 3> query_host_r = query_host.chip<3> (0);
+    _Tensor<float, 3> query_host_i = query_host.chip<3> (1);
 
-    Tensor<3> query_host_or (query_host_r.dimensions ());
-    Tensor<3> query_host_oi (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_or (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_oi (query_host_r.dimensions ());
 
     Eigen::array<Eigen::Index, 2> starts = { 0, 0 };
     Eigen::array<Eigen::Index, 2> sizes
@@ -236,12 +236,12 @@ TEST_P (TestRope, test_rope)
     Eigen::array<Eigen::Index, 4> out_dims
         = { query_host_or.dimension (0), query_host_or.dimension (1),
             query_host_or.dimension (2), (Eigen::Index)1 };
-    Tensor<4> reshaped_query_host_or = query_host_or.reshape (out_dims);
-    Tensor<4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
-    Tensor<4> output
+    _Tensor<float, 4> reshaped_query_host_or = query_host_or.reshape (out_dims);
+    _Tensor<float, 4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
+    _Tensor<float, 4> output
         = reshaped_query_host_or.concatenate (reshaped_query_host_oi, 3);
 
-    Tensor<3> output_ = output.reshape (input_x.dimensions ());
+    _Tensor<float, 3> output_ = output.reshape (input_x.dimensions ());
     return output_;
   };
 
@@ -274,7 +274,7 @@ TEST_P (TestRope, test_rope)
     }
 #endif
 
-  Tensor<3> err (rope_output_query.dimensions ());
+  _Tensor<float, 3> err (rope_output_query.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
 
   _Tensor<int, 0> diff
