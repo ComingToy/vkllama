@@ -48,7 +48,8 @@ public:
 TEST_P (TestElementwise, test_elementwise)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begining commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begining commands";
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   auto input1
@@ -60,20 +61,22 @@ TEST_P (TestElementwise, test_elementwise)
   Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
   Cast cast_input_op1 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  ASSERT_EQ (cast_input_op0.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
+  ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
 
   if (params.dtype == 1)
     {
-      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16),
+                 absl::OkStatus ());
     }
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
                               params.dtype == 0 ? VkTensor::FP32
                                                 : VkTensor::FP16);
-  ASSERT_EQ (elementwise_op.init (), VK_SUCCESS)
+  ASSERT_EQ (elementwise_op.init (), absl::OkStatus ())
       << "failed at init elementwise op";
 
   VkTensor out;
@@ -82,12 +85,13 @@ TEST_P (TestElementwise, test_elementwise)
     {
       if (params.constant_b)
         {
-          ASSERT_EQ (elementwise_op (input0->first, alpha, out), VK_SUCCESS);
+          ASSERT_EQ (elementwise_op (input0->first, alpha, out),
+                     absl::OkStatus ());
         }
       else
         {
           ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
     }
   else
@@ -95,24 +99,25 @@ TEST_P (TestElementwise, test_elementwise)
       if (params.constant_b)
         {
           ASSERT_EQ (elementwise_op (input0_fp16, alpha, out_fp16),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
       else
         {
           ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out_fp16),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
 
-      ASSERT_EQ (cast_output_op (out_fp16, out), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op (out_fp16, out), absl::OkStatus ());
     }
 
   std::vector<float> output_buf (out.size ());
   ASSERT_EQ (command_->download (out, output_buf.data (), output_buf.size ()),
-             VK_SUCCESS)
+             absl::OkStatus ())
       << "failed at download output tensor";
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at edndding commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ())
+      << "failed at edndding commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submiting commands";
 
   Tensor<3> vk_output_tensor

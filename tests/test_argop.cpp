@@ -45,7 +45,7 @@ public:
 
 TEST_P (TestArgOp, test_argop)
 {
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
   const auto params = GetParam ();
   const auto op_type = params.op_type;
 
@@ -64,13 +64,14 @@ TEST_P (TestArgOp, test_argop)
   std::vector<float> input_buf (input0->first.size ());
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input_op0.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1 (input0_fp16, input0_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1 (input0_fp16, input0_fp32), absl::OkStatus ());
       ASSERT_EQ (command_->download (input0_fp32, input_buf.data (),
                                      input_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -79,35 +80,35 @@ TEST_P (TestArgOp, test_argop)
 
   if (op_type == 0)
     {
-      ASSERT_EQ (argmax.init (), VK_SUCCESS);
+      ASSERT_EQ (argmax.init (), absl::OkStatus ());
       if (params.dtype)
         {
-          ASSERT_EQ (argmax (input0_fp16, output), VK_SUCCESS);
+          ASSERT_EQ (argmax (input0_fp16, output), absl::OkStatus ());
         }
       else
         {
-          ASSERT_EQ (argmax (input0->first, output), VK_SUCCESS);
+          ASSERT_EQ (argmax (input0->first, output), absl::OkStatus ());
         }
     }
   else if (op_type == 1)
     {
-      ASSERT_EQ (argmin.init (), VK_SUCCESS);
+      ASSERT_EQ (argmin.init (), absl::OkStatus ());
       if (params.dtype)
         {
-          ASSERT_EQ (argmin (input0_fp16, output), VK_SUCCESS);
+          ASSERT_EQ (argmin (input0_fp16, output), absl::OkStatus ());
         }
       else
         {
-          ASSERT_EQ (argmin (input0->first, output), VK_SUCCESS);
+          ASSERT_EQ (argmin (input0->first, output), absl::OkStatus ());
         }
     }
 
   std::vector<uint32_t> output_buf (output.size ());
   ASSERT_EQ (
       command_->download (output, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+      absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   _Tensor<uint32_t, 2> vk_output_tensor = _TensorMap<uint32_t, 2> (

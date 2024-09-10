@@ -118,8 +118,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -133,7 +133,8 @@ public:
 TEST_P (TestMultiheadattn, test_multiheadattn)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin commands";
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
@@ -172,18 +173,19 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
 
   MultiHeadAttention attn_op (gpu_, command_, wk, wq, wv, wo, params.MAXLEN,
                               params.HDIM);
-  ASSERT_EQ (attn_op.init (), VK_SUCCESS) << "failed at init attention op";
+  ASSERT_EQ (attn_op.init (), absl::OkStatus ())
+      << "failed at init attention op";
   VkTensor output;
-  ASSERT_EQ (attn_op (input0->first, output), VK_SUCCESS)
+  ASSERT_EQ (attn_op (input0->first, output), absl::OkStatus ())
       << "failed at infer attn op";
   std::vector<float> output_buf (output.size ());
   ASSERT_EQ (
       command_->download (output, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS)
+      absl::OkStatus ())
       << "failed at download output";
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   Tensor<3> vk_output_tensor = TensorMap<3> (

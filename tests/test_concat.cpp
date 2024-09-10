@@ -28,8 +28,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -43,7 +43,8 @@ public:
 TEST_P (TestConcat, test_concat)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin commands";
   std::vector<VkTensor> input_tensors, input_tensors_fp16, input_tensors_fp32;
   std::vector<std::unique_ptr<Cast> > cast_input_ops;
   std::vector<std::vector<float> > input_bufs;
@@ -58,26 +59,26 @@ TEST_P (TestConcat, test_concat)
         {
           cast_input_ops.emplace_back (
               new Cast (gpu_, command_, VkTensor::FP32, VkTensor::FP16));
-          ASSERT_EQ (cast_input_ops.back ()->init (), VK_SUCCESS);
+          ASSERT_EQ (cast_input_ops.back ()->init (), absl::OkStatus ());
           VkTensor input_fp16;
           ASSERT_EQ (
               cast_input_ops.back ()->operator() (input->first, input_fp16),
-              VK_SUCCESS);
+              absl::OkStatus ());
           input_tensors_fp16.push_back (input_fp16);
 
           VkTensor input_fp32;
           cast_input_ops.emplace_back (
               new Cast (gpu_, command_, VkTensor::FP16, VkTensor::FP32));
-          ASSERT_EQ (cast_input_ops.back ()->init (), VK_SUCCESS);
+          ASSERT_EQ (cast_input_ops.back ()->init (), absl::OkStatus ());
           ASSERT_EQ (
               cast_input_ops.back ()->operator() (input_fp16, input_fp32),
-              VK_SUCCESS);
+              absl::OkStatus ());
           input_tensors_fp32.push_back (input_fp32);
 
           std::vector<float> input_buf_fp32 (input_fp32.size ());
           ASSERT_EQ (command_->download (input_fp32, input_buf_fp32.data (),
                                          input_buf_fp32.size ()),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
           input_bufs.push_back (std::move (input_buf_fp32));
         }
       else
@@ -88,29 +89,30 @@ TEST_P (TestConcat, test_concat)
 
   Concat concat_op (gpu_, command_, (int)input_tensors.size (), params.axis,
                     (VkTensor::DType)params.dtype);
-  ASSERT_EQ (concat_op.init (), VK_SUCCESS) << "failed at init op";
+  ASSERT_EQ (concat_op.init (), absl::OkStatus ()) << "failed at init op";
 
   VkTensor output, output_fp16;
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
+  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
   if (params.dtype)
     {
-      ASSERT_EQ (concat_op (input_tensors_fp16, output_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output_fp16, output), VK_SUCCESS);
+      ASSERT_EQ (concat_op (input_tensors_fp16, output_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output_fp16, output), absl::OkStatus ());
     }
   else
     {
-      ASSERT_EQ (concat_op (input_tensors, output), VK_SUCCESS)
+      ASSERT_EQ (concat_op (input_tensors, output), absl::OkStatus ())
           << "failed at infer concat";
     }
   std::vector<float> output_buf (output.size ());
 
   ASSERT_EQ (
       command_->download (output, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS)
+      absl::OkStatus ())
       << "failed at download output";
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   std::vector<Tensor<3> > input_eigen_tensors (input_tensors.size ());

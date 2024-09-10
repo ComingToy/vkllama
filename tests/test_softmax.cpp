@@ -45,7 +45,8 @@ public:
 TEST_P (TestSoftmax, test_softmax)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin commands";
 
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
@@ -57,13 +58,15 @@ TEST_P (TestSoftmax, test_softmax)
   Cast cast_input_op_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op_fp32 (input0_fp16, input0_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op_fp32 (input0_fp16, input0_fp32),
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
                                      input0_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -73,11 +76,11 @@ TEST_P (TestSoftmax, test_softmax)
 
   Softmax softmax_op (gpu_, command_, false, 1.0,
                       (VkTensor::DType)params.dtype);
-  ASSERT_EQ (softmax_op.init (), VK_SUCCESS) << "failed at init op";
+  ASSERT_EQ (softmax_op.init (), absl::OkStatus ()) << "failed at init op";
 
   VkTensor output;
   ASSERT_EQ (softmax_op (params.dtype ? input0_fp16 : input0_fp32, output),
-             VK_SUCCESS)
+             absl::OkStatus ())
       << "failed at infer softmax";
 
   std::vector<float> output_buf (output.size ());
@@ -85,8 +88,8 @@ TEST_P (TestSoftmax, test_softmax)
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
     }
   else
     {
@@ -95,11 +98,11 @@ TEST_P (TestSoftmax, test_softmax)
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS)
+      absl::OkStatus ())
       << "failed at download output";
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   Tensor<3> vk_output_tensor = TensorMap<3> (

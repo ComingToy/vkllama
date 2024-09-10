@@ -31,8 +31,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -45,7 +45,7 @@ public:
 
 TEST_P (TestTranspose, test_transpose)
 {
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
   auto params = GetParam ();
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
@@ -56,15 +56,16 @@ TEST_P (TestTranspose, test_transpose)
   Cast cast_input_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input_op0.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op0 (input0->first, input_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1 (input_fp16, input_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op0 (input0->first, input_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1 (input_fp16, input_fp32), absl::OkStatus ());
 
       input_buf.resize (input_fp16.size ());
       ASSERT_EQ (command_->download (input_fp32, input_buf.data (),
                                      input_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -73,7 +74,7 @@ TEST_P (TestTranspose, test_transpose)
     }
 
   Transpose transpose_op (gpu_, command_, 0, (VkTensor::DType)params.dtype);
-  ASSERT_EQ (transpose_op.init (), VK_SUCCESS);
+  ASSERT_EQ (transpose_op.init (), absl::OkStatus ());
 
   VkTensor output;
   if (params.dtype)
@@ -90,8 +91,8 @@ TEST_P (TestTranspose, test_transpose)
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
     }
   else
     {
@@ -100,9 +101,9 @@ TEST_P (TestTranspose, test_transpose)
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS);
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS);
+      absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ());
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ());
 
   Tensor<3> input_tensor
       = TensorMap<3> (input_buf.data (), (Eigen::Index)params.C,

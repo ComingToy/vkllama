@@ -82,7 +82,8 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       in1_w = params.K;
     }
 
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin command";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin command";
   auto input0
       = random_tensor<float> (gpu_, command_, in0_channel, in0_h, in0_w);
   auto input1
@@ -100,24 +101,28 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   if (params.dtype == 1)
     {
-      ASSERT_EQ (cast_input0_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input0_op_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_op_fp32.init (), VK_SUCCESS);
+      ASSERT_EQ (cast_input0_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input1_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input0_op_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input1_op_fp32.init (), absl::OkStatus ());
 
-      ASSERT_EQ (cast_input0_op (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_op (input1->first, input1_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input0_op_fp32 (input0_fp16, input0_fp32), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_op_fp32 (input1_fp16, input1_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input0_op (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input1_op (input1->first, input1_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input0_op_fp32 (input0_fp16, input0_fp32),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input1_op_fp32 (input1_fp16, input1_fp32),
+                 absl::OkStatus ());
       input0_buf.resize (input0_fp16.size ());
       input1_buf.resize (input1_fp16.size ());
       ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
                                      input0_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
 
       ASSERT_EQ (command_->download (input1_fp32, input1_buf.data (),
                                      input1_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -130,12 +135,13 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   MatMul matmul_op (gpu_, command_, 1.0, .0, 0, params.broadcast_type,
                     params.transpose_b, (VkTensor::DType)params.dtype);
 
-  ASSERT_TRUE (matmul_op.init () == VK_SUCCESS) << "failed at init matmul op";
+  ASSERT_TRUE (matmul_op.init () == absl::OkStatus ())
+      << "failed at init matmul op";
 
   VkTensor output;
   ASSERT_TRUE (matmul_op (params.dtype ? input0_fp16 : input0_fp32,
                           params.dtype ? input1_fp16 : input1_fp32, output)
-               == VK_SUCCESS)
+               == absl::OkStatus ())
       << "failed at forwarding matmul op";
 
   VkTensor output_fp32;
@@ -143,8 +149,8 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
     }
   else
     {
@@ -153,10 +159,11 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   std::vector<float> buf (output_fp32.size ());
   ASSERT_EQ (command_->download (output_fp32, buf.data (), buf.size ()),
-             VK_SUCCESS)
+             absl::OkStatus ())
       << "failed at downloading output";
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at endding commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ())
+      << "failed at endding commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submiting commands";
 
   // eigen matmul

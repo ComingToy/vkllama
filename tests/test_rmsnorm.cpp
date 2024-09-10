@@ -22,7 +22,8 @@ using TestRMSNorm = VkllamaTestWithParam<TestRMSNormParams>;
 
 TEST_P (TestRMSNorm, test_rmsnorm)
 {
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin commands";
 
   auto params = GetParam ();
   auto input0
@@ -41,25 +42,29 @@ TEST_P (TestRMSNorm, test_rmsnorm)
       cast_input1_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input0_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input0_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_fp32.init (), VK_SUCCESS);
+      ASSERT_EQ (cast_input0_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input0_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input1_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input1_fp32.init (), absl::OkStatus ());
 
-      ASSERT_EQ (cast_input0_fp16 (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input0_fp32 (input0_fp16, input0_fp32), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_fp16 (input1->first, input1_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input1_fp32 (input1_fp16, input1_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input0_fp16 (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input0_fp32 (input0_fp16, input0_fp32),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input1_fp16 (input1->first, input1_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input1_fp32 (input1_fp16, input1_fp32),
+                 absl::OkStatus ());
 
       input0_buf.resize (input0_fp32.size ());
       input1_buf.resize (input1_fp32.size ());
       ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
                                      input0_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
 
       ASSERT_EQ (command_->download (input1_fp32, input1_buf.data (),
                                      input1_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -71,18 +76,18 @@ TEST_P (TestRMSNorm, test_rmsnorm)
 
   RMSNorm norm_op (gpu_, command_, params.dtype ? input1_fp16 : input1_fp32,
                    1e-3f, (VkTensor::DType)params.dtype);
-  ASSERT_EQ (norm_op.init (), VK_SUCCESS);
+  ASSERT_EQ (norm_op.init (), absl::OkStatus ());
 
   VkTensor output;
   ASSERT_EQ (norm_op (params.dtype ? input0_fp16 : input0_fp32, output),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
   VkTensor output_fp32;
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
     }
   else
     {
@@ -94,10 +99,10 @@ TEST_P (TestRMSNorm, test_rmsnorm)
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
+      absl::OkStatus ());
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   Tensor<3> vk_output_tensor = TensorMap<3> (

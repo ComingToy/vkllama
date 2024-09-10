@@ -75,7 +75,8 @@ TEST_P (TestRope, test_rope)
 {
   auto params = GetParam ();
 
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at beign command";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at beign command";
   auto input_query
       = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
   auto input_key
@@ -92,25 +93,25 @@ TEST_P (TestRope, test_rope)
   Cast input_key_cast_fp32 (dev_, command_, VkTensor::FP16, VkTensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (input_query_cast_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (input_key_cast_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (input_query_cast_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (input_key_cast_fp32.init (), VK_SUCCESS);
+      ASSERT_EQ (input_query_cast_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (input_key_cast_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (input_query_cast_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (input_key_cast_fp32.init (), absl::OkStatus ());
 
       ASSERT_EQ (input_query_cast_fp16 (input_query->first, input_query_fp16),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_key_cast_fp16 (input_key->first, input_key_fp16),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_query_cast_fp32 (input_query_fp16, input_query_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_key_cast_fp32 (input_key_fp16, input_key_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input_key_fp32, input_key_buf.data (),
                                      input_key_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input_query_fp32, input_query_buf.data (),
                                      input_query_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -122,13 +123,13 @@ TEST_P (TestRope, test_rope)
 
   Rope rope_op (dev_, command_, params.MAXLEN, params.W, VkTensor::FP16);
 
-  ASSERT_EQ (rope_op.init (), VK_SUCCESS);
+  ASSERT_EQ (rope_op.init (), absl::OkStatus ());
 
   VkTensor output_query, output_key;
   ASSERT_EQ (rope_op (params.dtype ? input_query_fp16 : input_query_fp32,
                       params.dtype ? input_key_fp16 : input_key_fp32,
                       output_query, output_key, params.offset),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
   std::vector<float> output_query_buf (output_query.size ()),
       output_key_buf (output_key.size ());
@@ -139,12 +140,13 @@ TEST_P (TestRope, test_rope)
   VkTensor output_query_fp32, output_key_fp32;
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_key_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_query_op.init (), VK_SUCCESS);
+      ASSERT_EQ (cast_output_key_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_query_op.init (), absl::OkStatus ());
 
-      ASSERT_EQ (cast_output_key_op (output_key, output_key_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_key_op (output_key, output_key_fp32),
+                 absl::OkStatus ());
       ASSERT_EQ (cast_output_query_op (output_query, output_query_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -154,12 +156,12 @@ TEST_P (TestRope, test_rope)
 
   ASSERT_EQ (command_->download (output_query_fp32, output_query_buf.data (),
                                  output_query_buf.size ()),
-             VK_SUCCESS);
+             absl::OkStatus ());
   ASSERT_EQ (command_->download (output_key_fp32, output_key_buf.data (),
                                  output_key.size ()),
-             VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+             absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   auto output_query_host = TensorMap<3> (
