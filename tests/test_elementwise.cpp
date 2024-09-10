@@ -48,46 +48,50 @@ public:
 TEST_P (TestElementwise, test_elementwise)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begining commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begining commands";
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   auto input1
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   float alpha = random_number (-2.0f, 2.0f);
 
-  VkTensor input0_fp16;
-  VkTensor input1_fp16;
-  Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  ASSERT_EQ (cast_input_op0.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
+  Tensor input0_fp16;
+  Tensor input1_fp16;
+  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
+  ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
 
   if (params.dtype == 1)
     {
-      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16),
+                 absl::OkStatus ());
     }
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
-                              params.dtype == 0 ? VkTensor::FP32
-                                                : VkTensor::FP16);
-  ASSERT_EQ (elementwise_op.init (), VK_SUCCESS)
+                              params.dtype == 0 ? Tensor::FP32
+                                                : Tensor::FP16);
+  ASSERT_EQ (elementwise_op.init (), absl::OkStatus ())
       << "failed at init elementwise op";
 
-  VkTensor out;
-  VkTensor out_fp16;
+  Tensor out;
+  Tensor out_fp16;
   if (params.dtype == 0)
     {
       if (params.constant_b)
         {
-          ASSERT_EQ (elementwise_op (input0->first, alpha, out), VK_SUCCESS);
+          ASSERT_EQ (elementwise_op (input0->first, alpha, out),
+                     absl::OkStatus ());
         }
       else
         {
           ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
     }
   else
@@ -95,40 +99,41 @@ TEST_P (TestElementwise, test_elementwise)
       if (params.constant_b)
         {
           ASSERT_EQ (elementwise_op (input0_fp16, alpha, out_fp16),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
       else
         {
           ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out_fp16),
-                     VK_SUCCESS);
+                     absl::OkStatus ());
         }
 
-      ASSERT_EQ (cast_output_op (out_fp16, out), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op (out_fp16, out), absl::OkStatus ());
     }
 
   std::vector<float> output_buf (out.size ());
   ASSERT_EQ (command_->download (out, output_buf.data (), output_buf.size ()),
-             VK_SUCCESS)
+             absl::OkStatus ())
       << "failed at download output tensor";
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at edndding commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ())
+      << "failed at edndding commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submiting commands";
 
-  Tensor<3> vk_output_tensor
+  _Tensor<float, 3> vk_output_tensor
       = TensorMap<3> (output_buf.data (), (Eigen::Index)out.channels (),
                       (Eigen::Index)out.height (), (Eigen::Index)out.width ());
-  Tensor<3> input0_tensor = TensorMap<3> (
+  _Tensor<float, 3> input0_tensor = TensorMap<3> (
       input0->second.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
-  Tensor<3> input1_tensor = TensorMap<3> (
+  _Tensor<float, 3> input1_tensor = TensorMap<3> (
       input1->second.data (), (Eigen::Index)input1->first.channels (),
       (Eigen::Index)input1->first.height (),
       (Eigen::Index)input1->first.width ());
 
-  Tensor<3> output_tensor;
+  _Tensor<float, 3> output_tensor;
   if (params.op_type == 0)
     {
       if (params.constant_b)
@@ -174,7 +179,7 @@ TEST_P (TestElementwise, test_elementwise)
         }
     }
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
 
   auto delta = params.dtype ? 1e-2 : 1e-3;
 #if 0

@@ -32,8 +32,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -47,7 +47,7 @@ public:
 TEST_P (TestUpdateKVCache, test_update_kv_cache)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
 
   auto input0 = random_tensor<float> (gpu_, command_, params.heads,
                                       params.maxlen, params.dim);
@@ -58,42 +58,42 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
 
-  VkTensor cache, input;
-  Cast cast_cache_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  ASSERT_EQ (cast_cache_op.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_input_op.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_cache_op (input0->first, cache), VK_SUCCESS);
-  ASSERT_EQ (cast_input_op (input1->first, input), VK_SUCCESS);
+  Tensor cache, input;
+  Cast cast_cache_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  ASSERT_EQ (cast_cache_op.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_cache_op (input0->first, cache), absl::OkStatus ());
+  ASSERT_EQ (cast_input_op (input1->first, input), absl::OkStatus ());
 
-  UpdateKVCache update_op (gpu_, command_, VkTensor::FP16);
+  UpdateKVCache update_op (gpu_, command_, Tensor::FP16);
   ReadKVCache read_op (gpu_, command_);
 
-  ASSERT_EQ (update_op.init (), VK_SUCCESS);
-  ASSERT_EQ (update_op (cache, input, params.offset), VK_SUCCESS);
+  ASSERT_EQ (update_op.init (), absl::OkStatus ());
+  ASSERT_EQ (update_op (cache, input, params.offset), absl::OkStatus ());
 
-  VkTensor output;
-  ASSERT_EQ (read_op.init (), VK_SUCCESS);
+  Tensor output;
+  ASSERT_EQ (read_op.init (), absl::OkStatus ());
   ASSERT_EQ (read_op (cache, params.offset, input.height (), output),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
   std::vector<float> output_buf (output.size ());
   std::vector<float> cache_buf (cache.size ());
 
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
-  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS);
-  ASSERT_EQ (command_->submit (), VK_SUCCESS);
-  ASSERT_EQ (command_->wait (), VK_SUCCESS);
+      absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ());
+  ASSERT_EQ (command_->submit (), absl::OkStatus ());
+  ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  Tensor<3> vk_output = TensorMap<3> (
+  _Tensor<float, 3> vk_output = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output_fp32.channels (),
       (Eigen::Index)output_fp32.height (), (Eigen::Index)output_fp32.width ());
 
@@ -114,7 +114,7 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   //           << "cache: " << vk_output << std::endl
   //           << "cache eigen: " << cache_eigen_tensor << std::endl;
 
-  Tensor<3> err (vk_output.dimensions ());
+  _Tensor<float, 3> err (vk_output.dimensions ());
   err.setConstant (1e-2);
 
   _Tensor<int, 0> diff

@@ -46,7 +46,7 @@ public:
 
 TEST_P (TestEmbedding, test_embedding)
 {
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
   auto params = GetParam ();
   auto vocab = random_tensor<float> (gpu_, command_, 1, params.VH, params.VW);
   auto indices = random_tensor<uint32_t> (gpu_, command_, 1, params.H,
@@ -55,21 +55,23 @@ TEST_P (TestEmbedding, test_embedding)
   ASSERT_TRUE (vocab);
   ASSERT_TRUE (indices);
 
-  VkTensor vocab_tensor, vocab_tensor_fp16;
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor vocab_tensor, vocab_tensor_fp16;
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
-  ASSERT_EQ (cast_input_op.init (), VK_SUCCESS);
-  ASSERT_EQ (cast_input_op1.init (), VK_SUCCESS);
+  ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
+  ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
 
   std::vector<float> vocab_buf (vocab->first.size ());
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input_op (vocab->first, vocab_tensor), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op1 (vocab_tensor, vocab_tensor_fp16), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op (vocab->first, vocab_tensor),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op1 (vocab_tensor, vocab_tensor_fp16),
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (vocab_tensor_fp16, vocab_buf.data (),
                                      vocab_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -78,39 +80,40 @@ TEST_P (TestEmbedding, test_embedding)
     }
 
   Embedding emb_op (gpu_, command_, vocab_tensor, params.UNK,
-                    (VkTensor::DType)params.dtype);
+                    (Tensor::DType)params.dtype);
 
-  ASSERT_EQ (emb_op.init (), VK_SUCCESS);
-  VkTensor vk_output, vk_output_fp16;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
+  ASSERT_EQ (emb_op.init (), absl::OkStatus ());
+  Tensor vk_output, vk_output_fp16;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
+  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
 
   if (params.dtype)
     {
-      ASSERT_EQ (emb_op (indices->first, vk_output_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (vk_output_fp16, vk_output), VK_SUCCESS);
+      ASSERT_EQ (emb_op (indices->first, vk_output_fp16), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (vk_output_fp16, vk_output),
+                 absl::OkStatus ());
     }
   else
     {
-      ASSERT_EQ (emb_op (indices->first, vk_output), VK_SUCCESS);
+      ASSERT_EQ (emb_op (indices->first, vk_output), absl::OkStatus ());
     }
 
   std::vector<float> vk_output_buf (vk_output.size ());
   ASSERT_EQ (command_->download (vk_output, vk_output_buf.data (),
                                  vk_output_buf.size ()),
-             VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS);
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS);
+             absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ());
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ());
 
-  Tensor<2> eigen_vocab_tensor
+  _Tensor<float, 2> eigen_vocab_tensor
       = TensorMap<2> (vocab_buf.data (), params.VH, params.VW);
   _Tensor<uint32_t, 2> eigen_indices_tensor
       = _TensorMap<uint32_t, 2> (indices->second.data (), params.H, params.W);
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       vk_output_buf.data (), (Eigen::Index)vk_output.channels (),
       (Eigen::Index)vk_output.height (), (Eigen::Index)vk_output.width ());
-  Tensor<3> eigen_output_tensor (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> eigen_output_tensor (vk_output_tensor.dimensions ());
 
   for (int i = 0; i < eigen_output_tensor.dimension (0); ++i)
     {
@@ -142,7 +145,7 @@ TEST_P (TestEmbedding, test_embedding)
     }
 #endif
 
-  Tensor<3> err (eigen_output_tensor.dimensions ());
+  _Tensor<float, 3> err (eigen_output_tensor.dimensions ());
   err.setConstant (1e-2);
 
   _Tensor<int, 0> diff

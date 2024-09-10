@@ -4,22 +4,22 @@
 
 namespace vkllama
 {
-Slice::Slice (GPUDevice *gpu, Command *command, VkTensor::DType dtype)
+Slice::Slice (GPUDevice *gpu, Command *command, Tensor::DType dtype)
     : Op (gpu, command), dtype_ (dtype)
 {
 }
 
-VkResult
+absl::Status
 Slice::init () noexcept
 {
   constexpr int binding_count = 9;
   Pipeline::ShaderInfo info
       = { 0, binding_count, sizeof (uint32_t) * binding_count, 8, 8, 4 };
 
-  const auto spv_code = dtype_ == VkTensor::FP32
+  const auto spv_code = dtype_ == Tensor::FP32
                             ? __get_slice_comp_spv_code ()
                             : __get_slice_fp16_comp_spv_code ();
-  const auto spv_size = dtype_ == VkTensor::FP32
+  const auto spv_size = dtype_ == Tensor::FP32
                             ? __get_slice_comp_spv_size ()
                             : __get_slice_fp16_comp_spv_size ();
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, {}, info));
@@ -27,16 +27,19 @@ Slice::init () noexcept
   return pipeline_->init ();
 }
 
-VkResult
-Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
+absl::Status
+Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
                    const std::array<uint32_t, 3> &extents,
-                   VkTensor &out) noexcept
+                   Tensor &out) noexcept
 {
   if (starts[0] + extents[0] > in.channels ()
       || starts[1] + extents[1] > in.height ()
       || starts[2] + extents[2] > in.width ())
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "slice starts = (%zu, %zu, %zu) from (%zu, %zu, %zu) shape tensor",
+          size_t (starts[0]), size_t (starts[1]), size_t (starts[2]),
+          in.channels (), in.height (), in.width ()));
     }
 
   ShaderConstants constants = { (uint32_t)in.channels (),
@@ -49,9 +52,9 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
                                 extents[1],
                                 extents[2] };
 
-  out = VkTensor (extents[0], extents[1], extents[2], dev_, dtype_);
+  out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
   auto ret = out.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -60,13 +63,13 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
            groupx = (extents[2] + 7) / 8;
 
   ret = pipeline_->set_group (groupx, groupy, groupz);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = command_->record_pipeline (*pipeline_, { in, out }, constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }

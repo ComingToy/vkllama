@@ -7,6 +7,7 @@ extern "C"{
 #include "gguflib.h"
 }
 // clang-format on
+#include "absl/status/statusor.h"
 #include "src/core/command.h"
 #include "src/core/float.h"
 #include "src/core/tensor.h"
@@ -36,34 +37,34 @@ namespace vkllama
 class InputLayer
 {
 public:
-  InputLayer (GPUDevice *gpu, Command *command, VkTensor vocab,
+  InputLayer (GPUDevice *gpu, Command *command, Tensor vocab,
               uint32_t UNK = 0)
       : gpu_ (gpu), command_ (command), vocab_ (vocab), UNK_ (UNK)
   {
   }
 
-  VkResult
+  absl::Status
   init ()
   {
     embedding_op_.reset (
-        new Embedding (gpu_, command_, vocab_, UNK_, VkTensor::FP16));
+        new Embedding (gpu_, command_, vocab_, UNK_, Tensor::FP16));
     auto ret = embedding_op_->init ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
-  VkTensor
-  operator() (VkTensor toks)
+  absl::StatusOr<Tensor>
+  operator() (Tensor toks)
   {
-    VkTensor out;
+    Tensor out;
     auto ret = embedding_op_->operator() (toks, out);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding embedding op");
+        return ret;
       }
 
     return out;
@@ -79,8 +80,8 @@ public:
 private:
   GPUDevice *gpu_;
   Command *command_;
-  VkTensor vocab_;
-  VkTensor embs_;
+  Tensor vocab_;
+  Tensor embs_;
 
   uint32_t UNK_;
   std::unique_ptr<Embedding> embedding_op_;
@@ -91,26 +92,26 @@ class Llama2Block
 public:
   struct TransformerParams
   {
-    VkTensor Wk;
-    VkTensor Wq;
-    VkTensor Wv;
-    VkTensor Wo;
+    Tensor Wk;
+    Tensor Wq;
+    Tensor Wv;
+    Tensor Wo;
     int maxlen;
     int dim;
   };
 
   struct FeedForwardParams
   {
-    VkTensor w1;
-    VkTensor w2;
-    VkTensor w3;
+    Tensor w1;
+    Tensor w2;
+    Tensor w3;
     float eps;
   };
 
   struct RmsNormParams
   {
-    VkTensor weight1;
-    VkTensor weight2;
+    Tensor weight1;
+    Tensor weight2;
     float eps;
   };
 
@@ -123,78 +124,76 @@ public:
   {
   }
 
-  VkResult
+  absl::Status
   init ()
   {
     attn_op_.reset (new MultiHeadAttentionV2 (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
         transformer_params_.maxlen, transformer_params_.dim, true,
-        VkTensor::FP16, true));
+        Tensor::FP16, true));
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
-        feedforward_params_.w3, true, VkTensor::FP16));
+        feedforward_params_.w3, true, Tensor::FP16));
 
     norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1,
-                                 rmsnorm_params_.eps, VkTensor::FP16));
+                                 rmsnorm_params_.eps, Tensor::FP16));
     norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2,
-                                  feedforward_params_.eps, VkTensor::FP16));
-    add_op_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
-    add_op2_.reset (new ElementWise (gpu_, command_, 0, VkTensor::FP16));
+                                  feedforward_params_.eps, Tensor::FP16));
+    add_op_.reset (new ElementWise (gpu_, command_, 0, Tensor::FP16));
+    add_op2_.reset (new ElementWise (gpu_, command_, 0, Tensor::FP16));
 
     auto ret = attn_op_->init ();
-    if (ret != VK_SUCCESS || (ret = feedforward_op_->init ()) != VK_SUCCESS
-        || (ret = norm_op_->init ()) != VK_SUCCESS
-        || (ret = norm_op2_->init ()) != VK_SUCCESS
-        || (ret = add_op_->init ()) != VK_SUCCESS
-        || (ret = add_op2_->init ()) != VK_SUCCESS)
+    if (!ret.ok () || !(ret = feedforward_op_->init ()).ok ()
+        || !(ret = norm_op_->init ()).ok ()
+        || !(ret = norm_op2_->init ()).ok () || !(ret = add_op_->init ()).ok ()
+        || !(ret = add_op2_->init ()).ok ())
       {
         return ret;
       }
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
-  VkTensor
-  operator() (VkTensor in, const size_t offset)
+  absl::StatusOr<Tensor>
+  operator() (Tensor in, const size_t offset)
   {
     auto ret = norm_op_->operator() (in, normed_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding RMSNorm op");
+        return ret;
       }
 
     ret = attn_op_->operator() (normed_, transformed_, offset);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error (
-            "failed at forwarding MultiHeadAttention op");
+        return ret;
       }
 
     ret = add_op_->operator() (transformed_, in, added_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding add op");
+        return ret;
       }
 
     ret = norm_op2_->operator() (added_, normed2_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding RMSNorm op");
+        return ret;
       }
 
-    VkTensor out;
+    Tensor out;
     ret = feedforward_op_->operator() (normed2_, feed_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding FeedForward op");
+        return ret;
       }
 
     ret = add_op2_->operator() (feed_, added_, out);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding add op");
+        return ret;
       }
 
     return out;
@@ -225,68 +224,68 @@ private:
   FeedForwardParams feedforward_params_;
   RmsNormParams rmsnorm_params_;
 
-  VkTensor normed_;
-  VkTensor normed2_;
-  VkTensor transformed_;
-  VkTensor added_;
-  VkTensor feed_;
+  Tensor normed_;
+  Tensor normed2_;
+  Tensor transformed_;
+  Tensor added_;
+  Tensor feed_;
 };
 
 class OutputLayer
 {
 public:
-  OutputLayer (GPUDevice *gpu, Command *command, VkTensor wo,
-               VkTensor norm_weight)
+  OutputLayer (GPUDevice *gpu, Command *command, Tensor wo,
+               Tensor norm_weight)
       : gpu_ (gpu), command_ (command), wo_ (wo), norm_weight_ (norm_weight)
   {
   }
 
-  VkResult
+  absl::Status
   init ()
   {
     matmul_op_.reset (
-        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, VkTensor::FP16));
+        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, Tensor::FP16));
     auto ret = matmul_op_->init ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
 
     norm_op_.reset (
-        new RMSNorm (gpu_, command_, norm_weight_, 1e-6, VkTensor::FP16));
-    if ((ret = norm_op_->init ()) != VK_SUCCESS)
+        new RMSNorm (gpu_, command_, norm_weight_, 1e-6, Tensor::FP16));
+    if (!(ret = norm_op_->init ()).ok ())
       {
         return ret;
       }
 
-    cast_op_.reset (new Cast (gpu_, command_, VkTensor::FP16, VkTensor::FP32));
-    if ((ret = cast_op_->init ()) != VK_SUCCESS)
+    cast_op_.reset (new Cast (gpu_, command_, Tensor::FP16, Tensor::FP32));
+    if (!(ret = cast_op_->init ()).ok ())
       {
         return ret;
       }
-    argmax_op_.reset (new ArgMax (gpu_, command_, VkTensor::FP16));
+    argmax_op_.reset (new ArgMax (gpu_, command_, Tensor::FP16));
     return argmax_op_->init ();
   }
 
-  VkTensor
-  operator() (VkTensor in)
+  absl::StatusOr<Tensor>
+  operator() (Tensor in)
   {
     auto ret = norm_op_->operator() (in, norm_output_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding rms norm");
+        return ret;
       }
 
     ret = matmul_op_->operator() (norm_output_, matmul_output_);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
-        throw std::runtime_error ("failed at forwarding MatMul op");
+        return ret;
       }
 
-    VkTensor out;
-    if ((*cast_op_) (matmul_output_, out) != VK_SUCCESS)
+    Tensor out;
+    if (!(*cast_op_) (matmul_output_, out).ok ())
       {
-        throw std::runtime_error ("failed at forwarding cast");
+        return ret;
       }
 
     return out;
@@ -304,10 +303,10 @@ public:
 private:
   GPUDevice *gpu_;
   Command *command_;
-  VkTensor wo_;
-  VkTensor norm_weight_;
-  VkTensor norm_output_;
-  VkTensor matmul_output_;
+  Tensor wo_;
+  Tensor norm_weight_;
+  Tensor norm_output_;
+  Tensor matmul_output_;
   std::unique_ptr<MatMul> matmul_op_;
   std::unique_ptr<RMSNorm> norm_op_;
   std::unique_ptr<ArgMax> argmax_op_;
@@ -340,21 +339,21 @@ public:
     delete gpu_;
   }
 
-  VkResult
+  absl::Status
   init (std::map<std::string, gguf_key> &kv,
         std::map<std::string, gguf_tensor> &tensors)
   {
     gpu_ = new GPUDevice ();
     auto ret = gpu_->init ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
 
     input_command_ = new Command (gpu_);
     output_command_ = new Command (gpu_);
-    if ((ret = input_command_->init ()) != VK_SUCCESS
-        || (ret = output_command_->init ()) != VK_SUCCESS)
+    if (!(ret = input_command_->init ()).ok ()
+        || !(ret = output_command_->init ()).ok ())
       {
         return ret;
       }
@@ -364,8 +363,15 @@ public:
     auto norm_eps = kv["llama.attention.layer_norm_rms_epsilon"].val->float32;
     auto maxlen = kv["llama.context_length"].val->uint32;
 
-    input_command_->begin ();
-    output_command_->begin ();
+    if (ret = input_command_->begin (); !ret.ok ())
+      {
+        return ret;
+      }
+
+    if (ret = output_command_->begin (); !ret.ok ())
+      {
+        return ret;
+      }
 
     // input layer
     {
@@ -373,11 +379,11 @@ public:
       auto output_weight = tensors["output.weight"];
       auto norm_weight = tensors["output_norm.weight"];
 
-      VkTensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
-                             VkTensor::FP16);
-      VkTensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
-                                gpu_, VkTensor::FP16);
-      VkTensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, VkTensor::FP16);
+      Tensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
+                             Tensor::FP16);
+      Tensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
+                                gpu_, Tensor::FP16);
+      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, Tensor::FP16);
 
       std::vector<__vkllama_fp16_t> norm_weight_fp16;
       const float *p
@@ -388,10 +394,11 @@ public:
           norm_weight_fp16.push_back (v);
         }
 
-      VkResult ret = VK_SUCCESS;
-      if ((ret = vkembeddings.create ()) != VK_SUCCESS
-          || (ret = vkoutput_weight.create ()) != VK_SUCCESS
-          || (ret = vknorm_weight.create ()) != VK_SUCCESS)
+      absl::Status ret;
+
+      if (!(ret = vkembeddings.create ()).ok ()
+          || !(ret = vkoutput_weight.create ()).ok ()
+          || !(ret = vknorm_weight.create ()).ok ())
         {
           return ret;
         }
@@ -399,7 +406,7 @@ public:
       ret = input_command_->upload (
           (__vkllama_fp16_t *)embeddings.weights_data, embeddings.num_weights,
           vkembeddings);
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
@@ -407,14 +414,14 @@ public:
       ret = output_command_->upload (
           (__vkllama_fp16_t *)output_weight.weights_data,
           output_weight.num_weights, vkoutput_weight);
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
 
       ret = input_command_->upload (norm_weight_fp16.data (),
                                     norm_weight.num_weights, vknorm_weight);
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         {
           return ret;
         }
@@ -428,15 +435,31 @@ public:
       output_layer_ = new OutputLayer (gpu_, output_command_, vkoutput_weight,
                                        vknorm_weight);
 
-      if ((ret = input_layer_->init ()) != VK_SUCCESS
-          || (ret = output_layer_->init ()) != VK_SUCCESS)
+      if (!(ret = input_layer_->init ()).ok ()
+          || !(ret = output_layer_->init ()).ok ())
         {
           return ret;
         }
-      input_command_->end ();
-      output_command_->end ();
-      input_command_->submit_and_wait ();
-      output_command_->submit_and_wait ();
+
+      if (ret = input_command_->end (); !ret.ok ())
+        {
+          return ret;
+        }
+
+      if (ret = output_command_->end (); !ret.ok ())
+        {
+          return ret;
+        }
+
+      if (ret = input_command_->submit_and_wait (); !ret.ok ())
+        {
+          return ret;
+        }
+
+      if (ret = output_command_->submit_and_wait (); !ret.ok ())
+        {
+          return ret;
+        }
     }
 
     // blocks
@@ -475,22 +498,24 @@ public:
           const auto ffn_gate_weight = tensors[vname];
 
           auto command = new Command (gpu_);
-          if ((ret = command->init ()) != VK_SUCCESS
-              || (ret = command->begin ()) != VK_SUCCESS)
+          if (!(ret = command->init ()).ok ()
+              || !(ret = command->begin ()).ok ())
             {
               return ret;
             }
+
           block_commands_.push_back (command);
 
-          VkTensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
-                                        VkTensor::FP16);
+          Tensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
+                                        Tensor::FP16);
 
-          VkTensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
-                                       VkTensor::FP16);
+          Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
+                                       Tensor::FP16);
 
-          VkResult ret = VK_SUCCESS;
-          if ((ret = vk_attn_norm_weight.create ()) != VK_SUCCESS
-              || (ret = vk_ffn_norm_weight.create ()) != VK_SUCCESS)
+          absl::Status ret;
+
+          if (!(ret = vk_attn_norm_weight.create ()).ok ()
+              || !(ret = vk_ffn_norm_weight.create ()).ok ())
             {
               return ret;
             }
@@ -507,7 +532,7 @@ public:
           ret = command->upload (attn_norm_weight_fp16.data (),
                                  attn_norm_weight_fp16.size (),
                                  vk_attn_norm_weight);
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
@@ -523,7 +548,7 @@ public:
           ret = command->upload (ffn_norm_weight_fp16.data (),
                                  ffn_norm_weight_fp16.size (),
                                  vk_ffn_norm_weight);
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
@@ -532,13 +557,12 @@ public:
           size_t input_dim = attn_k_weight.dim[0];
           size_t head_weight_size = head_dim * input_dim;
 
-          VkTensor vkWk (1, head_dim, input_dim, gpu_, VkTensor::FP16);
-          VkTensor vkWq (1, head_dim, input_dim, gpu_, VkTensor::FP16);
-          VkTensor vkWv (1, head_dim, input_dim, gpu_, VkTensor::FP16);
+          Tensor vkWk (1, head_dim, input_dim, gpu_, Tensor::FP16);
+          Tensor vkWq (1, head_dim, input_dim, gpu_, Tensor::FP16);
+          Tensor vkWv (1, head_dim, input_dim, gpu_, Tensor::FP16);
 
-          if ((ret = vkWk.create ()) != VK_SUCCESS
-              || (ret = vkWq.create ()) != VK_SUCCESS
-              || (ret = vkWv.create ()) != VK_SUCCESS)
+          if (!(ret = vkWk.create ()).ok () || !(ret = vkWq.create ()).ok ()
+              || !(ret = vkWv.create ()).ok ())
             {
               return ret;
             }
@@ -553,26 +577,26 @@ public:
               = (__vkllama_fp16_t *)attn_v_weight.weights_data;
 
           ret = command->upload (wk_weight_data, head_weight_size, vkWk);
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
 
           ret = command->upload (wq_weight_data, head_weight_size, vkWq);
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
 
           ret = command->upload (wv_weight_data, head_weight_size, vkWv);
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
 
-          VkTensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
-                       gpu_, VkTensor::FP16);
-          if ((ret = Wo.create ()) != VK_SUCCESS)
+          Tensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
+                       gpu_, Tensor::FP16);
+          if (!(ret = Wo.create ()).ok ())
             {
               return ret;
             }
@@ -580,22 +604,22 @@ public:
               (__vkllama_fp16_t *)attn_output_weight.weights_data,
               attn_output_weight.num_weights, Wo);
 
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
 
-          VkTensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0],
-                         gpu_, VkTensor::FP16);
+          Tensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0],
+                         gpu_, Tensor::FP16);
 
-          VkTensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0],
-                         gpu_, VkTensor::FP16);
+          Tensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0],
+                         gpu_, Tensor::FP16);
 
-          VkTensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
-                         VkTensor::FP16);
-          if ((ret = vkw1.create ()) != VK_SUCCESS
-              || (ret = vkw2.create ()) != VK_SUCCESS
-              || (ret = vkw3.create ()) != VK_SUCCESS)
+          Tensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
+                         Tensor::FP16);
+
+          if (!(ret = vkw1.create ()).ok () || !(ret = vkw2.create ()).ok ()
+              || !(ret = vkw3.create ()).ok ())
             {
               return ret;
             }
@@ -603,7 +627,8 @@ public:
           ret = command->upload (
               (__vkllama_fp16_t *)ffn_gate_weight.weights_data,
               ffn_gate_weight.num_weights, vkw1);
-          if (ret != VK_SUCCESS)
+
+          if (!ret.ok ())
             {
               return ret;
             }
@@ -611,7 +636,8 @@ public:
           ret = command->upload (
               (__vkllama_fp16_t *)ffn_down_weight.weights_data,
               ffn_down_weight.num_weights, vkw2);
-          if (ret != VK_SUCCESS)
+
+          if (!ret.ok ())
             {
               return ret;
             }
@@ -619,7 +645,8 @@ public:
           ret = command->upload (
               (__vkllama_fp16_t *)ffn_up_weight.weights_data,
               ffn_up_weight.num_weights, vkw3);
-          if (ret != VK_SUCCESS)
+
+          if (!ret.ok ())
             {
               return ret;
             }
@@ -635,71 +662,148 @@ public:
           auto *block = new Llama2Block (gpu_, command, transformer_params,
                                          feedfward_params, rmsnorm_params);
 
-          if ((ret = block->init ()) != VK_SUCCESS)
+          if (!(ret = block->init ()).ok ())
             {
               return ret;
             }
 
           blocks_.push_back (block);
-          command->end ();
-          command->submit_and_wait ();
+
+          if (ret = command->end (); !ret.ok ())
+            {
+              return ret;
+            }
+
+          if (ret = command->submit_and_wait (); !ret.ok ())
+            {
+              return ret;
+            }
         }
     }
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
-  std::vector<float>
+  absl::StatusOr<std::vector<float> >
   operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
-    VkTensor vktoks (1, 1, toks.size (), gpu_, VkTensor::UINT32, true);
-    if (vktoks.create () != VK_SUCCESS)
+    Tensor vktoks (1, 1, toks.size (), gpu_, Tensor::UINT32, true);
+    if (!vktoks.create ().ok ())
       {
         throw std::runtime_error ("failed at creating vktoks");
       }
 
     memcpy (vktoks.host (), toks.data (), sizeof (uint32_t) * toks.size ());
-    vktoks.flush ();
 
-    input_command_->begin ();
-    VkTensor X = (*input_layer_) (vktoks);
-    input_command_->end ();
-    input_command_->submit ();
+    if (auto ret = vktoks.flush (); !ret.ok ())
+      {
+        throw std::runtime_error (ret.ToString ());
+      }
 
-    std::vector<VkTensor> tmps;
-    tmps.push_back (X);
+    if (auto ret = input_command_->begin (); !ret.ok ())
+      {
+        throw std::runtime_error (ret.ToString ());
+      }
+
+    auto X = (*input_layer_) (vktoks);
+    if (!X.ok ())
+      {
+        return X.status ();
+      }
+
+    if (auto ret = input_command_->end (); !ret.ok ())
+      {
+        return ret;
+      }
+
+    if (auto ret = input_command_->submit (); !ret.ok ())
+      {
+        return ret;
+      }
+
+    std::vector<Tensor> tmps;
+    tmps.push_back (*X);
 
     for (int i = 0; i < blocks_.size (); ++i)
       {
         auto *command = block_commands_[i];
-        command->begin ();
+
+        if (auto ret = command->begin (); !ret.ok ())
+          {
+            throw std::runtime_error (ret.ToString ());
+          }
 
         auto *block = blocks_[i];
-        X = (*block) (X, offset);
+        X = (*block) (*X, offset);
+        if (!X.ok ())
+          {
+            return X.status ();
+          }
 
-        tmps.push_back (X);
-        command->end ();
-        command->submit ();
+        tmps.push_back (*X);
+
+        if (auto ret = command->end (); !ret.ok ())
+          {
+            throw std::runtime_error (ret.ToString ());
+          }
+
+        if (auto ret = command->submit (); !ret.ok ())
+          {
+            throw std::runtime_error (ret.ToString ());
+          }
       }
 
-    output_command_->begin ();
-    VkTensor output = (*output_layer_) (X);
+    if (auto ret = output_command_->begin (); !ret.ok ())
+      {
+        throw std::runtime_error (ret.ToString ());
+      }
+
+    auto output = (*output_layer_) (*X);
 
     std::vector<float> buf_logits;
-    buf_logits.resize (output.size ());
-    output_command_->download (output, buf_logits.data (), buf_logits.size ());
+    buf_logits.resize (output->size ());
 
-    output_command_->end ();
-    output_command_->submit ();
+    auto ret = output_command_->download (*output, buf_logits.data (),
+                                          buf_logits.size ());
+    if (!ret.ok ())
+      {
+        return ret;
+      }
+
+    ret = output_command_->end ();
+    if (!ret.ok ())
+      {
+        return ret;
+      }
+
+    ret = output_command_->submit ();
+    if (!ret.ok ())
+      {
+        return ret;
+      }
 
     auto t1 = std::chrono::high_resolution_clock::now ();
-    input_command_->wait ();
+    ret = input_command_->wait ();
+    if (!ret.ok ())
+      {
+        return ret;
+      }
+
     for (auto *c : block_commands_)
       {
-        c->wait ();
+        ret = c->wait ();
+        if (!ret.ok ())
+          {
+            return ret;
+          }
       }
-    output_command_->wait ();
+
+    ret = output_command_->wait ();
+    if (!ret.ok ())
+      {
+        return ret;
+      }
 
 #if __VKLLAMA_LOG_COST
     auto t2 = std::chrono::high_resolution_clock::now ();

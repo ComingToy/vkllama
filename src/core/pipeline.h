@@ -10,7 +10,7 @@
 
 namespace vkllama
 {
-class VkTensor;
+class Tensor;
 class Pipeline
 {
 public:
@@ -27,7 +27,7 @@ public:
 
   ~Pipeline ();
 
-  VkResult init ();
+  absl::Status init ();
   VkPipeline &vkpileine ();
   VkDescriptorSet &vkdescriptorset ();
   VkPipelineLayout &vklayout ();
@@ -37,10 +37,10 @@ public:
   uint32_t group_x () const;
   uint32_t group_y () const;
   uint32_t group_z () const;
-  VkResult set_group (uint32_t x, uint32_t y, uint32_t z);
-  VkResult update_bindings (std::vector<VkTensor> bindings);
-  VkResult update_bindings (std::vector<VkTensor> bindings,
-                            std::vector<uint32_t> const &indices);
+  absl::Status set_group (uint32_t x, uint32_t y, uint32_t z);
+  absl::Status update_bindings (std::vector<Tensor> bindings);
+  absl::Status update_bindings (std::vector<Tensor> bindings,
+                                std::vector<uint32_t> const &indices);
 
   ShaderInfo const &shader_info () const;
   void query_exec_timestamp ();
@@ -66,16 +66,16 @@ private:
   VkDescriptorUpdateTemplate descriptor_update_template_;
   std::array<uint64_t, 2> time_stamps_;
 
-  VkResult create_shader_module_ ();
-  VkResult create_pipeline_layout_ ();
-  VkResult create_descriptor_set_ ();
-  VkResult create_pipeline_ (ShaderConstants const &);
-  VkResult create_query_pool_ ();
-  VkResult create_descriptor_update_template_ ();
-  VkResult set_bindings_ (std::vector<VkTensor> bindings);
-  VkResult set_bindings_ (std::vector<VkTensor> bindings,
-                          std::vector<uint32_t> const &indices);
-  VkResult limits_ ();
+  absl::Status create_shader_module_ ();
+  absl::Status create_pipeline_layout_ ();
+  absl::Status create_descriptor_set_ ();
+  absl::Status create_pipeline_ (ShaderConstants const &);
+  absl::Status create_query_pool_ ();
+  absl::Status create_descriptor_update_template_ ();
+  absl::Status set_bindings_ (std::vector<Tensor> bindings);
+  absl::Status set_bindings_ (std::vector<Tensor> bindings,
+                              std::vector<uint32_t> const &indices);
+  absl::Status limits_ ();
 };
 }
 

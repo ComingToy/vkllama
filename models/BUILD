@@ -11,7 +11,8 @@ cc_library(
     ],
     deps = [
         "@gguf-tools//:gguf",
-        "@sentencepiece//:sentencepiece"
+        "@sentencepiece//:sentencepiece",
+        "@abseil-cpp//absl/status:statusor",
     ],
     copts = ["-std=c++17"],
     visibility = ["//visibility:public"]

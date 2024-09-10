@@ -6,19 +6,19 @@
 namespace vkllama
 {
 Transpose::Transpose (GPUDevice *gpu, Command *command, const int type,
-                      VkTensor::DType const dtype)
+                      Tensor::DType const dtype)
     : Op (gpu, command), dtype_ (dtype), trans_type_ (type)
 {
 }
 
-VkResult
+absl::Status
 Transpose::init () noexcept
 {
   Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 4, 4 };
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? __get_transpose_type0_comp_spv_code ()
                              : __get_transpose_type0_fp16_comp_spv_code ();
-  auto spv_size = dtype_ == VkTensor::FP32
+  auto spv_size = dtype_ == Tensor::FP32
                       ? __get_transpose_type0_comp_spv_size ()
                       : __get_transpose_type0_fp16_comp_spv_size ();
 
@@ -27,24 +27,27 @@ Transpose::init () noexcept
   return pipeline_->init ();
 }
 
-VkResult
-Transpose::operator() (VkTensor in, VkTensor &out) noexcept
+absl::Status
+Transpose::operator() (Tensor in, Tensor &out) noexcept
 {
   if (in.dtype () != dtype_)
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "transpose op defined with %d dtype but the dtype of input0 is %d",
+          int (dtype_), int (in.dtype ())));
     }
 
   if (trans_type_ != 0)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::UnimplementedError (
+          "only transpose type 0 is supported now.");
     }
 
-  out = VkTensor (in.height (), in.channels (), in.width (), dev_,
+  out = Tensor (in.height (), in.channels (), in.width (), dev_,
                   in.dtype ());
 
   auto ret = out.create ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -52,7 +55,7 @@ Transpose::operator() (VkTensor in, VkTensor &out) noexcept
   uint32_t group_x = (out.width () + 7) / 8, group_y = (out.height () + 3) / 4,
            group_z = (out.channels () + 3) / 4;
 
-  if ((ret = pipeline_->set_group (group_x, group_y, group_z)) != VK_SUCCESS)
+  if (!(ret = pipeline_->set_group (group_x, group_y, group_z)).ok ())
     {
       return ret;
     }
@@ -61,15 +64,16 @@ Transpose::operator() (VkTensor in, VkTensor &out) noexcept
       = { (uint32_t)in.channels (), (uint32_t)in.height (),
           (uint32_t)in.width (),    (uint32_t)out.channels (),
           (uint32_t)out.height (),  (uint32_t)out.width () };
-  if ((ret = command_->record_pipeline (*pipeline_, { in, out }, shape))
-      != VK_SUCCESS)
+
+  ret = command_->record_pipeline (*pipeline_, { in, out }, shape);
+  if (!ret.ok ())
     {
       return ret;
     }
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 };
 
 uint64_t

@@ -75,42 +75,43 @@ TEST_P (TestRope, test_rope)
 {
   auto params = GetParam ();
 
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at beign command";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at beign command";
   auto input_query
       = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
   auto input_key
       = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
 
   ASSERT_TRUE (input_query && input_key);
-  VkTensor input_query_fp16, input_query_fp32, input_key_fp16, input_key_fp32;
+  Tensor input_query_fp16, input_query_fp32, input_key_fp16, input_key_fp32;
   std::vector<float> input_query_buf (input_query->first.size ()),
       input_key_buf (input_key->first.size ());
 
-  Cast input_query_cast_fp16 (dev_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast input_key_cast_fp16 (dev_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast input_query_cast_fp32 (dev_, command_, VkTensor::FP16, VkTensor::FP32);
-  Cast input_key_cast_fp32 (dev_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast input_query_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
+  Cast input_key_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
+  Cast input_query_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
+  Cast input_key_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (input_query_cast_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (input_key_cast_fp16.init (), VK_SUCCESS);
-      ASSERT_EQ (input_query_cast_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (input_key_cast_fp32.init (), VK_SUCCESS);
+      ASSERT_EQ (input_query_cast_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (input_key_cast_fp16.init (), absl::OkStatus ());
+      ASSERT_EQ (input_query_cast_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (input_key_cast_fp32.init (), absl::OkStatus ());
 
       ASSERT_EQ (input_query_cast_fp16 (input_query->first, input_query_fp16),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_key_cast_fp16 (input_key->first, input_key_fp16),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_query_cast_fp32 (input_query_fp16, input_query_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (input_key_cast_fp32 (input_key_fp16, input_key_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input_key_fp32, input_key_buf.data (),
                                      input_key_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input_query_fp32, input_query_buf.data (),
                                      input_query_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -120,31 +121,32 @@ TEST_P (TestRope, test_rope)
       input_key_buf.swap (input_key->second);
     }
 
-  Rope rope_op (dev_, command_, params.MAXLEN, params.W, VkTensor::FP16);
+  Rope rope_op (dev_, command_, params.MAXLEN, params.W, Tensor::FP16);
 
-  ASSERT_EQ (rope_op.init (), VK_SUCCESS);
+  ASSERT_EQ (rope_op.init (), absl::OkStatus ());
 
-  VkTensor output_query, output_key;
+  Tensor output_query, output_key;
   ASSERT_EQ (rope_op (params.dtype ? input_query_fp16 : input_query_fp32,
                       params.dtype ? input_key_fp16 : input_key_fp32,
                       output_query, output_key, params.offset),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
   std::vector<float> output_query_buf (output_query.size ()),
       output_key_buf (output_key.size ());
 
-  Cast cast_output_query_op (dev_, command_, VkTensor::FP16, VkTensor::FP32);
-  Cast cast_output_key_op (dev_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_output_query_op (dev_, command_, Tensor::FP16, Tensor::FP32);
+  Cast cast_output_key_op (dev_, command_, Tensor::FP16, Tensor::FP32);
 
-  VkTensor output_query_fp32, output_key_fp32;
+  Tensor output_query_fp32, output_key_fp32;
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_key_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_query_op.init (), VK_SUCCESS);
+      ASSERT_EQ (cast_output_key_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_query_op.init (), absl::OkStatus ());
 
-      ASSERT_EQ (cast_output_key_op (output_key, output_key_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_key_op (output_key, output_key_fp32),
+                 absl::OkStatus ());
       ASSERT_EQ (cast_output_query_op (output_query, output_query_fp32),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -154,12 +156,12 @@ TEST_P (TestRope, test_rope)
 
   ASSERT_EQ (command_->download (output_query_fp32, output_query_buf.data (),
                                  output_query_buf.size ()),
-             VK_SUCCESS);
+             absl::OkStatus ());
   ASSERT_EQ (command_->download (output_key_fp32, output_key_buf.data (),
                                  output_key.size ()),
-             VK_SUCCESS);
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+             absl::OkStatus ());
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   auto output_query_host = TensorMap<3> (
@@ -192,20 +194,20 @@ TEST_P (TestRope, test_rope)
   auto input_freqs_host = TensorMap<3> (freqs_buf.data (), (Eigen::Index)1,
                                         params.MAXLEN, (Eigen::Index)w);
 
-  auto _apply_rope = [params] (Tensor<3> input_x, Tensor<3> input_freqc,
-                               Tensor<3> input_freqs)
+  auto _apply_rope = [params] (_Tensor<float, 3> input_x, _Tensor<float, 3> input_freqc,
+                               _Tensor<float, 3> input_freqs)
 
   {
     // apply rope to query
     Eigen::array<Eigen::Index, 4> dims
         = { input_x.dimension (0), input_x.dimension (1),
             input_x.dimension (2) / 2, (Eigen::Index)2 };
-    Tensor<4> query_host = input_x.reshape (dims);
-    Tensor<3> query_host_r = query_host.chip<3> (0);
-    Tensor<3> query_host_i = query_host.chip<3> (1);
+    _Tensor<float, 4> query_host = input_x.reshape (dims);
+    _Tensor<float, 3> query_host_r = query_host.chip<3> (0);
+    _Tensor<float, 3> query_host_i = query_host.chip<3> (1);
 
-    Tensor<3> query_host_or (query_host_r.dimensions ());
-    Tensor<3> query_host_oi (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_or (query_host_r.dimensions ());
+    _Tensor<float, 3> query_host_oi (query_host_r.dimensions ());
 
     Eigen::array<Eigen::Index, 2> starts = { 0, 0 };
     Eigen::array<Eigen::Index, 2> sizes
@@ -234,12 +236,12 @@ TEST_P (TestRope, test_rope)
     Eigen::array<Eigen::Index, 4> out_dims
         = { query_host_or.dimension (0), query_host_or.dimension (1),
             query_host_or.dimension (2), (Eigen::Index)1 };
-    Tensor<4> reshaped_query_host_or = query_host_or.reshape (out_dims);
-    Tensor<4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
-    Tensor<4> output
+    _Tensor<float, 4> reshaped_query_host_or = query_host_or.reshape (out_dims);
+    _Tensor<float, 4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
+    _Tensor<float, 4> output
         = reshaped_query_host_or.concatenate (reshaped_query_host_oi, 3);
 
-    Tensor<3> output_ = output.reshape (input_x.dimensions ());
+    _Tensor<float, 3> output_ = output.reshape (input_x.dimensions ());
     return output_;
   };
 
@@ -272,7 +274,7 @@ TEST_P (TestRope, test_rope)
     }
 #endif
 
-  Tensor<3> err (rope_output_query.dimensions ());
+  _Tensor<float, 3> err (rope_output_query.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
 
   _Tensor<int, 0> diff

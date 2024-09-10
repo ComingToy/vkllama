@@ -1,4 +1,5 @@
 #include "pipeline.h"
+#include "absl/strings/str_format.h"
 #include "tensor.h"
 #include <array>
 #include <fcntl.h>
@@ -39,49 +40,50 @@ Pipeline::~Pipeline ()
                                      descriptor_update_template_, nullptr);
 }
 
-VkResult
+absl::Status
 Pipeline::init ()
 {
   auto ret = limits_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     return ret;
 
   ret = create_shader_module_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     return ret;
-  ret = create_pipeline_layout_ ();
 
-  if (ret != VK_SUCCESS)
+  ret = create_pipeline_layout_ ();
+  if (!ret.ok ())
     return ret;
 
   ret = create_descriptor_set_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = create_query_pool_ ();
-  if (ret != VK_SUCCESS && ret != VK_ERROR_FEATURE_NOT_PRESENT)
+  if (!ret.ok () && !absl::IsUnimplemented (ret))
     {
       return ret;
     }
 
   ret = create_pipeline_ (specialization_);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = create_descriptor_update_template_ ();
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
+
   init_ = true;
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_shader_module_ ()
 {
 
@@ -89,11 +91,18 @@ Pipeline::create_shader_module_ ()
       = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0, spv_size_,
           reinterpret_cast<const uint32_t *> (spv_) };
 
-  return vkCreateShaderModule (device_->device (), &createInfo, nullptr,
-                               &module_);
+  auto ret = vkCreateShaderModule (device_->device (), &createInfo, nullptr,
+                                   &module_);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("create shader module failed: %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_pipeline_layout_ ()
 {
   std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -115,7 +124,8 @@ Pipeline::create_pipeline_layout_ ()
     auto ret = vkCreateDescriptorSetLayout (device_->device (), &createInfo,
                                             nullptr, &descriptorSetLayout_);
     if (ret != VK_SUCCESS)
-      return ret;
+      return absl::InternalError (absl::StrFormat (
+          "create descriptors set layout failed: %d", int (ret)));
   }
 
   {
@@ -130,12 +140,19 @@ Pipeline::create_pipeline_layout_ ()
             &descriptorSetLayout_,
             shaderInfo_.push_constant_bytes > 0 ? 1u : 0u,
             &range };
-    return vkCreatePipelineLayout (device_->device (), &createInfo, nullptr,
-                                   &pipelineLayout_);
+    auto ret = vkCreatePipelineLayout (device_->device (), &createInfo,
+                                       nullptr, &pipelineLayout_);
+    if (ret != VK_SUCCESS)
+      {
+        return absl::InternalError (
+            absl::StrFormat ("create pipeline layout failed: %d", int (ret)));
+      }
   }
+
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_pipeline_ (ShaderConstants const &constants)
 {
   const int n = constants.elem_num ();
@@ -179,12 +196,19 @@ Pipeline::create_pipeline_ (ShaderConstants const &constants)
           VK_NULL_HANDLE,
           0 };
 
-  return vkCreateComputePipelines (device_->device (), 0, 1,
-                                   &computePipelineCreateInfo, nullptr,
-                                   &pipeline_);
+  auto ret = vkCreateComputePipelines (device_->device (), 0, 1,
+                                       &computePipelineCreateInfo, nullptr,
+                                       &pipeline_);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("create compute pipeline failed: %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_descriptor_set_ ()
 {
   VkDescriptorPoolSize size;
@@ -203,7 +227,8 @@ Pipeline::create_descriptor_set_ ()
                                      &descriptorPool_);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (
+          absl::StrFormat ("failed at create descriptors pool %d", int (ret)));
     }
 
   VkDescriptorSetAllocateInfo allocInfo
@@ -214,18 +239,19 @@ Pipeline::create_descriptor_set_ ()
                                   &descriptorSet_);
   if (ret != VK_SUCCESS)
     {
-      return ret;
+      return absl::InternalError (
+          absl::StrFormat ("allocate descriptors set failed: %d", int (ret)));
     }
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_descriptor_update_template_ ()
 {
   if (!device_->support_descriptor_templ_update ())
     {
-      return VK_SUCCESS;
+      return absl::OkStatus ();
     }
 
   std::vector<VkDescriptorUpdateTemplateEntry> entries (
@@ -252,16 +278,23 @@ Pipeline::create_descriptor_update_template_ ()
           pipelineLayout_,
           0 };
 
-  return vkCreateDescriptorUpdateTemplate (device_->device (), &info, nullptr,
-                                           &descriptor_update_template_);
+  auto ret = vkCreateDescriptorUpdateTemplate (
+      device_->device (), &info, nullptr, &descriptor_update_template_);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (absl::StrFormat (
+          "create descriptor update template failed: %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
+absl::Status
 Pipeline::create_query_pool_ ()
 {
   if (!device_->support_pipeline_statistics ())
     {
-      return VK_ERROR_FEATURE_NOT_PRESENT;
+      return absl::UnimplementedError ("pipeline statistics is unsupported.");
     }
 
   VkQueryPoolCreateInfo createInfo
@@ -271,25 +304,32 @@ Pipeline::create_query_pool_ ()
           VK_QUERY_TYPE_TIMESTAMP,
           2,
           0 };
-  return vkCreateQueryPool (device_->device (), &createInfo, nullptr,
-                            &queryPool_);
+  auto ret = vkCreateQueryPool (device_->device (), &createInfo, nullptr,
+                                &queryPool_);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("create query pool failed: %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
-Pipeline::update_bindings (std::vector<VkTensor> bindings)
+absl::Status
+Pipeline::update_bindings (std::vector<Tensor> bindings)
 {
   return set_bindings_ (bindings);
 }
 
-VkResult
-Pipeline::update_bindings (std::vector<VkTensor> bindings,
+absl::Status
+Pipeline::update_bindings (std::vector<Tensor> bindings,
                            const std::vector<uint32_t> &indices)
 {
   return set_bindings_ (bindings, indices);
 }
 
-VkResult
-Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
+absl::Status
+Pipeline::set_bindings_ (std::vector<Tensor> bindings)
 {
   std::vector<VkDescriptorBufferInfo> descriptors;
   descriptors.resize (bindings.size ());
@@ -325,11 +365,11 @@ Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
                               writes.data (), 0, nullptr);
     }
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
-VkResult
-Pipeline::set_bindings_ (std::vector<VkTensor> bindings,
+absl::Status
+Pipeline::set_bindings_ (std::vector<Tensor> bindings,
                          const std::vector<uint32_t> &indices)
 {
   std::vector<VkDescriptorBufferInfo> descriptors (indices.size ());
@@ -355,7 +395,7 @@ Pipeline::set_bindings_ (std::vector<VkTensor> bindings,
   vkUpdateDescriptorSets (device_->device (), writes.size (), writes.data (),
                           0, nullptr);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 VkPipeline &
@@ -404,7 +444,7 @@ Pipeline::time ()
   return (uint64_t)delta;
 }
 
-VkResult
+absl::Status
 Pipeline::limits_ ()
 {
   auto const &limits = device_->limits ();
@@ -414,17 +454,21 @@ Pipeline::limits_ ()
       = std::min (shaderInfo_.local_y, limits.maxComputeWorkGroupSize[1]);
   shaderInfo_.local_z
       = std::min (shaderInfo_.local_z, limits.maxComputeWorkGroupSize[2]);
-  if (shaderInfo_.local_x * shaderInfo_.local_y * shaderInfo_.local_z
-      > limits.maxComputeWorkGroupInvocations)
+  auto group_size
+      = shaderInfo_.local_x * shaderInfo_.local_y * shaderInfo_.local_z;
+  if (group_size > limits.maxComputeWorkGroupInvocations)
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "size of thread group is too large. max compute work group "
+          "invocations = %zu, but %zu provided",
+          (size_t)limits.maxComputeWorkGroupInvocations, (size_t)group_size));
     }
 
   specialization_.push_back (shaderInfo_.local_x);
   specialization_.push_back (shaderInfo_.local_y);
   specialization_.push_back (shaderInfo_.local_z);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint32_t
@@ -445,7 +489,7 @@ Pipeline::group_z () const
   return z_;
 }
 
-VkResult
+absl::Status
 Pipeline::set_group (uint32_t x, uint32_t y, uint32_t z)
 {
   x_ = x;
@@ -458,9 +502,15 @@ Pipeline::set_group (uint32_t x, uint32_t y, uint32_t z)
       || group_y () > limits.maxComputeWorkGroupCount[1]
       || group_z () > limits.maxComputeWorkGroupCount[2])
     {
-      return VK_ERROR_UNKNOWN;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "group size out of range. (%zu, %zu, %zu) given but limit is (%zu, "
+          "%zu, %zu)",
+          (size_t)group_x (), (size_t)group_y (), (size_t)group_z (),
+          (size_t)limits.maxComputeWorkGroupCount[0],
+          (size_t)limits.maxComputeWorkGroupCount[1],
+          (size_t)limits.maxComputeWorkGroupCount[2]));
     }
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 Pipeline::ShaderInfo const &

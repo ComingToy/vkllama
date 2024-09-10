@@ -14,41 +14,42 @@ template <int op_type> class ArgOp : public Op
 {
 public:
   ArgOp (GPUDevice *gpu, Command *command,
-         const VkTensor::DType dtype = VkTensor::FP32)
+         const Tensor::DType dtype = Tensor::FP32)
       : Op (gpu, command), dtype_ (dtype)
   {
   }
 
-  VkResult
+  absl::Status
   init () noexcept override
   {
     Pipeline::ShaderInfo info0 = { 1, 2, sizeof (uint32_t) * 3, 32, 4, 1 };
     Pipeline::ShaderInfo info1 = { 1, 2, sizeof (uint32_t) * 3, 1, 128, 1 };
 
-    if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
       {
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        return absl::InvalidArgumentError (
+            "fp16 dtype is unsupported on device");
       }
 
     const uint8_t *spv_code0 = nullptr;
     size_t spv_size0 = 0;
     const uint8_t *spv_code1 = nullptr;
     size_t spv_size1 = 0;
-    if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())
+    if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())
       {
         spv_code0 = __get_argmax_stage0_fp16a_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_fp16a_comp_spv_size ();
         spv_code1 = __get_argmax_stage1_fp16a_comp_spv_code ();
         spv_size1 = __get_argmax_stage1_fp16a_comp_spv_size ();
       }
-    else if (dtype_ == VkTensor::FP16)
+    else if (dtype_ == Tensor::FP16)
       {
         spv_code0 = __get_argmax_stage0_fp16_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_fp16_comp_spv_size ();
         spv_code1 = __get_argmax_stage1_comp_spv_code ();
         spv_size1 = __get_argmax_stage1_comp_spv_size ();
       }
-    else if (dtype_ == VkTensor::FP32)
+    else if (dtype_ == Tensor::FP32)
       {
         spv_code0 = __get_argmax_stage0_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_comp_spv_size ();
@@ -57,7 +58,8 @@ public:
       }
     else
       {
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        return absl::InvalidArgumentError (
+            absl::StrFormat ("dtype %i is unsupported", int (dtype_)));
       }
 
     pipeline0_.reset (
@@ -67,7 +69,7 @@ public:
         new Pipeline (dev_, spv_code1, spv_size1, { op_type }, info1));
 
     auto ret = pipeline0_->init ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -75,17 +77,19 @@ public:
     return pipeline1_->init ();
   }
 
-  VkResult
-  operator() (VkTensor in, VkTensor &out) noexcept
+  absl::Status
+  operator() (Tensor in, Tensor &out) noexcept
   {
     if (in.dtype () != dtype_)
       {
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        return absl::InvalidArgumentError (
+            absl::StrFormat ("operator defined as %d dtype but %d given.",
+                             int (dtype_), int (in.dtype ())));
       }
 
-    out = VkTensor (in.channels (), in.height (), 1, dev_, VkTensor::UINT32);
+    out = Tensor (in.channels (), in.height (), 1, dev_, Tensor::UINT32);
     auto ret = out.create ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -93,16 +97,15 @@ public:
     uint32_t group_x = (in.width () + 31) / 32,
              group_y = (in.height () + 3) / 4, group_z = in.channels ();
 
-    if ((ret = pipeline0_->set_group (group_x, group_y, group_z))
-        != VK_SUCCESS)
+    if (!(ret = pipeline0_->set_group (group_x, group_y, group_z)).ok ())
       {
         return ret;
       }
 
     stage0_output_
-        = VkTensor (in.channels (), in.height (), group_x * 2, dev_);
+        = Tensor (in.channels (), in.height (), group_x * 2, dev_);
 
-    if ((ret = stage0_output_.create ()) != VK_SUCCESS)
+    if (!(ret = stage0_output_.create ()).ok ())
       {
         return ret;
       }
@@ -113,7 +116,7 @@ public:
 
     ret = command_->record_pipeline (*pipeline0_, { in, stage0_output_ },
                                      shape);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -123,7 +126,7 @@ public:
 
     group_y = (in.height () + 127) / 128;
     ret = pipeline1_->set_group (1, group_y, group_z);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -134,7 +137,7 @@ public:
     ret = command_->record_pipeline (*pipeline1_, { stage0_output_, out },
                                      shape1);
 
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -142,7 +145,7 @@ public:
     out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     out.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
   uint64_t
@@ -154,8 +157,8 @@ public:
 private:
   std::unique_ptr<Pipeline> pipeline0_;
   std::unique_ptr<Pipeline> pipeline1_;
-  VkTensor stage0_output_;
-  VkTensor::DType dtype_;
+  Tensor stage0_output_;
+  Tensor::DType dtype_;
 };
 
 using ArgMax = ArgOp<0>;

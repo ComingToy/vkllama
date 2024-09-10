@@ -34,8 +34,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -49,38 +49,38 @@ public:
 TEST_P (TestSlice, test_slice)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
 
   auto input0 = random_tensor<float> (gpu_, command_, params.shape.C,
                                       params.shape.H, params.shape.W);
   ASSERT_TRUE (input0);
-  VkTensor input_tensor;
+  Tensor input_tensor;
 
-  Cast cast (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Cast cast (gpu_, command_, Tensor::FP32, Tensor::FP16);
   if (params.dtype)
     {
-      ASSERT_EQ (cast.init (), VK_SUCCESS);
-      ASSERT_EQ (cast (input0->first, input_tensor), VK_SUCCESS);
+      ASSERT_EQ (cast.init (), absl::OkStatus ());
+      ASSERT_EQ (cast (input0->first, input_tensor), absl::OkStatus ());
     }
   else
     {
       input_tensor = input0->first;
     }
 
-  Slice slice_op (gpu_, command_, (VkTensor::DType)params.dtype);
-  ASSERT_EQ (slice_op.init (), VK_SUCCESS);
+  Slice slice_op (gpu_, command_, (Tensor::DType)params.dtype);
+  ASSERT_EQ (slice_op.init (), absl::OkStatus ());
 
-  VkTensor out;
+  Tensor out;
   ASSERT_EQ (slice_op (input_tensor, params.starts, params.extents, out),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
-  VkTensor out_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor out_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (out, out_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (out, out_fp32), absl::OkStatus ());
     }
   else
     {
@@ -91,17 +91,17 @@ TEST_P (TestSlice, test_slice)
 
   ASSERT_EQ (
       command_->download (out_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
+      absl::OkStatus ());
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS);
-  ASSERT_EQ (command_->submit (), VK_SUCCESS);
-  ASSERT_EQ (command_->wait (), VK_SUCCESS);
+  ASSERT_EQ (command_->end (), absl::OkStatus ());
+  ASSERT_EQ (command_->submit (), absl::OkStatus ());
+  ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)out_fp32.channels (),
       (Eigen::Index)out_fp32.height (), (Eigen::Index)out_fp32.width ());
 
-  Tensor<3> input_eigen_tensor = TensorMap<3> (
+  _Tensor<float, 3> input_eigen_tensor = TensorMap<3> (
       input0->second.data (), (Eigen::Index)params.shape.C,
       (Eigen::Index)params.shape.H, (Eigen::Index)params.shape.W);
 
@@ -110,7 +110,7 @@ TEST_P (TestSlice, test_slice)
   Eigen::array<Eigen::Index, 3> extents
       = { params.extents[0], params.extents[1], params.extents[2] };
 
-  Tensor<3> output_tensor;
+  _Tensor<float, 3> output_tensor;
   if (params.dtype)
     {
       output_tensor = input_eigen_tensor.cast<Eigen::half> ()
@@ -122,7 +122,7 @@ TEST_P (TestSlice, test_slice)
       output_tensor = input_eigen_tensor.slice (starts, extents);
     }
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (params.dtype ? 1e-2 : 1e-3);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();

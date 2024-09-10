@@ -8,10 +8,10 @@
 
 namespace vkllama
 {
-FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
-                          VkTensor w2, VkTensor w3,
+FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
+                          Tensor w2, Tensor w3,
                           const bool transposed_weight,
-                          const VkTensor::DType dtype)
+                          const Tensor::DType dtype)
     : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
 {
@@ -26,25 +26,28 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
   elemwise_op_.reset (new ElementWise (dev_, command_, 2, dtype_));
 }
 
-VkResult
+absl::Status
 FeedForward::init () noexcept
 {
   if (w1_.dtype () != w2_.dtype () || w2_.dtype () != w3_.dtype ()
       || dtype_ != w1_.dtype ())
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("feed_forward op defined with %d dtype but "
+                           "w1.dtype = %d, w2.dtype = %d, w3.dtype = %d",
+                           int (dtype_), int (w1_.dtype ()),
+                           int (w2_.dtype ()), int (w3_.dtype ())));
     }
 
-  VkResult ret = VK_SUCCESS;
-  if ((ret = up_op_->init ()) != VK_SUCCESS
-      || (ret = down_op_->init ()) != VK_SUCCESS
-      || (ret = gate_op_->init ()) != VK_SUCCESS
-      || (ret = elemwise_op_->init ()))
+  absl::Status ret;
+  if (!(ret = up_op_->init ()).ok () || !(ret = down_op_->init ()).ok ()
+      || !(ret = gate_op_->init ()).ok ()
+      || !(ret = elemwise_op_->init ()).ok ())
     {
       return ret;
     }
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t
@@ -54,22 +57,24 @@ FeedForward::time () noexcept
          + elemwise_op_->time ();
 }
 
-VkResult
-FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
+absl::Status
+FeedForward::operator() (Tensor X, Tensor &output) noexcept
 {
   if (X.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "feed_forward op defined with %d dtype but input X.dtype() = %d",
+          int (dtype_), int (X.dtype ())));
     }
 
-  VkResult ret = VK_SUCCESS;
+  absl::Status ret;
 
-  if ((ret = up_op_->operator() (X, t0_)) != VK_SUCCESS)
+  if (!(ret = up_op_->operator() (X, t0_)).ok ())
     {
       return ret;
     }
 
-  if ((ret = gate_op_->operator() (X, t1_)) != VK_SUCCESS)
+  if (!(ret = gate_op_->operator() (X, t1_)).ok ())
     {
       return ret;
     }
@@ -79,20 +84,20 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
   t1_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t1_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  t2_ = VkTensor::like (t0_);
+  t2_ = Tensor::like (t0_);
 
-  if ((ret = t2_.create ()) != VK_SUCCESS)
+  if (!(ret = t2_.create ()).ok ())
     {
       return ret;
     }
 
   ret = elemwise_op_->operator() (t0_, t1_, t2_);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
-  if ((ret = down_op_->operator() (t2_, output)) != VK_SUCCESS)
+  if (!(ret = down_op_->operator() (t2_, output)).ok ())
     {
       return ret;
     }
@@ -100,7 +105,7 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 }
 

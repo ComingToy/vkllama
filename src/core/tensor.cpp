@@ -1,4 +1,5 @@
 #include "tensor.h"
+#include "absl/strings/str_format.h"
 #include "gpu_device.h"
 #include "vk_mem_alloc.h"
 #include <atomic>
@@ -8,13 +9,13 @@
 
 namespace vkllama
 {
-VkTensor::VkTensor ()
+Tensor::Tensor ()
     : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false), dtype_ (FP32),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
-VkTensor::VkTensor (const int c, const int h, const int w, GPUDevice *dev,
+Tensor::Tensor (const int c, const int h, const int w, GPUDevice *dev,
                     const DType dtype, const bool visable)
     : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
@@ -22,7 +23,7 @@ VkTensor::VkTensor (const int c, const int h, const int w, GPUDevice *dev,
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 
-VkTensor::VkTensor (const VkTensor &rhs)
+Tensor::Tensor (const Tensor &rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
       dev_ (rhs.dev_), visable_ (rhs.visable ()), dtype_ (rhs.dtype_),
       data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
@@ -34,7 +35,7 @@ VkTensor::VkTensor (const VkTensor &rhs)
     }
 }
 
-VkTensor::VkTensor (VkTensor &&rhs)
+Tensor::Tensor (Tensor &&rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
       dev_ (rhs.dev_), visable_ (rhs.visable_), dtype_ (rhs.dtype_),
       data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
@@ -43,8 +44,8 @@ VkTensor::VkTensor (VkTensor &&rhs)
   rhs.status_ = nullptr;
 }
 
-VkTensor &
-VkTensor::operator= (VkTensor const &rhs)
+Tensor &
+Tensor::operator= (Tensor const &rhs)
 {
 
   if (rhs.status_)
@@ -68,7 +69,7 @@ VkTensor::operator= (VkTensor const &rhs)
 }
 
 size_t
-VkTensor::elem_bytes () const
+Tensor::elem_bytes () const
 {
   if (dtype_ == FP32)
     {
@@ -88,8 +89,8 @@ VkTensor::elem_bytes () const
     }
 }
 
-VkResult
-VkTensor::create ()
+absl::Status
+Tensor::create ()
 {
   const size_t align = dev_->limits ().nonCoherentAtomSize;
   auto bytes = elem_bytes () * w_ * h_ * c_;
@@ -123,7 +124,8 @@ VkTensor::create ()
                                 &data_, &allocation_, &mem_);
     if (ret != VK_SUCCESS)
       {
-        return ret;
+        return absl::InternalError (
+            absl::StrFormat ("failed at creating vma buffer: %d", int (ret)));
       }
   }
 
@@ -131,11 +133,11 @@ VkTensor::create ()
   status_->access_flags_.store (0);
   status_->pipeline_stage_.store (0);
   status_->ref_.store (1);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 size_t
-VkTensor::bytes () const
+Tensor::bytes () const
 {
   auto bytes = elem_bytes () * w_ * h_ * c_;
   const auto align = dev_->limits ().nonCoherentAtomSize;
@@ -144,25 +146,25 @@ VkTensor::bytes () const
 }
 
 void *
-VkTensor::host ()
+Tensor::host ()
 {
   return mem_.pMappedData;
 }
 
 VkAccessFlags
-VkTensor::access_flags () const
+Tensor::access_flags () const
 {
   return status_ ? status_->access_flags_.load () : 0;
 }
 
 VkPipelineStageFlags
-VkTensor::pipeline_stage () const
+Tensor::pipeline_stage () const
 {
   return status_ ? status_->pipeline_stage_.load () : 0;
 }
 
 void
-VkTensor::set_access_flags (VkAccessFlags flags)
+Tensor::set_access_flags (VkAccessFlags flags)
 {
   if (!status_)
     return;
@@ -170,7 +172,7 @@ VkTensor::set_access_flags (VkAccessFlags flags)
 }
 
 void
-VkTensor::set_pipeline_stage (VkPipelineStageFlags stage)
+Tensor::set_pipeline_stage (VkPipelineStageFlags stage)
 {
   if (!status_)
     return;
@@ -178,86 +180,104 @@ VkTensor::set_pipeline_stage (VkPipelineStageFlags stage)
 }
 
 bool
-VkTensor::visable () const
+Tensor::visable () const
 {
   return visable_;
 }
 
 size_t
-VkTensor::channels () const
+Tensor::channels () const
 {
   return c_;
 }
 
 size_t
-VkTensor::height () const
+Tensor::height () const
 {
   return h_;
 }
 
 size_t
-VkTensor::width () const
+Tensor::width () const
 {
   return w_;
 }
 
 size_t
-VkTensor::size () const
+Tensor::size () const
 {
   return c_ * h_ * w_;
 }
 
-VkResult
-VkTensor::reshape (size_t const c, size_t const h, size_t const w)
+absl::Status
+Tensor::reshape (size_t const c, size_t const h, size_t const w)
 {
   if (c * h * w != c_ * h_ * w_)
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (absl::StrFormat (
+          "reshape from (%zu, %zu, %zu) to (%zu, %zu, %zu) error.", c_, h_, w_,
+          c, h, w));
     }
 
   c_ = c;
   h_ = h;
   w_ = w;
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 VkBuffer &
-VkTensor::data ()
+Tensor::data ()
 {
   return data_;
 }
 
-VkResult
-VkTensor::flush ()
+absl::Status
+Tensor::flush ()
 {
   if (!visable_)
     {
-      return VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS;
+      return absl::UnimplementedError (
+          absl::StrFormat ("cannot flush to invisable tensor"));
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
                                 mem_.deviceMemory, mem_.offset, mem_.size };
 
-  return vkFlushMappedMemoryRanges (dev_->device (), 1, &range);
+  auto ret = vkFlushMappedMemoryRanges (dev_->device (), 1, &range);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (
+          absl::StrFormat ("failed at flushing to tensor %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
-VkResult
-VkTensor::invalid ()
+absl::Status
+Tensor::invalid ()
 {
   if (!visable_)
     {
-      return VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS;
+      return absl::UnimplementedError (
+          absl::StrFormat ("cannot invalid an invisable tensor"));
     }
 
   VkMappedMemoryRange range = { VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr,
                                 mem_.deviceMemory, mem_.offset, mem_.size };
 
-  return vkInvalidateMappedMemoryRanges (dev_->device (), 1, &range);
+  auto ret = vkInvalidateMappedMemoryRanges (dev_->device (), 1, &range);
+  if (ret != VK_SUCCESS)
+    {
+      return absl::InternalError (absl::StrFormat (
+          "failed at invaliding tensor memory, ret = %d", int (ret)));
+    }
+
+  return absl::OkStatus ();
 }
 
 void
-VkTensor::release_ ()
+Tensor::release_ ()
 {
   if (status_ && status_->ref_.fetch_sub (1) == 1)
     {
@@ -270,18 +290,18 @@ VkTensor::release_ ()
     }
 }
 
-VkTensor::DType
-VkTensor::dtype () const
+Tensor::DType
+Tensor::dtype () const
 {
   return dtype_;
 }
 
-VkTensor::~VkTensor () { release_ (); }
+Tensor::~Tensor () { release_ (); }
 
-VkTensor
-VkTensor::like (const VkTensor &tensor)
+Tensor
+Tensor::like (const Tensor &tensor)
 {
-  VkTensor tmp (tensor.channels (), tensor.height (), tensor.width (),
+  Tensor tmp (tensor.channels (), tensor.height (), tensor.width (),
                 tensor.dev_, tensor.dtype (), tensor.visable ());
   return tmp;
 }

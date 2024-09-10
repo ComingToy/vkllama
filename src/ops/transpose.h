@@ -12,11 +12,11 @@ class Transpose : public Op
 public:
   // type 0: axis = [1, 0, 2]
   Transpose (GPUDevice *gpu, Command *command, const int type,
-             VkTensor::DType const dtype = VkTensor::FP32);
+             Tensor::DType const dtype = Tensor::FP32);
 
   uint64_t time () noexcept override;
-  VkResult init () noexcept override;
-  VkResult operator() (VkTensor in, VkTensor &out) noexcept;
+  absl::Status init () noexcept override;
+  absl::Status operator() (Tensor in, Tensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

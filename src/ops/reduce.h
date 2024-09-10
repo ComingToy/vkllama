@@ -19,17 +19,17 @@ class Reduce : public Op
 {
 public:
   Reduce (GPUDevice *gpu, Command *command, int op_type,
-          VkTensor::DType const dtype = VkTensor::FP32)
+          Tensor::DType const dtype = Tensor::FP32)
       : Op (gpu, command), op_type_ (op_type), dtype_ (dtype)
   {
   }
 
-  VkResult
+  absl::Status
   init () noexcept override
   {
-    if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
       {
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        return absl::InternalError ("fp16 is unsupported on the device");
       }
 
     Pipeline::ShaderInfo stage0Info = { 1,
@@ -39,10 +39,10 @@ public:
                                         1,
                                         1 };
 
-    const auto *spv_code = dtype_ == VkTensor::FP16
+    const auto *spv_code = dtype_ == Tensor::FP16
                                ? __get_reduce_fp16_comp_spv_code ()
                                : __get_reduce_comp_spv_code ();
-    auto spv_size = dtype_ == VkTensor::FP16
+    auto spv_size = dtype_ == Tensor::FP16
                         ? __get_reduce_fp16_comp_spv_size ()
                         : __get_reduce_comp_spv_size ();
 
@@ -59,12 +59,14 @@ public:
     return stage0_->time ();
   };
 
-  VkResult
-  operator() (VkTensor a, VkTensor &b)
+  absl::Status
+  operator() (Tensor a, Tensor &b)
   {
     if (a.dtype () != dtype_)
       {
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        return absl::InternalError (absl::StrFormat (
+            "reduce op defined with %d dtype but the dtype of input0 is %d",
+            int (dtype_), int (a.dtype ())));
       }
 
     uint32_t group_x
@@ -72,13 +74,13 @@ public:
         group_y = a.height (), group_z = a.channels ();
 
     auto ret = stage0_->set_group (group_x, group_y, group_z);
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
 
-    b = VkTensor (a.channels (), a.height (), 1, dev_, dtype_);
-    if ((ret = b.create ()) != VK_SUCCESS)
+    b = Tensor (a.channels (), a.height (), 1, dev_, dtype_);
+    if (!(ret = b.create ()).ok ())
       {
         return ret;
       }
@@ -89,7 +91,7 @@ public:
     ret = command_->record_pipeline (
         *stage0_, { a, b },
         { (int)a.channels (), (int)a.height (), (int)a.width (), mean_scale });
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -97,13 +99,13 @@ public:
     b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
 private:
   std::unique_ptr<Pipeline> stage0_;
   const int op_type_;
-  const VkTensor::DType dtype_;
+  const Tensor::DType dtype_;
 };
 }
 

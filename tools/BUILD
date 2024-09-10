@@ -11,26 +11,3 @@ py_binary(
         '@platforms//os:linux': [requirement('jinja2')]
     })
 )
-
-#py_binary(
-#    name='dump_all_variables',
-#    srcs=['dump_all_variables.py'],
-#    visibility = ["//visibility:public"],
-#    deps = ["//models/proto:llama2_model_py_proto"] +
-#        select({
-#            '@platforms//os:macos': [macos_requirement('tensorflow')],
-#            '@platforms//os:linux': [requirement('tensorflow')],
-#        }),
-#)
-
-py_binary(
-    name='dump_torch_state_dict',
-    srcs=['dump_torch_state_dict.py'],
-    visibility = ["//visibility:public"],
-    deps = ["//models/proto:llama2_model_py_proto"] +
-        select({
-            '@platforms//os:macos': [macos_requirement('torch')],
-            '@platforms//os:linux': [requirement('torch')],
-        }),
-    
-)

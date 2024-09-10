@@ -14,17 +14,17 @@ class ElementWise : public Op
 {
 public:
   ElementWise (GPUDevice *dev, Command *command_, const int type,
-               VkTensor::DType dtype = VkTensor::FP32);
-  VkResult operator() (VkTensor x, VkTensor y, VkTensor &out) noexcept;
-  VkResult operator() (VkTensor x, float y, VkTensor &out) noexcept;
-  VkResult init () noexcept override;
+               Tensor::DType dtype = Tensor::FP32);
+  absl::Status operator() (Tensor x, Tensor y, Tensor &out) noexcept;
+  absl::Status operator() (Tensor x, float y, Tensor &out) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
   const int type_;
   std::unique_ptr<Pipeline> pipeline0_;
   std::unique_ptr<Pipeline> pipeline1_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
 };
 
 }

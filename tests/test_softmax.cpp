@@ -45,25 +45,28 @@ public:
 TEST_P (TestSoftmax, test_softmax)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS) << "failed at begin commands";
+  ASSERT_EQ (command_->begin (), absl::OkStatus ())
+      << "failed at begin commands";
 
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
 
-  VkTensor input0_fp16, input0_fp32;
+  Tensor input0_fp16, input0_fp32;
   std::vector<float> input0_buf (input0->first.size ());
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_input_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op_fp32.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op (input0->first, input0_fp16), VK_SUCCESS);
-      ASSERT_EQ (cast_input_op_fp32 (input0_fp16, input0_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op_fp32.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_input_op (input0->first, input0_fp16),
+                 absl::OkStatus ());
+      ASSERT_EQ (cast_input_op_fp32 (input0_fp16, input0_fp32),
+                 absl::OkStatus ());
       ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
                                      input0_buf.size ()),
-                 VK_SUCCESS);
+                 absl::OkStatus ());
     }
   else
     {
@@ -72,21 +75,21 @@ TEST_P (TestSoftmax, test_softmax)
     }
 
   Softmax softmax_op (gpu_, command_, false, 1.0,
-                      (VkTensor::DType)params.dtype);
-  ASSERT_EQ (softmax_op.init (), VK_SUCCESS) << "failed at init op";
+                      (Tensor::DType)params.dtype);
+  ASSERT_EQ (softmax_op.init (), absl::OkStatus ()) << "failed at init op";
 
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (softmax_op (params.dtype ? input0_fp16 : input0_fp32, output),
-             VK_SUCCESS)
+             absl::OkStatus ())
       << "failed at infer softmax";
 
   std::vector<float> output_buf (output.size ());
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (output, output_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
     }
   else
     {
@@ -95,26 +98,26 @@ TEST_P (TestSoftmax, test_softmax)
 
   ASSERT_EQ (
       command_->download (output_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS)
+      absl::OkStatus ())
       << "failed at download output";
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS) << "failed at end commands";
-  ASSERT_EQ (command_->submit_and_wait (), VK_SUCCESS)
+  ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
+  ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  Tensor<3> vk_output_tensor = TensorMap<3> (
+  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)output.channels (),
       (Eigen::Index)output.height (), (Eigen::Index)output.width ());
 
-  Tensor<3> input_tensor = TensorMap<3> (
+  _Tensor<float, 3> input_tensor = TensorMap<3> (
       input0_buf.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
-  Tensor<3> output_tensor (input_tensor.dimensions ());
+  _Tensor<float, 3> output_tensor (input_tensor.dimensions ());
   Eigen::array<Eigen::Index, 1> dims = { 2 };
 
-  Tensor<3> exps;
-  Tensor<3> m;
+  _Tensor<float, 3> exps;
+  _Tensor<float, 3> m;
   {
     Eigen::array<Eigen::Index, 3> bias_dims
         = { input_tensor.dimension (0), input_tensor.dimension (1), 1 };
@@ -132,7 +135,7 @@ TEST_P (TestSoftmax, test_softmax)
   //           << "eigen output tensor: " << output_tensor << std::endl
   //           << "vk output tensor: " << vk_output_tensor << std::endl;
 
-  Tensor<3> err (vk_output_tensor.dimensions ());
+  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (1e-2);
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();

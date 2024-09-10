@@ -7,19 +7,19 @@
 namespace vkllama
 {
 UpdateKVCache::UpdateKVCache (GPUDevice *gpu, Command *command,
-                              const VkTensor::DType dtype)
+                              const Tensor::DType dtype)
     : Op (gpu, command), dtype_ (dtype)
 {
 }
 
-VkResult
+absl::Status
 UpdateKVCache::init () noexcept
 {
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? nullptr
                              : __get_update_kvcache_fp16_comp_spv_code ();
 
-  size_t spv_size = dtype_ == VkTensor::FP32
+  size_t spv_size = dtype_ == Tensor::FP32
                         ? 0
                         : __get_update_kvcache_fp16_comp_spv_size ();
 
@@ -30,15 +30,20 @@ UpdateKVCache::init () noexcept
   return pipeline_->init ();
 }
 
-VkResult
-UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
+absl::Status
+UpdateKVCache::operator() (Tensor cache, Tensor key_or_value,
                            const uint32_t offset) noexcept
 {
   if (cache.height () < key_or_value.height ()
       || cache.channels () < key_or_value.channels ()
       || cache.width () != key_or_value.width ())
     {
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return absl::OutOfRangeError (
+          absl::StrFormat ("size of value is larger than cache. value.shape = "
+                           "(%zu, %zu, %zu), cache.shape = (%zu, %zu, %zu)",
+                           key_or_value.channels (), key_or_value.height (),
+                           key_or_value.width (), cache.channels (),
+                           cache.height (), cache.width ()));
     }
 
   ShaderConstants constants
@@ -50,21 +55,21 @@ UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
                  group_y = (key_or_value.height () + 15) / 16,
                  group_z = key_or_value.channels ();
   auto ret = pipeline_->set_group (group_x, group_y, group_z);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   ret = command_->record_pipeline (*pipeline_, { key_or_value, cache },
                                    constants);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
 
   cache.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   cache.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 
 uint64_t

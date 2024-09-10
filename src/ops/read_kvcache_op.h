@@ -11,10 +11,10 @@ class ReadKVCache : public Op
 {
 public:
   ReadKVCache (GPUDevice *gpu, Command *command);
-  VkResult init () noexcept override;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor cache, uint32_t offset, uint32_t len,
-                       VkTensor &key_or_value) noexcept;
+  absl::Status operator() (Tensor cache, uint32_t offset, uint32_t len,
+                           Tensor &key_or_value) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

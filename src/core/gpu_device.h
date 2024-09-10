@@ -1,5 +1,6 @@
 #ifndef __VKLLAMA_CPP_GPU_DEVICE_H__
 #define __VKLLAMA_CPP_GPU_DEVICE_H__
+#include "absl/status/status.h"
 #include "vk_mem_alloc.h"
 #include <memory>
 #include <vector>
@@ -23,7 +24,7 @@ public:
   uint32_t require_queue (VkQueueFlags flags) const;
   const VkPhysicalDeviceLimits &limits () const;
   const float timestamp_period () const;
-  VkResult init ();
+  absl::Status init ();
   bool support_descriptor_templ_update () const;
   bool support_16bit_storage () const;
   bool support_fp16_arithmetic () const;
@@ -35,8 +36,8 @@ public:
   ~GPUDevice ();
 
 private:
-  VkResult create_instance_ ();
-  VkResult init_device_ ();
+  absl::Status create_instance_ ();
+  absl::Status init_device_ ();
   VkInstance instance_;
   VkPhysicalDevice physicalDev_;
   VkDevice device_;

@@ -1,6 +1,8 @@
 #ifndef __VKLLAMA_COMMAND_H__
 #define __VKLLAMA_COMMAND_H__
 
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "gpu_device.h"
 #include "pipeline.h"
 #include "tensor.h"
@@ -31,7 +33,7 @@ public:
     vkDestroyFence (dev_->device (), fence_, nullptr);
   }
 
-  VkResult
+  absl::Status
   init ()
   {
     auto queueFamily
@@ -43,7 +45,8 @@ public:
         = vkCreateFence (dev_->device (), &fenceCreaeInfo, nullptr, &fence_);
     if (ret != VK_SUCCESS)
       {
-        return ret;
+        return absl::InternalError (absl::StrFormat (
+            "Command: failed at create fence, VkResult = %d", int (ret)));
       }
 
     VkCommandPoolCreateInfo createInfo
@@ -56,25 +59,31 @@ public:
         = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr,
             commandPool_, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1 };
 
-    return vkAllocateCommandBuffers (dev_->device (), &allocInfo,
-                                     &commandBuffer_);
+    ret = vkAllocateCommandBuffers (dev_->device (), &allocInfo,
+                                    &commandBuffer_);
+    if (ret != VK_SUCCESS)
+      {
+        return absl::InternalError (absl::StrFormat (
+            "Command: failed at create fence, VkResult = %d", int (ret)));
+      }
+
+    return absl::OkStatus ();
   }
 
-  VkResult
+  absl::Status
   begin ()
   {
     return begin_ ();
   }
-  VkResult
+  absl::Status
   end ()
   {
     return end_ ();
   }
-  VkResult
+  absl::Status
   submit_and_wait ()
   {
-    auto ret = VK_SUCCESS;
-    if ((ret = submit ()) != VK_SUCCESS)
+    if (auto ret = submit (); !ret.ok ())
       {
         return ret;
       }
@@ -82,46 +91,47 @@ public:
   }
 
   template <typename T>
-  VkResult
-  upload (T const *from, const size_t n, VkTensor &to)
+  absl::Status
+  upload (T const *from, const size_t n, Tensor &to)
   {
     return upload_bytes (reinterpret_cast<const uint8_t *> (from),
                          n * sizeof (T), to);
   }
 
-  VkResult
-  upload_bytes (uint8_t const *from, const size_t bytes, VkTensor &to)
+  absl::Status
+  upload_bytes (uint8_t const *from, const size_t bytes, Tensor &to)
   {
     if (to.bytes () < bytes)
       {
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        return absl::OutOfRangeError (absl::StrFormat (
+            "to.size() = %zu but %zu bytes upload.", to.bytes (), bytes));
       }
 
     if (to.visable ())
       {
         ::memcpy (to.host (), from, bytes);
         auto ret = to.flush ();
-        if (ret != VK_SUCCESS)
+        if (!ret.ok ())
           {
             return ret;
           }
 
         to.set_access_flags (VK_ACCESS_HOST_WRITE_BIT);
         to.set_pipeline_stage (VK_PIPELINE_STAGE_HOST_BIT);
-        return VK_SUCCESS;
+        return absl::OkStatus ();
       }
 
-    auto staging = std::make_shared<VkTensor> (
+    auto staging = std::make_shared<Tensor> (
         to.channels (), to.height (), to.width (), dev_, to.dtype (), true);
 
     auto ret = staging->create ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       return ret;
 
     ::memcpy (staging->host (), reinterpret_cast<const void *> (from), bytes);
 
     ret = staging->flush ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -149,17 +159,20 @@ public:
     to.set_access_flags (VK_ACCESS_TRANSFER_WRITE_BIT);
     to.set_pipeline_stage (VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-    defer_task_.push_back ([staging] () { return VK_SUCCESS; });
+    defer_task_.push_back ([staging] () { return absl::OkStatus (); });
     return ret;
   }
 
   template <typename T>
-  VkResult
-  download (VkTensor &from, T *to, const size_t n)
+  absl::Status
+  download (Tensor &from, T *to, const size_t n)
   {
     if (n < from.size ())
       {
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        return absl::InternalError (
+            absl::StrFormat ("download bytes larger than source tensor. "
+                             "from.size() = %zu, to.size() = %zu",
+                             from.size (), n));
       }
 
     if (from.visable ())
@@ -180,21 +193,21 @@ public:
                               &barrier, 0, nullptr);
         defer_task_.push_back ([&from, to] () {
           auto ret = from.invalid ();
-          if (ret != VK_SUCCESS)
+          if (!ret.ok ())
             {
               return ret;
             }
           ::memcpy (to, from.host (), from.size () * sizeof (T));
-          return VK_SUCCESS;
+          return absl::OkStatus ();
         });
-        return VK_SUCCESS;
+        return absl::OkStatus ();
       }
 
-    VkTensor staging (from.channels (), from.height (), from.width (), dev_,
-                      VkTensor::to_dtype<T> (), true);
+    Tensor staging (from.channels (), from.height (), from.width (), dev_,
+                      Tensor::to_dtype<T> (), true);
 
     auto ret = staging.create ();
-    if (ret != VK_SUCCESS)
+    if (!ret.ok ())
       {
         return ret;
       }
@@ -240,17 +253,17 @@ public:
     // defer to sumbit and wait then do read from this staging buffer
     defer_task_.push_back ([staging, to, n] () mutable {
       auto ret = staging.invalid ();
-      if (ret != VK_SUCCESS)
+      if (!ret.ok ())
         return ret;
       ::memcpy (reinterpret_cast<void *> (to), staging.host (),
                 sizeof (T) * n);
-      return VK_SUCCESS;
+      return absl::OkStatus ();
     });
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
-  VkResult
-  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+  absl::Status
+  record_pipeline (Pipeline &pipeline, std::vector<Tensor> bindings,
                    std::vector<uint32_t> const &indices,
                    ShaderConstants const &constants)
   {
@@ -267,7 +280,7 @@ public:
             = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
                 nullptr,
                 tensor.access_flags (),
-                VK_ACCESS_SHADER_READ_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 VK_QUEUE_FAMILY_IGNORED,
                 VK_QUEUE_FAMILY_IGNORED,
                 tensor.data (),
@@ -279,7 +292,11 @@ public:
                               nullptr, 1, &barrier, 0, nullptr);
       }
 
-    pipeline.update_bindings (bindings, indices);
+    auto ret = pipeline.update_bindings (bindings, indices);
+    if (!ret.ok ())
+      {
+        return ret;
+      }
 
     vkCmdBindPipeline (commandBuffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                        pipeline.vkpileine ());
@@ -309,15 +326,15 @@ public:
                              pipeline.vkquerypool (), 1);
         defer_task_.push_back ([&pipeline] () {
           pipeline.query_exec_timestamp ();
-          return VK_SUCCESS;
+          return absl::OkStatus ();
         });
       }
 
-    return VK_SUCCESS;
+    return absl::OkStatus ();
   }
 
-  VkResult
-  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+  absl::Status
+  record_pipeline (Pipeline &pipeline, std::vector<Tensor> bindings,
                    ShaderConstants const &constants)
   {
     std::vector<uint32_t> indices;
@@ -327,37 +344,38 @@ public:
     return record_pipeline (pipeline, bindings, indices, constants);
   }
 
-  VkResult
+  absl::Status
   wait ()
   {
     uint64_t timeout = 60ul * 1000000000ul; // 60s
     auto ret = vkWaitForFences (dev_->device (), 1, &fence_, true, timeout);
     if (ret != VK_SUCCESS)
       {
-        return ret;
+        return absl::InternalError (
+            absl::StrFormat ("failed at waiting fence: %d", int (ret)));
       }
     ret = vkResetFences (dev_->device (), 1, &fence_);
     if (ret != VK_SUCCESS)
       {
-        return ret;
+        return absl::InternalError (
+            absl::StrFormat ("failed at reseting fence: %d", int (ret)));
       }
 
-    VkResult defer_result = VK_SUCCESS;
-    ret = VK_SUCCESS;
+    absl::Status defer_result = absl::OkStatus ();
 
     for (auto &fn : defer_task_)
       {
-        if ((defer_result = fn ()) != VK_SUCCESS)
+        if (auto ret = fn (); !ret.ok ())
           {
-            ret = defer_result;
+            defer_result = ret;
           }
       }
 
     defer_task_.clear ();
-    return ret;
+    return defer_result;
   }
 
-  VkResult
+  absl::Status
   submit ()
   {
     VkSubmitInfo sumbitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -370,30 +388,51 @@ public:
                                 0,
                                 nullptr };
 
-    return vkQueueSubmit (queue_, 1, &sumbitInfo, fence_);
+    auto ret = vkQueueSubmit (queue_, 1, &sumbitInfo, fence_);
+    if (ret != VK_SUCCESS)
+      {
+        return absl::InternalError (
+            absl::StrFormat ("failed at submiting commands: %d\n", int (ret)));
+      }
+
+    return absl::OkStatus ();
   }
 
   void
-  defer (std::function<VkResult (void)> &&fn)
+  defer (std::function<absl::Status (void)> &&fn)
   {
     defer_task_.push_back (std::move (fn));
   }
 
 private:
-  VkResult
+  absl::Status
   begin_ ()
   {
     VkCommandBufferBeginInfo info
         = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
             VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr };
 
-    return vkBeginCommandBuffer (commandBuffer_, &info);
+    auto ret = vkBeginCommandBuffer (commandBuffer_, &info);
+    if (ret != VK_SUCCESS)
+      {
+        return absl::InternalError (
+            absl::StrFormat ("failed at commandbuffer begin: %d", int (ret)));
+      }
+
+    return absl::OkStatus ();
   }
 
-  VkResult
+  absl::Status
   end_ ()
   {
-    return vkEndCommandBuffer (commandBuffer_);
+    auto ret = vkEndCommandBuffer (commandBuffer_);
+    if (ret != VK_SUCCESS)
+      {
+        return absl::InternalError (
+            absl::StrFormat ("failed at command end: %d", int (ret)));
+      }
+
+    return absl::OkStatus ();
   }
 
   GPUDevice *dev_;
@@ -401,7 +440,7 @@ private:
   VkCommandBuffer commandBuffer_;
   VkFence fence_;
   VkCommandPool commandPool_;
-  std::vector<std::function<VkResult (void)> > defer_task_;
+  std::vector<std::function<absl::Status (void)> > defer_task_;
 };
 
 class CommandScope
@@ -409,14 +448,14 @@ class CommandScope
 public:
   CommandScope (GPUDevice *command) : command_ (command)
   {
-    command_.init ();
-    command_.begin ();
+    (void)command_.init ();
+    (void)command_.begin ();
   }
 
   ~CommandScope ()
   {
-    command_.end ();
-    command_.submit ();
+    (void)command_.end ();
+    (void)command_.submit ();
   }
 
 private:

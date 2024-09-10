@@ -9,28 +9,28 @@ namespace vkllama
 class MatMul : public Op
 {
 public:
-  MatMul (GPUDevice *dev, Command *command, VkTensor weight,
+  MatMul (GPUDevice *dev, Command *command, Tensor weight,
           const float scale = 1.0f, const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
-          const VkTensor::DType dtype = VkTensor::FP32);
+          const Tensor::DType dtype = Tensor::FP32);
 
   MatMul (GPUDevice *dev, Command *command, const float scale = 1.0f,
           const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
-          const VkTensor::DType dtype = VkTensor::FP32);
+          const Tensor::DType dtype = Tensor::FP32);
 
-  VkResult operator() (VkTensor a, VkTensor &c) noexcept;
-  VkResult operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept;
-  VkResult init () noexcept override;
+  absl::Status operator() (Tensor a, Tensor &c) noexcept;
+  absl::Status operator() (Tensor a, Tensor b, Tensor &c) noexcept;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
-  VkTensor weight_;
+  Tensor weight_;
   const int broadcast_type_;
   const int act_;
   const bool transpose_b_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
   const float scale_;
   const float bias_;
   Pipeline::ShaderInfo shader_info_;

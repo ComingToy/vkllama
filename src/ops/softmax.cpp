@@ -12,12 +12,12 @@
 namespace vkllama
 {
 Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask, float temp,
-                  const VkTensor::DType dtype)
+                  const Tensor::DType dtype)
     : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype), temp_ (temp)
 {
 }
 
-VkResult
+absl::Status
 Softmax::init () noexcept
 {
   Pipeline::ShaderInfo info0 = {
@@ -39,16 +39,18 @@ Softmax::time () noexcept
   return softmax0_->time ();
 }
 
-VkResult
-Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
+absl::Status
+Softmax::operator() (Tensor a, Tensor &b, size_t offset) noexcept
 {
   if (a.dtype () != dtype_)
     {
-      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "softmax op defined with %d dtype but input0's dtype = %d",
+          int (dtype_), int (a.dtype ())));
     }
 
-  b = VkTensor::like (a);
-  if (auto ret = b.create (); ret != VK_SUCCESS)
+  b = Tensor::like (a);
+  if (auto ret = b.create (); !ret.ok ())
     {
       return ret;
     }
@@ -58,7 +60,7 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
       group_y = a.height (), group_z = a.channels ();
 
   auto ret = softmax0_->set_group (group_x, group_y, group_z);
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -68,7 +70,7 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
 
   ret = command_->record_pipeline (*softmax0_, { a, b }, constants);
 
-  if (ret != VK_SUCCESS)
+  if (!ret.ok ())
     {
       return ret;
     }
@@ -76,7 +78,7 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
   b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return VK_SUCCESS;
+  return absl::OkStatus ();
 }
 }
 

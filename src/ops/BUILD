@@ -11,7 +11,6 @@ cc_library(
         'concat.cpp',
         'slice.cpp',
 		'embedding.cpp',
-	    'multiheadattention.cpp',
 	    'multiheadattention_v2.cpp',
 	    'cast.cpp',
         'update_kv_cache.cpp',
@@ -30,7 +29,6 @@ cc_library(
         'concat.h',
         'slice.h',
 		'embedding.h',
-	    'multiheadattention.h',
 	    'multiheadattention_v2.h',
         'argop.h',
         'cast.h',
@@ -38,7 +36,10 @@ cc_library(
         'read_kvcache_op.h',
         'transpose.h',
     ],
-    deps = ["//src/core:core", "//src/shaders:vkllama_shaders"],
+    deps = [
+        "//src/core:core",
+        "//src/shaders:vkllama_shaders",
+    ],
     copts = select({
             '//:debug_build': ['-std=c++17', '-D__VKLLAMA_DEBUG__'],
             '//conditions:default': ['-std=c++17']

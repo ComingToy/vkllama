@@ -1,6 +1,7 @@
 #ifndef __VKLLAMA_TENSOR__
 #define __VKLLAMA_TENSOR__
 
+#include "absl/status/status.h"
 #include "gpu_device.h"
 #include "src/core/float.h"
 #include <atomic>
@@ -10,7 +11,7 @@
 
 namespace vkllama
 {
-class VkTensor
+class Tensor
 {
 public:
   typedef enum : int
@@ -36,23 +37,23 @@ public:
       }
   }
 
-  static VkTensor like (VkTensor const &);
-  VkTensor ();
-  VkTensor (const int c, const int h, const int w, GPUDevice *dev,
-            DType const dtype = FP32, const bool visable = false);
+  static Tensor like (Tensor const &);
+  Tensor ();
+  Tensor (const int c, const int h, const int w, GPUDevice *dev,
+          DType const dtype = FP32, const bool visable = false);
 
-  VkTensor &operator= (VkTensor const &);
-  VkTensor (const VkTensor &rhs);
-  VkTensor (VkTensor &&rhs);
+  Tensor &operator= (Tensor const &);
+  Tensor (const Tensor &rhs);
+  Tensor (Tensor &&rhs);
 
-  ~VkTensor ();
+  ~Tensor ();
 
   size_t channels () const;
   size_t height () const;
   size_t width () const;
   size_t size () const;
 
-  VkResult reshape (size_t const c, size_t const h, size_t const w);
+  absl::Status reshape (size_t const c, size_t const h, size_t const w);
   VkAccessFlags access_flags () const;
   VkPipelineStageFlags pipeline_stage () const;
   void set_access_flags (VkAccessFlags access_flags);
@@ -60,13 +61,13 @@ public:
 
   VkBuffer &data ();
 
-  VkResult create ();
+  absl::Status create ();
   size_t bytes () const;
   bool visable () const;
   DType dtype () const;
   size_t elem_bytes () const;
-  VkResult flush ();
-  VkResult invalid ();
+  absl::Status flush ();
+  absl::Status invalid ();
 
   void *host ();
 

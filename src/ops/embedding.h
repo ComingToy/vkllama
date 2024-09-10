@@ -10,18 +10,18 @@ class Command;
 class Embedding : public Op
 {
 public:
-  Embedding (GPUDevice *dev, Command *, VkTensor vocab, const uint32_t UNK,
-             VkTensor::DType dtype = VkTensor::FP32);
+  Embedding (GPUDevice *dev, Command *, Tensor vocab, const uint32_t UNK,
+             Tensor::DType dtype = Tensor::FP32);
 
-  VkResult init () noexcept override;
+  absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  VkResult operator() (VkTensor indices, VkTensor &out) noexcept;
+  absl::Status operator() (Tensor indices, Tensor &out) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
-  VkTensor vocab_;
+  Tensor vocab_;
   const uint32_t UNK_;
-  const VkTensor::DType dtype_;
+  const Tensor::DType dtype_;
 };
 
 }
