@@ -398,13 +398,12 @@ main (int argc, char *const argv[])
     }
 
   vkllama::Model model;
-  ret = model.init (meta, tensors);
-
-  if (ret != VK_SUCCESS)
+  if (auto s = model.init (meta, tensors); !s.ok ())
     {
-      fprintf (stderr, "failed at init model\n");
+      std::cerr << "failed at model init: " << s << std::endl;
       return -1;
     }
+
   gguf_close (gguf);
 
   fflush (stderr);
