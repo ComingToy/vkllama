@@ -56,11 +56,11 @@ TEST_P (TestElementwise, test_elementwise)
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   float alpha = random_number (-2.0f, 2.0f);
 
-  VkTensor input0_fp16;
-  VkTensor input1_fp16;
-  Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor input0_fp16;
+  Tensor input1_fp16;
+  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
   ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
   ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
@@ -74,13 +74,13 @@ TEST_P (TestElementwise, test_elementwise)
     }
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
-                              params.dtype == 0 ? VkTensor::FP32
-                                                : VkTensor::FP16);
+                              params.dtype == 0 ? Tensor::FP32
+                                                : Tensor::FP16);
   ASSERT_EQ (elementwise_op.init (), absl::OkStatus ())
       << "failed at init elementwise op";
 
-  VkTensor out;
-  VkTensor out_fp16;
+  Tensor out;
+  Tensor out_fp16;
   if (params.dtype == 0)
     {
       if (params.constant_b)

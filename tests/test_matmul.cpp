@@ -91,13 +91,13 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   ASSERT_TRUE (input0 && input1) << "failed at create tensors";
 
-  VkTensor input0_fp16, input1_fp16, input0_fp32, input1_fp32;
+  Tensor input0_fp16, input1_fp16, input0_fp32, input1_fp32;
   std::vector<float> input0_buf, input1_buf;
-  Cast cast_input0_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input1_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Cast cast_input0_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input1_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
 
-  Cast cast_input0_op_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  Cast cast_input1_op_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input0_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
+  Cast cast_input1_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   if (params.dtype == 1)
     {
@@ -133,19 +133,19 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
 
   MatMul matmul_op (gpu_, command_, 1.0, .0, 0, params.broadcast_type,
-                    params.transpose_b, (VkTensor::DType)params.dtype);
+                    params.transpose_b, (Tensor::DType)params.dtype);
 
   ASSERT_TRUE (matmul_op.init () == absl::OkStatus ())
       << "failed at init matmul op";
 
-  VkTensor output;
+  Tensor output;
   ASSERT_TRUE (matmul_op (params.dtype ? input0_fp16 : input0_fp32,
                           params.dtype ? input1_fp16 : input1_fp32, output)
                == absl::OkStatus ())
       << "failed at forwarding matmul op";
 
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   if (params.dtype)
     {

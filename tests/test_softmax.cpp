@@ -52,10 +52,10 @@ TEST_P (TestSoftmax, test_softmax)
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
 
-  VkTensor input0_fp16, input0_fp32;
+  Tensor input0_fp16, input0_fp32;
   std::vector<float> input0_buf (input0->first.size ());
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
@@ -75,17 +75,17 @@ TEST_P (TestSoftmax, test_softmax)
     }
 
   Softmax softmax_op (gpu_, command_, false, 1.0,
-                      (VkTensor::DType)params.dtype);
+                      (Tensor::DType)params.dtype);
   ASSERT_EQ (softmax_op.init (), absl::OkStatus ()) << "failed at init op";
 
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (softmax_op (params.dtype ? input0_fp16 : input0_fp32, output),
              absl::OkStatus ())
       << "failed at infer softmax";
 
   std::vector<float> output_buf (output.size ());
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());

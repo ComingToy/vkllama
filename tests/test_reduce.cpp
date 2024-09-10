@@ -54,11 +54,11 @@ TEST_P (TestReduce, test_reduce)
 
   ASSERT_TRUE (input0) << "failed at create tensor";
 
-  VkTensor input0_fp32, input0_fp16;
+  Tensor input0_fp32, input0_fp16;
   std::vector<float> input0_buf (input0->first.size ());
 
-  Cast cast_input_fp16_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_fp32_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input_fp16_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_fp32_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_input_fp16_op.init (), absl::OkStatus ());
@@ -77,16 +77,16 @@ TEST_P (TestReduce, test_reduce)
       input0_buf.swap (input0->second);
     }
 
-  Reduce reduce_op (gpu_, command_, op_type, (VkTensor::DType)params.dtype);
+  Reduce reduce_op (gpu_, command_, op_type, (Tensor::DType)params.dtype);
   ASSERT_EQ (reduce_op.init (), absl::OkStatus ()) << "failed at init op";
 
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (reduce_op (params.dtype ? input0_fp16 : input0_fp32, output),
              absl::OkStatus ())
       << "failed at forwarding reduce op";
 
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-  VkTensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
+  Tensor output_fp32;
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());

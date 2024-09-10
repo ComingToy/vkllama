@@ -33,13 +33,13 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
 
-  VkTensor input0_fp16, input0_fp32, input1_fp16, input1_fp32;
+  Tensor input0_fp16, input0_fp32, input1_fp16, input1_fp32;
   std::vector<float> input0_buf, input1_buf;
 
-  Cast cast_input0_fp16 (gpu_, command_, VkTensor::FP32, VkTensor::FP16),
-      cast_input0_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32),
-      cast_input1_fp16 (gpu_, command_, VkTensor::FP32, VkTensor::FP16),
-      cast_input1_fp32 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input0_fp16 (gpu_, command_, Tensor::FP32, Tensor::FP16),
+      cast_input0_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32),
+      cast_input1_fp16 (gpu_, command_, Tensor::FP32, Tensor::FP16),
+      cast_input1_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_input0_fp16.init (), absl::OkStatus ());
@@ -75,15 +75,15 @@ TEST_P (TestRMSNorm, test_rmsnorm)
     }
 
   RMSNorm norm_op (gpu_, command_, params.dtype ? input1_fp16 : input1_fp32,
-                   1e-3f, (VkTensor::DType)params.dtype);
+                   1e-3f, (Tensor::DType)params.dtype);
   ASSERT_EQ (norm_op.init (), absl::OkStatus ());
 
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (norm_op (params.dtype ? input0_fp16 : input0_fp32, output),
              absl::OkStatus ());
 
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());

@@ -54,12 +54,12 @@ TEST_P (TestArgOp, test_argop)
 
   ASSERT_TRUE (input0);
 
-  VkTensor output, input0_fp16, input0_fp32;
+  Tensor output, input0_fp16, input0_fp32;
 
-  ArgMax argmax (gpu_, command_, (VkTensor::DType)params.dtype);
-  ArgMin argmin (gpu_, command_, (VkTensor::DType)params.dtype);
-  Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  ArgMax argmax (gpu_, command_, (Tensor::DType)params.dtype);
+  ArgMin argmin (gpu_, command_, (Tensor::DType)params.dtype);
+  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   std::vector<float> input_buf (input0->first.size ());
   if (params.dtype)

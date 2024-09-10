@@ -54,9 +54,9 @@ TEST_P (TestSlice, test_slice)
   auto input0 = random_tensor<float> (gpu_, command_, params.shape.C,
                                       params.shape.H, params.shape.W);
   ASSERT_TRUE (input0);
-  VkTensor input_tensor;
+  Tensor input_tensor;
 
-  Cast cast (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Cast cast (gpu_, command_, Tensor::FP32, Tensor::FP16);
   if (params.dtype)
     {
       ASSERT_EQ (cast.init (), absl::OkStatus ());
@@ -67,15 +67,15 @@ TEST_P (TestSlice, test_slice)
       input_tensor = input0->first;
     }
 
-  Slice slice_op (gpu_, command_, (VkTensor::DType)params.dtype);
+  Slice slice_op (gpu_, command_, (Tensor::DType)params.dtype);
   ASSERT_EQ (slice_op.init (), absl::OkStatus ());
 
-  VkTensor out;
+  Tensor out;
   ASSERT_EQ (slice_op (input_tensor, params.starts, params.extents, out),
              absl::OkStatus ());
 
-  VkTensor out_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor out_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   if (params.dtype)
     {

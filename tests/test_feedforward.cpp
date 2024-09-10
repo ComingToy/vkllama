@@ -67,22 +67,22 @@ TEST_P (TestFeedForawrd, test_2d)
     auto X = random_tensor<float> (gpu_, &command, 1, 64, indim, -0.5, 0.5);
     ASSERT_TRUE (w1 && w2 && w3 && X) << "fail at creating tensors";
 
-    VkTensor w1_fp16, w2_fp16, w3_fp16, X_fp16, w1_fp32, w2_fp32, w3_fp32,
+    Tensor w1_fp16, w2_fp16, w3_fp16, X_fp16, w1_fp32, w2_fp32, w3_fp32,
         X_fp32;
 
     std::vector<float> w1_buf (w1->second.size ()),
         w2_buf (w2->second.size ()), w3_buf (w3->second.size ()),
         X_buf (X->second.size ());
 
-    Cast cast_w1_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-    Cast cast_w2_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-    Cast cast_w3_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-    Cast cast_X_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+    Cast cast_w1_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+    Cast cast_w2_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+    Cast cast_w3_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+    Cast cast_X_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
 
-    Cast cast_w1_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-    Cast cast_w2_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-    Cast cast_w3_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
-    Cast cast_X_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+    Cast cast_w1_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
+    Cast cast_w2_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
+    Cast cast_w3_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
+    Cast cast_X_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
     if (params.dtype)
       {
@@ -133,23 +133,23 @@ TEST_P (TestFeedForawrd, test_2d)
         X_fp32 = X->first;
       }
 
-    VkTensor::DType dtype = (VkTensor::DType)params.dtype;
+    Tensor::DType dtype = (Tensor::DType)params.dtype;
     FeedForward feed_forward_op (
-        gpu_, &command, dtype == VkTensor::FP32 ? w1_fp32 : w1_fp16,
-        dtype == VkTensor::FP32 ? w2_fp32 : w2_fp16,
-        dtype == VkTensor::FP32 ? w3_fp32 : w3_fp16, false, dtype);
+        gpu_, &command, dtype == Tensor::FP32 ? w1_fp32 : w1_fp16,
+        dtype == Tensor::FP32 ? w2_fp32 : w2_fp16,
+        dtype == Tensor::FP32 ? w3_fp32 : w3_fp16, false, dtype);
 
     ASSERT_TRUE (feed_forward_op.init () == absl::OkStatus ())
         << "fail at init feed_forward_op";
 
-    VkTensor output;
+    Tensor output;
     ASSERT_TRUE (
-        feed_forward_op (dtype == VkTensor::FP32 ? X_fp32 : X_fp16, output)
+        feed_forward_op (dtype == Tensor::FP32 ? X_fp32 : X_fp16, output)
         == absl::OkStatus ())
         << "fail at forwarding feed_forward op";
 
-    VkTensor output_fp32;
-    Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+    Tensor output_fp32;
+    Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
     if (params.dtype)
       {
         ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());

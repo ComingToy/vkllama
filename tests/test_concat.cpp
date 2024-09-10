@@ -45,7 +45,7 @@ TEST_P (TestConcat, test_concat)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at begin commands";
-  std::vector<VkTensor> input_tensors, input_tensors_fp16, input_tensors_fp32;
+  std::vector<Tensor> input_tensors, input_tensors_fp16, input_tensors_fp32;
   std::vector<std::unique_ptr<Cast> > cast_input_ops;
   std::vector<std::vector<float> > input_bufs;
 
@@ -58,17 +58,17 @@ TEST_P (TestConcat, test_concat)
       if (params.dtype)
         {
           cast_input_ops.emplace_back (
-              new Cast (gpu_, command_, VkTensor::FP32, VkTensor::FP16));
+              new Cast (gpu_, command_, Tensor::FP32, Tensor::FP16));
           ASSERT_EQ (cast_input_ops.back ()->init (), absl::OkStatus ());
-          VkTensor input_fp16;
+          Tensor input_fp16;
           ASSERT_EQ (
               cast_input_ops.back ()->operator() (input->first, input_fp16),
               absl::OkStatus ());
           input_tensors_fp16.push_back (input_fp16);
 
-          VkTensor input_fp32;
+          Tensor input_fp32;
           cast_input_ops.emplace_back (
-              new Cast (gpu_, command_, VkTensor::FP16, VkTensor::FP32));
+              new Cast (gpu_, command_, Tensor::FP16, Tensor::FP32));
           ASSERT_EQ (cast_input_ops.back ()->init (), absl::OkStatus ());
           ASSERT_EQ (
               cast_input_ops.back ()->operator() (input_fp16, input_fp32),
@@ -88,11 +88,11 @@ TEST_P (TestConcat, test_concat)
     }
 
   Concat concat_op (gpu_, command_, (int)input_tensors.size (), params.axis,
-                    (VkTensor::DType)params.dtype);
+                    (Tensor::DType)params.dtype);
   ASSERT_EQ (concat_op.init (), absl::OkStatus ()) << "failed at init op";
 
-  VkTensor output, output_fp16;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output, output_fp16;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
   if (params.dtype)
     {

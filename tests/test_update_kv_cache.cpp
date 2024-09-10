@@ -58,21 +58,21 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
 
-  VkTensor cache, input;
-  Cast cast_cache_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
+  Tensor cache, input;
+  Cast cast_cache_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
   ASSERT_EQ (cast_cache_op.init (), absl::OkStatus ());
   ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
   ASSERT_EQ (cast_cache_op (input0->first, cache), absl::OkStatus ());
   ASSERT_EQ (cast_input_op (input1->first, input), absl::OkStatus ());
 
-  UpdateKVCache update_op (gpu_, command_, VkTensor::FP16);
+  UpdateKVCache update_op (gpu_, command_, Tensor::FP16);
   ReadKVCache read_op (gpu_, command_);
 
   ASSERT_EQ (update_op.init (), absl::OkStatus ());
   ASSERT_EQ (update_op (cache, input, params.offset), absl::OkStatus ());
 
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (read_op.init (), absl::OkStatus ());
   ASSERT_EQ (read_op (cache, params.offset, input.height (), output),
              absl::OkStatus ());
@@ -80,8 +80,8 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   std::vector<float> output_buf (output.size ());
   std::vector<float> cache_buf (cache.size ());
 
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
   ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());

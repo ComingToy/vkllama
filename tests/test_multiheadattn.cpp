@@ -139,9 +139,9 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
   ASSERT_TRUE (input0) << "failed at create tensor";
 
-  std::vector<VkTensor> wk, wq, wv;
+  std::vector<Tensor> wk, wq, wv;
   std::vector<std::vector<float> > wk_bufs, wq_bufs, wv_bufs;
-  VkTensor wo;
+  Tensor wo;
   std::vector<float> wo_bufs;
 
   {
@@ -175,7 +175,7 @@ TEST_P (TestMultiheadattn, test_multiheadattn)
                               params.HDIM);
   ASSERT_EQ (attn_op.init (), absl::OkStatus ())
       << "failed at init attention op";
-  VkTensor output;
+  Tensor output;
   ASSERT_EQ (attn_op (input0->first, output), absl::OkStatus ())
       << "failed at infer attn op";
   std::vector<float> output_buf (output.size ());

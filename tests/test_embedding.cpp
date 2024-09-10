@@ -55,9 +55,9 @@ TEST_P (TestEmbedding, test_embedding)
   ASSERT_TRUE (vocab);
   ASSERT_TRUE (indices);
 
-  VkTensor vocab_tensor, vocab_tensor_fp16;
-  Cast cast_input_op (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor vocab_tensor, vocab_tensor_fp16;
+  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
   ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
@@ -80,11 +80,11 @@ TEST_P (TestEmbedding, test_embedding)
     }
 
   Embedding emb_op (gpu_, command_, vocab_tensor, params.UNK,
-                    (VkTensor::DType)params.dtype);
+                    (Tensor::DType)params.dtype);
 
   ASSERT_EQ (emb_op.init (), absl::OkStatus ());
-  VkTensor vk_output, vk_output_fp16;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor vk_output, vk_output_fp16;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
 
   if (params.dtype)

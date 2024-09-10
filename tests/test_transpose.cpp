@@ -50,10 +50,10 @@ TEST_P (TestTranspose, test_transpose)
   auto input0
       = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
 
-  VkTensor input_fp32, input_fp16;
+  Tensor input_fp32, input_fp16;
   std::vector<float> input_buf;
-  Cast cast_input_op0 (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
+  Cast cast_input_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
@@ -73,10 +73,10 @@ TEST_P (TestTranspose, test_transpose)
       input_buf.swap (input0->second);
     }
 
-  Transpose transpose_op (gpu_, command_, 0, (VkTensor::DType)params.dtype);
+  Transpose transpose_op (gpu_, command_, 0, (Tensor::DType)params.dtype);
   ASSERT_EQ (transpose_op.init (), absl::OkStatus ());
 
-  VkTensor output;
+  Tensor output;
   if (params.dtype)
     {
       transpose_op (input_fp16, output);
@@ -87,8 +87,8 @@ TEST_P (TestTranspose, test_transpose)
     }
 
   std::vector<float> output_buf (output.size ());
-  VkTensor output_fp32;
-  Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
+  Tensor output_fp32;
+  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());

@@ -43,11 +43,11 @@ random_number (T min, T max)
 }
 
 template <typename T>
-inline std::unique_ptr<std::pair<vkllama::VkTensor, std::vector<T> > >
+inline std::unique_ptr<std::pair<vkllama::Tensor, std::vector<T> > >
 random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = -1, const T max = 1)
 {
-  vkllama::VkTensor tensor (c, h, w, dev, vkllama::VkTensor::to_dtype<T> ());
+  vkllama::Tensor tensor (c, h, w, dev, vkllama::Tensor::to_dtype<T> ());
   if (tensor.create () != absl::OkStatus())
     {
       return {};
@@ -63,7 +63,7 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
       return {};
     }
 
-  return std::make_unique<std::pair<vkllama::VkTensor, std::vector<T> > > (
+  return std::make_unique<std::pair<vkllama::Tensor, std::vector<T> > > (
       tensor, buf);
 }
 

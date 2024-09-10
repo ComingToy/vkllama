@@ -83,14 +83,14 @@ TEST_P (TestRope, test_rope)
       = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
 
   ASSERT_TRUE (input_query && input_key);
-  VkTensor input_query_fp16, input_query_fp32, input_key_fp16, input_key_fp32;
+  Tensor input_query_fp16, input_query_fp32, input_key_fp16, input_key_fp32;
   std::vector<float> input_query_buf (input_query->first.size ()),
       input_key_buf (input_key->first.size ());
 
-  Cast input_query_cast_fp16 (dev_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast input_key_cast_fp16 (dev_, command_, VkTensor::FP32, VkTensor::FP16);
-  Cast input_query_cast_fp32 (dev_, command_, VkTensor::FP16, VkTensor::FP32);
-  Cast input_key_cast_fp32 (dev_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast input_query_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
+  Cast input_key_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
+  Cast input_query_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
+  Cast input_key_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
   if (params.dtype)
     {
       ASSERT_EQ (input_query_cast_fp16.init (), absl::OkStatus ());
@@ -121,11 +121,11 @@ TEST_P (TestRope, test_rope)
       input_key_buf.swap (input_key->second);
     }
 
-  Rope rope_op (dev_, command_, params.MAXLEN, params.W, VkTensor::FP16);
+  Rope rope_op (dev_, command_, params.MAXLEN, params.W, Tensor::FP16);
 
   ASSERT_EQ (rope_op.init (), absl::OkStatus ());
 
-  VkTensor output_query, output_key;
+  Tensor output_query, output_key;
   ASSERT_EQ (rope_op (params.dtype ? input_query_fp16 : input_query_fp32,
                       params.dtype ? input_key_fp16 : input_key_fp32,
                       output_query, output_key, params.offset),
@@ -134,10 +134,10 @@ TEST_P (TestRope, test_rope)
   std::vector<float> output_query_buf (output_query.size ()),
       output_key_buf (output_key.size ());
 
-  Cast cast_output_query_op (dev_, command_, VkTensor::FP16, VkTensor::FP32);
-  Cast cast_output_key_op (dev_, command_, VkTensor::FP16, VkTensor::FP32);
+  Cast cast_output_query_op (dev_, command_, Tensor::FP16, Tensor::FP32);
+  Cast cast_output_key_op (dev_, command_, Tensor::FP16, Tensor::FP32);
 
-  VkTensor output_query_fp32, output_key_fp32;
+  Tensor output_query_fp32, output_key_fp32;
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_key_op.init (), absl::OkStatus ());
