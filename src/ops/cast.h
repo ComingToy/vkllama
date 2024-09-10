@@ -15,7 +15,7 @@ public:
   Cast (GPUDevice *dev, Command *command, const Tensor::DType from,
         const Tensor::DType to);
 
-  absl::Status operator() (Tensor from, Tensor &to) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor from) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 

@@ -9,8 +9,7 @@
 namespace vkllama
 {
 FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
-                          Tensor w2, Tensor w3,
-                          const bool transposed_weight,
+                          Tensor w2, Tensor w3, const bool transposed_weight,
                           const Tensor::DType dtype)
     : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
@@ -57,8 +56,8 @@ FeedForward::time () noexcept
          + elemwise_op_->time ();
 }
 
-absl::Status
-FeedForward::operator() (Tensor X, Tensor &output) noexcept
+absl::StatusOr<Tensor>
+FeedForward::operator() (Tensor X) noexcept
 {
   if (X.dtype () != dtype_)
     {
@@ -67,17 +66,21 @@ FeedForward::operator() (Tensor X, Tensor &output) noexcept
           int (dtype_), int (X.dtype ())));
     }
 
-  absl::Status ret;
+  absl::StatusOr<Tensor> ret;
 
-  if (!(ret = up_op_->operator() (X, t0_)).ok ())
+  if (!(ret = up_op_->operator() (X)).ok ())
     {
       return ret;
     }
 
-  if (!(ret = gate_op_->operator() (X, t1_)).ok ())
+  t0_ = *ret;
+
+  if (!(ret = gate_op_->operator() (X)).ok ())
     {
       return ret;
     }
+
+  t1_ = *ret;
 
   t0_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t0_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -91,21 +94,23 @@ FeedForward::operator() (Tensor X, Tensor &output) noexcept
       return ret;
     }
 
-  ret = elemwise_op_->operator() (t0_, t1_, t2_);
+  ret = elemwise_op_->operator() (t0_, t1_);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  if (!(ret = down_op_->operator() (t2_, output)).ok ())
+  t2_ = *ret;
+
+  if (!(ret = down_op_->operator() (t2_)).ok ())
     {
       return ret;
     }
 
-  output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  ret->set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  ret->set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return absl::OkStatus ();
+  return ret;
 }
 }
 

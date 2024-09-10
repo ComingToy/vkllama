@@ -21,8 +21,7 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num,
 absl::Status
 Concat::init () noexcept
 {
-  if (axis_ > 2
-      || (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ()))
+  if (axis_ > 2 || (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ()))
     {
       return absl::InvalidArgumentError (
           "fp16 dtype is unsupported on device");
@@ -58,9 +57,8 @@ Concat::init () noexcept
   return absl::OkStatus ();
 }
 
-absl::Status
-Concat::operator() (const std::vector<Tensor> &inputs,
-                    Tensor &output) noexcept
+absl::StatusOr<Tensor>
+Concat::operator() (const std::vector<Tensor> &inputs) noexcept
 {
   if (inputs.size () != num_)
     {
@@ -124,7 +122,7 @@ Concat::operator() (const std::vector<Tensor> &inputs,
         }
     }
 
-  output = Tensor (c, h, w, dev_, dtype_);
+  auto output = Tensor (c, h, w, dev_, dtype_);
   auto ret = output.create ();
   if (!ret.ok ())
     {
@@ -182,7 +180,7 @@ Concat::operator() (const std::vector<Tensor> &inputs,
 
   output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return output;
 }
 
 uint64_t

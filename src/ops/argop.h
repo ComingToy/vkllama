@@ -77,8 +77,8 @@ public:
     return pipeline1_->init ();
   }
 
-  absl::Status
-  operator() (Tensor in, Tensor &out) noexcept
+  absl::StatusOr<Tensor>
+  operator() (Tensor in) noexcept
   {
     if (in.dtype () != dtype_)
       {
@@ -87,7 +87,7 @@ public:
                              int (dtype_), int (in.dtype ())));
       }
 
-    out = Tensor (in.channels (), in.height (), 1, dev_, Tensor::UINT32);
+    Tensor out (in.channels (), in.height (), 1, dev_, Tensor::UINT32);
     auto ret = out.create ();
     if (!ret.ok ())
       {
@@ -102,8 +102,7 @@ public:
         return ret;
       }
 
-    stage0_output_
-        = Tensor (in.channels (), in.height (), group_x * 2, dev_);
+    stage0_output_ = Tensor (in.channels (), in.height (), group_x * 2, dev_);
 
     if (!(ret = stage0_output_.create ()).ok ())
       {
@@ -145,7 +144,7 @@ public:
     out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     out.set_pipeline_stage (VK_SHADER_STAGE_COMPUTE_BIT);
 
-    return absl::OkStatus ();
+    return out;
   }
 
   uint64_t
