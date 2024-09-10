@@ -20,14 +20,14 @@ class MultiHeadAttention : public Op
 {
 public:
   MultiHeadAttention (GPUDevice *dev, Command *command,
-                      std::vector<VkTensor> const &Wk,
-                      std::vector<VkTensor> const &Wq,
-                      std::vector<VkTensor> const &Wv, VkTensor const Wo,
+                      std::vector<Tensor> const &Wk,
+                      std::vector<Tensor> const &Wq,
+                      std::vector<Tensor> const &Wv, Tensor const Wo,
                       const int maxlen, const int dim,
                       const bool transposed_weight = false,
-                      VkTensor::DType const dtype = VkTensor::FP32,
+                      Tensor::DType const dtype = Tensor::FP32,
                       const bool use_kvcache = false);
-  VkResult operator() (VkTensor X, VkTensor &output,
+  VkResult operator() (Tensor X, Tensor &output,
                        const size_t offset = 0) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
@@ -46,21 +46,21 @@ private:
   std::vector<std::unique_ptr<UpdateKVCache> > update_cache_ops_;
   std::vector<std::unique_ptr<Slice> > cache_slice_ops_;
 
-  std::vector<VkTensor> wk_;
-  std::vector<VkTensor> wq_;
-  std::vector<VkTensor> wv_;
-  VkTensor wo_;
+  std::vector<Tensor> wk_;
+  std::vector<Tensor> wq_;
+  std::vector<Tensor> wv_;
+  Tensor wo_;
 
-  std::vector<VkTensor> tmp_tensors_;
+  std::vector<Tensor> tmp_tensors_;
   int maxlen_;
   int dim_;
   bool transposed_weight_;
 
-  const VkTensor::DType dtype_;
+  const Tensor::DType dtype_;
   const bool use_kvcache_;
 
-  VkTensor kcache_;
-  VkTensor vcache_;
+  Tensor kcache_;
+  Tensor vcache_;
 };
 }
 

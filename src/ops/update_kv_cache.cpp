@@ -7,7 +7,7 @@
 namespace vkllama
 {
 UpdateKVCache::UpdateKVCache (GPUDevice *gpu, Command *command,
-                              const VkTensor::DType dtype)
+                              const Tensor::DType dtype)
     : Op (gpu, command), dtype_ (dtype)
 {
 }
@@ -15,11 +15,11 @@ UpdateKVCache::UpdateKVCache (GPUDevice *gpu, Command *command,
 absl::Status
 UpdateKVCache::init () noexcept
 {
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? nullptr
                              : __get_update_kvcache_fp16_comp_spv_code ();
 
-  size_t spv_size = dtype_ == VkTensor::FP32
+  size_t spv_size = dtype_ == Tensor::FP32
                         ? 0
                         : __get_update_kvcache_fp16_comp_spv_size ();
 
@@ -31,7 +31,7 @@ UpdateKVCache::init () noexcept
 }
 
 absl::Status
-UpdateKVCache::operator() (VkTensor cache, VkTensor key_or_value,
+UpdateKVCache::operator() (Tensor cache, Tensor key_or_value,
                            const uint32_t offset) noexcept
 {
   if (cache.height () < key_or_value.height ()

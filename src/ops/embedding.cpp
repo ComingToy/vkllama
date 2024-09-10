@@ -6,8 +6,8 @@
 
 namespace vkllama
 {
-Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
-                      const uint32_t UNK, const VkTensor::DType dtype)
+Embedding::Embedding (GPUDevice *dev, Command *command, Tensor vocab,
+                      const uint32_t UNK, const Tensor::DType dtype)
     : Op (dev, command), vocab_ (vocab), UNK_ (UNK), dtype_ (dtype)
 {
 }
@@ -15,7 +15,7 @@ Embedding::Embedding (GPUDevice *dev, Command *command, VkTensor vocab,
 absl::Status
 Embedding::init () noexcept
 {
-  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+  if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
     {
       return absl::InvalidArgumentError ("fp16 is unsupported on device.");
     }
@@ -23,11 +23,11 @@ Embedding::init () noexcept
   Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
   ShaderConstants unk = { UNK_ };
 
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? __get_embedding_comp_spv_code ()
                              : __get_embedding_fp16_comp_spv_code ();
 
-  const auto spv_size = dtype_ == VkTensor::FP32
+  const auto spv_size = dtype_ == Tensor::FP32
                             ? __get_embedding_comp_spv_size ()
                             : __get_embedding_fp16_comp_spv_size ();
 
@@ -42,17 +42,17 @@ Embedding::init () noexcept
 }
 
 absl::Status
-Embedding::operator() (VkTensor indices, VkTensor &out) noexcept
+Embedding::operator() (Tensor indices, Tensor &out) noexcept
 {
   if (vocab_.channels () != 1 || indices.channels () != 1)
     {
     }
 
-  if (indices.dtype () != VkTensor::UINT32 || vocab_.dtype () != dtype_)
+  if (indices.dtype () != Tensor::UINT32 || vocab_.dtype () != dtype_)
     {
     }
 
-  out = VkTensor (indices.height (), indices.width (), vocab_.width (), dev_,
+  out = Tensor (indices.height (), indices.width (), vocab_.width (), dev_,
                   vocab_.dtype ());
   auto ret = out.create ();
 

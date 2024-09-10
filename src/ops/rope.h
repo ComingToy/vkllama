@@ -12,9 +12,9 @@ class Rope : public Op
 {
 public:
   Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
-        const VkTensor::DType dtype = VkTensor::FP32);
-  absl::Status operator() (VkTensor query, VkTensor key, VkTensor &out_query,
-                           VkTensor &out_key,
+        const Tensor::DType dtype = Tensor::FP32);
+  absl::Status operator() (Tensor query, Tensor key, Tensor &out_query,
+                           Tensor &out_key,
                            const size_t offset = 0) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
@@ -22,7 +22,7 @@ public:
 private:
   const int maxlen_;
   const int dim_;
-  const VkTensor::DType dtype_;
+  const Tensor::DType dtype_;
 
   std::unique_ptr<Pipeline> pipeline_k_;
   std::unique_ptr<Pipeline> pipeline_q_;

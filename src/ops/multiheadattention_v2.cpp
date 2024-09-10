@@ -14,9 +14,9 @@
 namespace vkllama
 {
 MultiHeadAttentionV2::MultiHeadAttentionV2 (
-    GPUDevice *dev, Command *command, VkTensor wk, VkTensor wq, VkTensor wv,
-    VkTensor wo, const int maxlen, const int dim, const bool transposed_weight,
-    VkTensor::DType dtype, const bool use_kvcache)
+    GPUDevice *dev, Command *command, Tensor wk, Tensor wq, Tensor wv,
+    Tensor wo, const int maxlen, const int dim, const bool transposed_weight,
+    Tensor::DType dtype, const bool use_kvcache)
     : Op (dev, command), wk_ (wk), wq_ (wq), wv_ (wv), wo_ (wo),
       maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
       dtype_ (dtype), use_kvcache_ (use_kvcache)
@@ -93,9 +93,9 @@ MultiHeadAttentionV2::init () noexcept
   if (use_kvcache_)
     {
       kcache_
-          = VkTensor (wk_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
+          = Tensor (wk_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
       vcache_
-          = VkTensor (wv_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
+          = Tensor (wv_.width () / dim_, maxlen_, dim_, dev_, dtype_, false);
 
       if (!(ret = kcache_.create ()).ok () || !(ret = vcache_.create ()).ok ())
         {
@@ -122,7 +122,7 @@ MultiHeadAttentionV2::init () noexcept
 }
 
 absl::Status
-MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
+MultiHeadAttentionV2::operator() (Tensor X, Tensor &out,
                                   const size_t offset) noexcept
 {
   absl::Status ret;
@@ -147,7 +147,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
 
   tmp_tensors_.clear ();
 
-  VkTensor k, q, v;
+  Tensor k, q, v;
   if (!(ret = (*matmul_k_) (X, k)).ok () || !(ret = (*matmul_q_) (X, q)).ok ()
       || !(ret = (*matmul_v_) (X, v)).ok ())
     {
@@ -174,7 +174,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
     }
 
   //[heads, seqlen, dim]
-  VkTensor transposed_k, transposed_q, transposed_v;
+  Tensor transposed_k, transposed_q, transposed_v;
   if (!(ret = (*transpose_k_) (k, transposed_k)).ok ())
     {
       return ret;
@@ -238,7 +238,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
       tmp_tensors_.push_back (transposed_v);
     }
 
-  VkTensor roped_k, roped_q;
+  Tensor roped_k, roped_q;
   if (!(ret = (*rope_) (transposed_q, transposed_k, roped_q, roped_k, offset))
            .ok ())
     {
@@ -249,7 +249,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (roped_q);
 
   // [heads, seqlen, seqlen]
-  VkTensor attn_scores;
+  Tensor attn_scores;
   if (!(ret = (*matmul_qk_) (roped_q, roped_k, attn_scores)).ok ())
     {
       return ret;
@@ -258,7 +258,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (attn_scores);
 
   // TODO: could be funsed
-  VkTensor softmax_attn_scores;
+  Tensor softmax_attn_scores;
 
   if (!(ret = (*softmax_) (attn_scores, softmax_attn_scores,
                            attn_scores.width () - attn_scores.height ()))
@@ -270,7 +270,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (softmax_attn_scores);
 
   // [heads, seqlen, dim]
-  VkTensor heads;
+  Tensor heads;
   if (!(ret = (*matmul_weighted_) (softmax_attn_scores, transposed_v, heads))
            .ok ())
     {
@@ -279,7 +279,7 @@ MultiHeadAttentionV2::operator() (VkTensor X, VkTensor &out,
   tmp_tensors_.push_back (heads);
 
   //[seqlen, heads, dim]
-  VkTensor concated;
+  Tensor concated;
   if (!(ret = (*transpose_heads_) (heads, concated)).ok ())
     {
       return ret;

@@ -9,10 +9,10 @@ namespace vkllama
 class RMSNormV2 : public Op
 {
 public:
-  RMSNormV2 (GPUDevice *dev, Command *command, VkTensor weight,
+  RMSNormV2 (GPUDevice *dev, Command *command, Tensor weight,
              const float eps = 1e-3,
-             const VkTensor::DType dtype = VkTensor::FP32);
-  VkResult operator() (VkTensor a, VkTensor &c) noexcept;
+             const Tensor::DType dtype = Tensor::FP32);
+  VkResult operator() (Tensor a, Tensor &c) noexcept;
   VkResult init () noexcept override;
   uint64_t time () noexcept override;
 
@@ -20,11 +20,11 @@ private:
   std::unique_ptr<Pipeline> pipeline0_;
   std::unique_ptr<Pipeline> pipeline1_;
   std::unique_ptr<Pipeline> pipeline2_;
-  VkTensor weight_;
-  VkTensor::DType dtype_;
-  VkTensor stage0_out0_;
-  VkTensor stage0_out1_;
-  VkTensor stage1_out0_;
+  Tensor weight_;
+  Tensor::DType dtype_;
+  Tensor stage0_out0_;
+  Tensor stage0_out1_;
+  Tensor stage1_out0_;
 };
 
 }

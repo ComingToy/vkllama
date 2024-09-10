@@ -12,16 +12,16 @@ class Command;
 class Cast : public Op
 {
 public:
-  Cast (GPUDevice *dev, Command *command, const VkTensor::DType from,
-        const VkTensor::DType to);
+  Cast (GPUDevice *dev, Command *command, const Tensor::DType from,
+        const Tensor::DType to);
 
-  absl::Status operator() (VkTensor from, VkTensor &to) noexcept;
+  absl::Status operator() (Tensor from, Tensor &to) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
-  VkTensor::DType from_;
-  VkTensor::DType to_;
+  Tensor::DType from_;
+  Tensor::DType to_;
   std::unique_ptr<Pipeline> pipeline_;
 };
 

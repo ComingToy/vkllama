@@ -8,10 +8,10 @@
 
 namespace vkllama
 {
-FeedForward::FeedForward (GPUDevice *dev, Command *command, VkTensor w1,
-                          VkTensor w2, VkTensor w3,
+FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
+                          Tensor w2, Tensor w3,
                           const bool transposed_weight,
-                          const VkTensor::DType dtype)
+                          const Tensor::DType dtype)
     : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
 {
@@ -58,7 +58,7 @@ FeedForward::time () noexcept
 }
 
 absl::Status
-FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
+FeedForward::operator() (Tensor X, Tensor &output) noexcept
 {
   if (X.dtype () != dtype_)
     {
@@ -84,7 +84,7 @@ FeedForward::operator() (VkTensor X, VkTensor &output) noexcept
   t1_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t1_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  t2_ = VkTensor::like (t0_);
+  t2_ = Tensor::like (t0_);
 
   if (!(ret = t2_.create ()).ok ())
     {

@@ -11,16 +11,16 @@ class UpdateKVCache : public Op
 {
 public:
   UpdateKVCache (GPUDevice *gpu, Command *command,
-                 const VkTensor::DType dtype);
+                 const Tensor::DType dtype);
 
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (VkTensor cache, VkTensor key_or_value,
+  absl::Status operator() (Tensor cache, Tensor key_or_value,
                        uint32_t offset) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
 };
 }
 

@@ -27,8 +27,8 @@ ReadKVCache::time () noexcept
 }
 
 absl::Status
-ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
-                         VkTensor &key_or_value) noexcept
+ReadKVCache::operator() (Tensor cache, uint32_t offset, uint32_t len,
+                         Tensor &key_or_value) noexcept
 {
   if (len > cache.height ())
     {
@@ -36,7 +36,7 @@ ReadKVCache::operator() (VkTensor cache, uint32_t offset, uint32_t len,
           "read %d len but size of cache is %zu", int (len), cache.height ()));
     }
 
-  key_or_value = VkTensor (cache.channels (), len, cache.width (), dev_,
+  key_or_value = Tensor (cache.channels (), len, cache.width (), dev_,
                            cache.dtype (), false);
 
   if (auto ret = key_or_value.create (); !ret.ok ())

@@ -22,30 +22,30 @@ class Command;
 class MultiHeadAttentionV2 : public Op
 {
 public:
-  MultiHeadAttentionV2 (GPUDevice *dev, Command *command, VkTensor wk,
-                        VkTensor wq, VkTensor wv, VkTensor wo,
+  MultiHeadAttentionV2 (GPUDevice *dev, Command *command, Tensor wk,
+                        Tensor wq, Tensor wv, Tensor wo,
                         const int maxlen, const int dim,
                         const bool transposed_weight = false,
-                        VkTensor::DType dtype = VkTensor::FP32,
+                        Tensor::DType dtype = Tensor::FP32,
                         const bool use_kvcache = false);
 
-  absl::Status operator() (VkTensor X, VkTensor &out,
+  absl::Status operator() (Tensor X, Tensor &out,
                            const size_t offset = 0) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
-  VkTensor wk_;
-  VkTensor wq_;
-  VkTensor wv_;
-  VkTensor wo_;
-  VkTensor kcache_;
-  VkTensor vcache_;
+  Tensor wk_;
+  Tensor wq_;
+  Tensor wv_;
+  Tensor wo_;
+  Tensor kcache_;
+  Tensor vcache_;
 
   const int maxlen_;
   const int dim_;
   const bool transposed_weight_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
   const bool use_kvcache_;
 
   std::unique_ptr<MatMul> matmul_k_;
@@ -67,7 +67,7 @@ private:
   std::unique_ptr<ReadKVCache> kcache_read_op_;
   std::unique_ptr<ReadKVCache> vcache_read_op_;
 
-  std::vector<VkTensor> tmp_tensors_;
+  std::vector<Tensor> tmp_tensors_;
 };
 }
 

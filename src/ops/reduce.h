@@ -19,7 +19,7 @@ class Reduce : public Op
 {
 public:
   Reduce (GPUDevice *gpu, Command *command, int op_type,
-          VkTensor::DType const dtype = VkTensor::FP32)
+          Tensor::DType const dtype = Tensor::FP32)
       : Op (gpu, command), op_type_ (op_type), dtype_ (dtype)
   {
   }
@@ -27,7 +27,7 @@ public:
   absl::Status
   init () noexcept override
   {
-    if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+    if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
       {
         return absl::InternalError ("fp16 is unsupported on the device");
       }
@@ -39,10 +39,10 @@ public:
                                         1,
                                         1 };
 
-    const auto *spv_code = dtype_ == VkTensor::FP16
+    const auto *spv_code = dtype_ == Tensor::FP16
                                ? __get_reduce_fp16_comp_spv_code ()
                                : __get_reduce_comp_spv_code ();
-    auto spv_size = dtype_ == VkTensor::FP16
+    auto spv_size = dtype_ == Tensor::FP16
                         ? __get_reduce_fp16_comp_spv_size ()
                         : __get_reduce_comp_spv_size ();
 
@@ -60,7 +60,7 @@ public:
   };
 
   absl::Status
-  operator() (VkTensor a, VkTensor &b)
+  operator() (Tensor a, Tensor &b)
   {
     if (a.dtype () != dtype_)
       {
@@ -79,7 +79,7 @@ public:
         return ret;
       }
 
-    b = VkTensor (a.channels (), a.height (), 1, dev_, dtype_);
+    b = Tensor (a.channels (), a.height (), 1, dev_, dtype_);
     if (!(ret = b.create ()).ok ())
       {
         return ret;
@@ -105,7 +105,7 @@ public:
 private:
   std::unique_ptr<Pipeline> stage0_;
   const int op_type_;
-  const VkTensor::DType dtype_;
+  const Tensor::DType dtype_;
 };
 }
 

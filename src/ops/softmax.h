@@ -13,17 +13,17 @@ class Softmax : public Op
 public:
   Softmax (GPUDevice *dev, Command *command, bool seq_mask = false,
            const float temp = 1.0,
-           VkTensor::DType const dtype = VkTensor::FP32);
+           Tensor::DType const dtype = Tensor::FP32);
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (VkTensor a, VkTensor &b,
+  absl::Status operator() (Tensor a, Tensor &b,
                            size_t offset = 0) noexcept;
 
 private:
   std::unique_ptr<Pipeline> softmax0_;
 
   bool seq_mask_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
 
   float temp_;
 };

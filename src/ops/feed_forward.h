@@ -14,26 +14,26 @@ class Command;
 class FeedForward : public Op
 {
 public:
-  FeedForward (GPUDevice *, Command *, VkTensor, VkTensor, VkTensor,
+  FeedForward (GPUDevice *, Command *, Tensor, Tensor, Tensor,
                const bool transposed_weight = false,
-               const VkTensor::DType dtype = VkTensor::FP32);
-  absl::Status operator() (VkTensor X, VkTensor &output) noexcept;
+               const Tensor::DType dtype = Tensor::FP32);
+  absl::Status operator() (Tensor X, Tensor &output) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
 private:
-  VkTensor t0_;
-  VkTensor t1_;
-  VkTensor t2_;
+  Tensor t0_;
+  Tensor t1_;
+  Tensor t2_;
 
-  VkTensor w1_;
-  VkTensor w2_;
-  VkTensor w3_;
+  Tensor w1_;
+  Tensor w2_;
+  Tensor w3_;
   std::unique_ptr<MatMul> up_op_;
   std::unique_ptr<MatMul> down_op_;
   std::unique_ptr<MatMul> gate_op_;
   std::unique_ptr<ElementWise> elemwise_op_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
 
   bool transposed_weight_;
 };

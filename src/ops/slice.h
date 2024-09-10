@@ -10,15 +10,15 @@ namespace vkllama
 class Slice : public Op
 {
 public:
-  Slice (GPUDevice *gpu_, Command *command_, VkTensor::DType dtype);
+  Slice (GPUDevice *gpu_, Command *command_, Tensor::DType dtype);
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (VkTensor in, std::array<uint32_t, 3> const &starts,
+  absl::Status operator() (Tensor in, std::array<uint32_t, 3> const &starts,
                            std::array<uint32_t, 3> const &extents,
-                           VkTensor &out) noexcept;
+                           Tensor &out) noexcept;
 
 private:
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
   std::unique_ptr<Pipeline> pipeline_;
 };
 }

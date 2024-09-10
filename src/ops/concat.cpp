@@ -12,7 +12,7 @@
 namespace vkllama
 {
 Concat::Concat (GPUDevice *gpu, Command *command, const int num,
-                const int axis, VkTensor::DType const dtype)
+                const int axis, Tensor::DType const dtype)
     : Op (gpu, command), num_ (num), axis_ (axis), dtype_ (dtype)
 {
   axis_ = axis_ < 0 ? 2 : axis_;
@@ -22,17 +22,17 @@ absl::Status
 Concat::init () noexcept
 {
   if (axis_ > 2
-      || (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ()))
+      || (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ()))
     {
       return absl::InvalidArgumentError (
           "fp16 dtype is unsupported on device");
     }
 
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? __get_concat_comp_spv_code ()
                              : __get_concat_fp16_comp_spv_code ();
 
-  size_t spv_size = dtype_ == VkTensor::FP32
+  size_t spv_size = dtype_ == Tensor::FP32
                         ? __get_concat_comp_spv_size ()
                         : __get_concat_fp16_comp_spv_size ();
 
@@ -59,8 +59,8 @@ Concat::init () noexcept
 }
 
 absl::Status
-Concat::operator() (const std::vector<VkTensor> &inputs,
-                    VkTensor &output) noexcept
+Concat::operator() (const std::vector<Tensor> &inputs,
+                    Tensor &output) noexcept
 {
   if (inputs.size () != num_)
     {
@@ -76,7 +76,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
 
   if (axis_ == 0
       && std::any_of (inputs.cbegin (), inputs.cend (),
-                      [&inputs] (const VkTensor &item) {
+                      [&inputs] (const Tensor &item) {
                         return item.height () != inputs.front ().height ()
                                || item.width () != inputs.front ().width ();
                       }))
@@ -124,7 +124,7 @@ Concat::operator() (const std::vector<VkTensor> &inputs,
         }
     }
 
-  output = VkTensor (c, h, w, dev_, dtype_);
+  output = Tensor (c, h, w, dev_, dtype_);
   auto ret = output.create ();
   if (!ret.ok ())
     {

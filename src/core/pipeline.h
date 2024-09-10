@@ -10,7 +10,7 @@
 
 namespace vkllama
 {
-class VkTensor;
+class Tensor;
 class Pipeline
 {
 public:
@@ -38,8 +38,8 @@ public:
   uint32_t group_y () const;
   uint32_t group_z () const;
   absl::Status set_group (uint32_t x, uint32_t y, uint32_t z);
-  absl::Status update_bindings (std::vector<VkTensor> bindings);
-  absl::Status update_bindings (std::vector<VkTensor> bindings,
+  absl::Status update_bindings (std::vector<Tensor> bindings);
+  absl::Status update_bindings (std::vector<Tensor> bindings,
                                 std::vector<uint32_t> const &indices);
 
   ShaderInfo const &shader_info () const;
@@ -72,8 +72,8 @@ private:
   absl::Status create_pipeline_ (ShaderConstants const &);
   absl::Status create_query_pool_ ();
   absl::Status create_descriptor_update_template_ ();
-  absl::Status set_bindings_ (std::vector<VkTensor> bindings);
-  absl::Status set_bindings_ (std::vector<VkTensor> bindings,
+  absl::Status set_bindings_ (std::vector<Tensor> bindings);
+  absl::Status set_bindings_ (std::vector<Tensor> bindings,
                               std::vector<uint32_t> const &indices);
   absl::Status limits_ ();
 };

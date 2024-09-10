@@ -92,14 +92,14 @@ public:
 
   template <typename T>
   absl::Status
-  upload (T const *from, const size_t n, VkTensor &to)
+  upload (T const *from, const size_t n, Tensor &to)
   {
     return upload_bytes (reinterpret_cast<const uint8_t *> (from),
                          n * sizeof (T), to);
   }
 
   absl::Status
-  upload_bytes (uint8_t const *from, const size_t bytes, VkTensor &to)
+  upload_bytes (uint8_t const *from, const size_t bytes, Tensor &to)
   {
     if (to.bytes () < bytes)
       {
@@ -121,7 +121,7 @@ public:
         return absl::OkStatus ();
       }
 
-    auto staging = std::make_shared<VkTensor> (
+    auto staging = std::make_shared<Tensor> (
         to.channels (), to.height (), to.width (), dev_, to.dtype (), true);
 
     auto ret = staging->create ();
@@ -165,7 +165,7 @@ public:
 
   template <typename T>
   absl::Status
-  download (VkTensor &from, T *to, const size_t n)
+  download (Tensor &from, T *to, const size_t n)
   {
     if (n < from.size ())
       {
@@ -203,8 +203,8 @@ public:
         return absl::OkStatus ();
       }
 
-    VkTensor staging (from.channels (), from.height (), from.width (), dev_,
-                      VkTensor::to_dtype<T> (), true);
+    Tensor staging (from.channels (), from.height (), from.width (), dev_,
+                      Tensor::to_dtype<T> (), true);
 
     auto ret = staging.create ();
     if (!ret.ok ())
@@ -263,7 +263,7 @@ public:
   }
 
   absl::Status
-  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+  record_pipeline (Pipeline &pipeline, std::vector<Tensor> bindings,
                    std::vector<uint32_t> const &indices,
                    ShaderConstants const &constants)
   {
@@ -334,7 +334,7 @@ public:
   }
 
   absl::Status
-  record_pipeline (Pipeline &pipeline, std::vector<VkTensor> bindings,
+  record_pipeline (Pipeline &pipeline, std::vector<Tensor> bindings,
                    ShaderConstants const &constants)
   {
     std::vector<uint32_t> indices;

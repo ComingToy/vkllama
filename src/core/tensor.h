@@ -11,7 +11,7 @@
 
 namespace vkllama
 {
-class VkTensor
+class Tensor
 {
 public:
   typedef enum : int
@@ -37,16 +37,16 @@ public:
       }
   }
 
-  static VkTensor like (VkTensor const &);
-  VkTensor ();
-  VkTensor (const int c, const int h, const int w, GPUDevice *dev,
-            DType const dtype = FP32, const bool visable = false);
+  static Tensor like (Tensor const &);
+  Tensor ();
+  Tensor (const int c, const int h, const int w, GPUDevice *dev,
+          DType const dtype = FP32, const bool visable = false);
 
-  VkTensor &operator= (VkTensor const &);
-  VkTensor (const VkTensor &rhs);
-  VkTensor (VkTensor &&rhs);
+  Tensor &operator= (Tensor const &);
+  Tensor (const Tensor &rhs);
+  Tensor (Tensor &&rhs);
 
-  ~VkTensor ();
+  ~Tensor ();
 
   size_t channels () const;
   size_t height () const;

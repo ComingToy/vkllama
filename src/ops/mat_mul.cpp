@@ -7,10 +7,10 @@
 
 namespace vkllama
 {
-MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
+MatMul::MatMul (GPUDevice *dev, Command *command, Tensor weight,
                 const float scale, const float bias, const int act,
                 const int broadcast_type, const bool transpose_b,
-                const VkTensor::DType dtype)
+                const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), broadcast_type_ (broadcast_type),
       act_ (act), transpose_b_ (transpose_b), dtype_ (dtype), scale_ (scale),
       bias_ (bias)
@@ -19,7 +19,7 @@ MatMul::MatMul (GPUDevice *dev, Command *command, VkTensor weight,
 
 MatMul::MatMul (GPUDevice *dev, Command *command, const float scale,
                 const float bias, const int act, const int broadcast_type,
-                const bool transpose_b, const VkTensor ::DType dtype)
+                const bool transpose_b, const Tensor ::DType dtype)
     : Op (dev, command), broadcast_type_ (broadcast_type), act_ (act),
       transpose_b_ (transpose_b), dtype_ (dtype), scale_ (scale), bias_ (bias)
 {
@@ -28,13 +28,13 @@ MatMul::MatMul (GPUDevice *dev, Command *command, const float scale,
 absl::Status
 MatMul::init () noexcept
 {
-  if (dtype_ == VkTensor::FP16 && !dev_->support_16bit_storage ())
+  if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
     {
       return absl::InvalidArgumentError ("fp16 is unsupported on device");
     }
 
   Pipeline::ShaderInfo info = { 4, 3, 4 * sizeof (int), 8, 16, 1 };
-  if (dtype_ == VkTensor::FP16)
+  if (dtype_ == Tensor::FP16)
     {
       info
           = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1 };
@@ -55,19 +55,19 @@ MatMul::init () noexcept
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
-      if (dtype_ == VkTensor::FP32)                                              \
+      if (dtype_ == Tensor::FP32)                                              \
         {                                                                        \
           pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();        \
           code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size ();    \
         }                                                                        \
-      else if (dtype_ == VkTensor::FP16 && dev_->support_fp16_arithmetic ())     \
+      else if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())     \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_code (); \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
-      else if (dtype_ == VkTensor::FP16)                                         \
+      else if (dtype_ == Tensor::FP16)                                         \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_code ();  \
@@ -129,7 +129,7 @@ MatMul::time () noexcept
 }
 
 absl::Status
-MatMul::operator() (VkTensor a, VkTensor &c) noexcept
+MatMul::operator() (Tensor a, Tensor &c) noexcept
 {
   if (weight_.size () == 0 || a.dtype () != weight_.dtype ()
       || a.dtype () != dtype_)
@@ -157,7 +157,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
 
   size_t out_h = a.height (),
          out_w = transpose_b_ ? weight_.height () : weight_.width ();
-  c = VkTensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
+  c = Tensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
                 dev_, dtype_, false);
 
   auto ret = c.create ();
@@ -170,7 +170,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (dtype_ == VkTensor::FP16)
+  if (dtype_ == Tensor::FP16)
     {
       uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
                groupz = channels;
@@ -201,7 +201,7 @@ MatMul::operator() (VkTensor a, VkTensor &c) noexcept
 }
 
 absl::Status
-MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
+MatMul::operator() (Tensor a, Tensor b, Tensor &c) noexcept
 {
   if (b.size () == 0 || a.dtype () != b.dtype () || a.dtype () != dtype_)
     {
@@ -221,7 +221,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
     }
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
-  c = VkTensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
+  c = Tensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
                 dtype_, false);
 
   auto ret = c.create ();
@@ -235,7 +235,7 @@ MatMul::operator() (VkTensor a, VkTensor b, VkTensor &c) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  if (dtype_ == VkTensor::FP16)
+  if (dtype_ == Tensor::FP16)
     {
       uint32_t groupx = out_w, groupy = (a.height () + 7) / 8,
                groupz = channels;

@@ -4,8 +4,8 @@
 
 namespace vkllama
 {
-Cast::Cast (GPUDevice *gpu, Command *command, const VkTensor::DType from,
-            const VkTensor::DType to)
+Cast::Cast (GPUDevice *gpu, Command *command, const Tensor::DType from,
+            const Tensor::DType to)
     : Op (gpu, command), from_ (from), to_ (to)
 {
 }
@@ -15,12 +15,12 @@ Cast::init () noexcept
 {
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
-  if (from_ == VkTensor::FP32 && to_ == VkTensor::FP16)
+  if (from_ == Tensor::FP32 && to_ == Tensor::FP16)
     {
       spv_code = __get_cast_fp32_to_fp16_comp_spv_code ();
       spv_size = __get_cast_fp32_to_fp16_comp_spv_size ();
     }
-  else if (from_ == VkTensor::FP16 && to_ == VkTensor::FP32)
+  else if (from_ == Tensor::FP16 && to_ == Tensor::FP32)
     {
       spv_code = __get_cast_fp16_to_fp32_comp_spv_code ();
       spv_size = __get_cast_fp16_to_fp32_comp_spv_size ();
@@ -44,7 +44,7 @@ Cast::time () noexcept
 }
 
 absl::Status
-Cast::operator() (VkTensor from, VkTensor &to) noexcept
+Cast::operator() (Tensor from, Tensor &to) noexcept
 {
   if (from.dtype () != from_)
     {
@@ -53,7 +53,7 @@ Cast::operator() (VkTensor from, VkTensor &to) noexcept
           int (from_), int (from.dtype ())));
     }
 
-  to = VkTensor (from.channels (), from.height (), from.width (), dev_, to_);
+  to = Tensor (from.channels (), from.height (), from.width (), dev_, to_);
   auto ret = to.create ();
   if (!ret.ok ())
     {

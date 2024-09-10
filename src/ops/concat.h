@@ -11,17 +11,17 @@ class Concat : public Op
 {
 public:
   Concat (GPUDevice *gpu, Command *command, const int num, const int axis,
-          VkTensor::DType const dtype = VkTensor::FP32);
+          Tensor::DType const dtype = Tensor::FP32);
   absl::Status init () noexcept override;
-  absl::Status operator() (std::vector<VkTensor> const &inputs,
-                           VkTensor &output) noexcept;
+  absl::Status operator() (std::vector<Tensor> const &inputs,
+                           Tensor &output) noexcept;
   uint64_t time () noexcept override;
 
 private:
   const int num_;
   std::vector<std::unique_ptr<Pipeline> > pipelines_;
   int axis_;
-  VkTensor::DType dtype_;
+  Tensor::DType dtype_;
 };
 
 }

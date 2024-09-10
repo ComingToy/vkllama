@@ -6,7 +6,7 @@
 namespace vkllama
 {
 Transpose::Transpose (GPUDevice *gpu, Command *command, const int type,
-                      VkTensor::DType const dtype)
+                      Tensor::DType const dtype)
     : Op (gpu, command), dtype_ (dtype), trans_type_ (type)
 {
 }
@@ -15,10 +15,10 @@ absl::Status
 Transpose::init () noexcept
 {
   Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 4, 4 };
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? __get_transpose_type0_comp_spv_code ()
                              : __get_transpose_type0_fp16_comp_spv_code ();
-  auto spv_size = dtype_ == VkTensor::FP32
+  auto spv_size = dtype_ == Tensor::FP32
                       ? __get_transpose_type0_comp_spv_size ()
                       : __get_transpose_type0_fp16_comp_spv_size ();
 
@@ -28,7 +28,7 @@ Transpose::init () noexcept
 }
 
 absl::Status
-Transpose::operator() (VkTensor in, VkTensor &out) noexcept
+Transpose::operator() (Tensor in, Tensor &out) noexcept
 {
   if (in.dtype () != dtype_)
     {
@@ -43,7 +43,7 @@ Transpose::operator() (VkTensor in, VkTensor &out) noexcept
           "only transpose type 0 is supported now.");
     }
 
-  out = VkTensor (in.height (), in.channels (), in.width (), dev_,
+  out = Tensor (in.height (), in.channels (), in.width (), dev_,
                   in.dtype ());
 
   auto ret = out.create ();

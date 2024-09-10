@@ -8,8 +8,8 @@
 
 namespace vkllama
 {
-RMSNormV2::RMSNormV2 (GPUDevice *dev, Command *command, VkTensor weight,
-                      const float eps, const VkTensor::DType dtype)
+RMSNormV2::RMSNormV2 (GPUDevice *dev, Command *command, Tensor weight,
+                      const float eps, const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
   Pipeline::ShaderInfo info0 = { 1, 4, 3 * sizeof (uint32_t), 64, 4, 1 };
@@ -68,7 +68,7 @@ RMSNormV2::init () noexcept
 }
 
 VkResult
-RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
+RMSNormV2::operator() (Tensor x, Tensor &y) noexcept
 {
   if (x.dtype () != dtype_)
     {
@@ -87,14 +87,14 @@ RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
       return ret;
     }
 
-  stage0_out1_ = VkTensor::like (x);
+  stage0_out1_ = Tensor::like (x);
   if (auto ret = stage0_out1_.create (); ret != VK_SUCCESS)
     {
       return ret;
     }
 
   stage0_out0_
-      = VkTensor (x.channels (), x.height (), group_x, dev_, x.dtype ());
+      = Tensor (x.channels (), x.height (), group_x, dev_, x.dtype ());
   if (auto ret = stage0_out0_.create (); ret != VK_SUCCESS)
     {
       return ret;
@@ -117,7 +117,7 @@ RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
 
   // stage1
   const auto &info1 = pipeline1_->shader_info ();
-  stage1_out0_ = VkTensor (x.channels (), x.height (), 1, dev_, x.dtype ());
+  stage1_out0_ = Tensor (x.channels (), x.height (), 1, dev_, x.dtype ());
   group_x = (stage1_out0_.width () + info1.local_x - 1) / info1.local_x;
   group_y = (stage1_out0_.height () + info1.local_y - 1) / info1.local_y;
   group_z = (stage1_out0_.channels () + info1.local_z - 1) / info1.local_z;
@@ -149,7 +149,7 @@ RMSNormV2::operator() (VkTensor x, VkTensor &y) noexcept
   stage1_out0_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   // stage2
-  y = VkTensor::like (x);
+  y = Tensor::like (x);
   if (auto ret = y.create (); ret != VK_SUCCESS)
     {
       return ret;

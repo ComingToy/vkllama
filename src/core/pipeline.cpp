@@ -316,20 +316,20 @@ Pipeline::create_query_pool_ ()
 }
 
 absl::Status
-Pipeline::update_bindings (std::vector<VkTensor> bindings)
+Pipeline::update_bindings (std::vector<Tensor> bindings)
 {
   return set_bindings_ (bindings);
 }
 
 absl::Status
-Pipeline::update_bindings (std::vector<VkTensor> bindings,
+Pipeline::update_bindings (std::vector<Tensor> bindings,
                            const std::vector<uint32_t> &indices)
 {
   return set_bindings_ (bindings, indices);
 }
 
 absl::Status
-Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
+Pipeline::set_bindings_ (std::vector<Tensor> bindings)
 {
   std::vector<VkDescriptorBufferInfo> descriptors;
   descriptors.resize (bindings.size ());
@@ -369,7 +369,7 @@ Pipeline::set_bindings_ (std::vector<VkTensor> bindings)
 }
 
 absl::Status
-Pipeline::set_bindings_ (std::vector<VkTensor> bindings,
+Pipeline::set_bindings_ (std::vector<Tensor> bindings,
                          const std::vector<uint32_t> &indices)
 {
   std::vector<VkDescriptorBufferInfo> descriptors (indices.size ());

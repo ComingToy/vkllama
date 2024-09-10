@@ -11,7 +11,7 @@
 namespace vkllama
 {
 Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
-            const VkTensor::DType dtype)
+            const Tensor::DType dtype)
     : Op (dev, command), maxlen_ (maxlen), dim_ (dim), dtype_ (dtype)
 {
 }
@@ -24,11 +24,11 @@ Rope::init () noexcept
   Pipeline::ShaderInfo shader_info_q
       = { 0, 2, 4 * sizeof (uint32_t), 16, 16, 1 };
 
-  const auto *spv_code = dtype_ == VkTensor::FP32
+  const auto *spv_code = dtype_ == Tensor::FP32
                              ? __get_rope_comp_spv_code ()
                              : __get_rope_fp16_comp_spv_code ();
 
-  const auto spv_size = dtype_ == VkTensor::FP32
+  const auto spv_size = dtype_ == Tensor::FP32
                             ? __get_rope_comp_spv_size ()
                             : __get_rope_fp16_comp_spv_size ();
 
@@ -55,8 +55,8 @@ Rope::time () noexcept
 }
 
 absl::Status
-Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
-                  VkTensor &out_key, const size_t offset) noexcept
+Rope::operator() (Tensor query, Tensor key, Tensor &out_query,
+                  Tensor &out_key, const size_t offset) noexcept
 {
   if (query.width () != key.width () || query.channels () != key.channels ()
       || query.width () != dim_ || query.height () > maxlen_)
@@ -76,8 +76,8 @@ Rope::operator() (VkTensor query, VkTensor key, VkTensor &out_query,
           int (dtype_), int (query.dtype ()), int (key.dtype ())));
     }
 
-  out_query = VkTensor::like (query);
-  out_key = VkTensor::like (key);
+  out_query = Tensor::like (query);
+  out_key = Tensor::like (key);
   auto ret = out_query.create ();
   if (!ret.ok ())
     {

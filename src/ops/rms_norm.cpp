@@ -5,18 +5,18 @@
 
 namespace vkllama
 {
-RMSNorm::RMSNorm (GPUDevice *dev, Command *command, VkTensor weight,
-                  const float eps_, const VkTensor::DType dtype)
+RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
+                  const float eps_, const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
   Pipeline::ShaderInfo info = {
     2, 3, 3 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 1, 1
   };
 
-  const auto *spv_code = dtype_ == VkTensor::FP16
+  const auto *spv_code = dtype_ == Tensor::FP16
                              ? __get_rms_norm_fp16_comp_spv_code ()
                              : __get_rms_norm_comp_spv_code ();
-  const auto spv_size = dtype_ == VkTensor::FP16
+  const auto spv_size = dtype_ == Tensor::FP16
                             ? __get_rms_norm_fp16_comp_spv_size ()
                             : __get_rms_norm_comp_spv_size ();
 
@@ -55,7 +55,7 @@ RMSNorm::time () noexcept
 }
 
 absl::Status
-RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
+RMSNorm::operator() (Tensor x, Tensor &output) noexcept
 {
   if (x.dtype () != dtype_)
     {
@@ -65,7 +65,7 @@ RMSNorm::operator() (VkTensor x, VkTensor &output) noexcept
     }
 
   output
-      = VkTensor (x.channels (), x.height (), x.width (), dev_, dtype_, false);
+      = Tensor (x.channels (), x.height (), x.width (), dev_, dtype_, false);
   auto ret = output.create ();
   if (!ret.ok ())
     {

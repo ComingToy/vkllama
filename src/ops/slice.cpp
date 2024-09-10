@@ -4,7 +4,7 @@
 
 namespace vkllama
 {
-Slice::Slice (GPUDevice *gpu, Command *command, VkTensor::DType dtype)
+Slice::Slice (GPUDevice *gpu, Command *command, Tensor::DType dtype)
     : Op (gpu, command), dtype_ (dtype)
 {
 }
@@ -16,10 +16,10 @@ Slice::init () noexcept
   Pipeline::ShaderInfo info
       = { 0, binding_count, sizeof (uint32_t) * binding_count, 8, 8, 4 };
 
-  const auto spv_code = dtype_ == VkTensor::FP32
+  const auto spv_code = dtype_ == Tensor::FP32
                             ? __get_slice_comp_spv_code ()
                             : __get_slice_fp16_comp_spv_code ();
-  const auto spv_size = dtype_ == VkTensor::FP32
+  const auto spv_size = dtype_ == Tensor::FP32
                             ? __get_slice_comp_spv_size ()
                             : __get_slice_fp16_comp_spv_size ();
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, {}, info));
@@ -28,9 +28,9 @@ Slice::init () noexcept
 }
 
 absl::Status
-Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
+Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
                    const std::array<uint32_t, 3> &extents,
-                   VkTensor &out) noexcept
+                   Tensor &out) noexcept
 {
   if (starts[0] + extents[0] > in.channels ()
       || starts[1] + extents[1] > in.height ()
@@ -52,7 +52,7 @@ Slice::operator() (VkTensor in, const std::array<uint32_t, 3> &starts,
                                 extents[1],
                                 extents[2] };
 
-  out = VkTensor (extents[0], extents[1], extents[2], dev_, dtype_);
+  out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
   auto ret = out.create ();
   if (!ret.ok ())
     {

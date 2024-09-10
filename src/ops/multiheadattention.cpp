@@ -14,10 +14,10 @@
 namespace vkllama
 {
 MultiHeadAttention::MultiHeadAttention (
-    GPUDevice *dev, Command *command, std::vector<VkTensor> const &Wk,
-    std::vector<VkTensor> const &Wq, std::vector<VkTensor> const &Wv,
-    const VkTensor Wo, const int maxlen, const int dim,
-    const bool transposed_weight, const VkTensor::DType dtype,
+    GPUDevice *dev, Command *command, std::vector<Tensor> const &Wk,
+    std::vector<Tensor> const &Wq, std::vector<Tensor> const &Wv,
+    const Tensor Wo, const int maxlen, const int dim,
+    const bool transposed_weight, const Tensor::DType dtype,
     const bool use_kvcache)
     : Op (dev, command), wk_ (Wk), wq_ (Wq), wv_ (Wv), wo_ (Wo),
       maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
@@ -53,7 +53,7 @@ MultiHeadAttention::init () noexcept
     }
 
   concat_ = std::make_unique<Concat> (dev_, command_, wq_.size (), 2,
-                                      VkTensor::FP16);
+                                      Tensor::FP16);
 
   for (size_t i = 0; i < wq_.size (); ++i)
     {
@@ -116,8 +116,8 @@ MultiHeadAttention::init () noexcept
   if (use_kvcache_)
     {
       kcache_
-          = VkTensor ((int)wq_.size (), maxlen_, dim_, dev_, dtype_, false);
-      vcache_ = VkTensor::like (kcache_);
+          = Tensor ((int)wq_.size (), maxlen_, dim_, dev_, dtype_, false);
+      vcache_ = Tensor::like (kcache_);
 
       if ((ret = kcache_.create ()) != VK_SUCCESS
           || (ret = vcache_.create ()) != VK_SUCCESS)
@@ -130,12 +130,12 @@ MultiHeadAttention::init () noexcept
 }
 
 VkResult
-MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
+MultiHeadAttention::operator() (Tensor X, Tensor &output,
                                 const size_t offset) noexcept
 {
   VkResult ret = VK_SUCCESS;
-  std::vector<VkTensor> head_tensors;
-  VkTensor input = X;
+  std::vector<Tensor> head_tensors;
+  Tensor input = X;
   tmp_tensors_.clear ();
 
   if (X.dtype () != dtype_)
@@ -158,7 +158,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
           return VK_ERROR_FORMAT_NOT_SUPPORTED;
         }
 
-      VkTensor k, q, v;
+      Tensor k, q, v;
       auto &matmul_k = *k_ops_[i];
       auto &matmul_q = *q_ops_[i];
       auto &matmul_v = *v_ops_[i];
@@ -224,7 +224,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
           tmp_tensors_.push_back (v);
         }
 
-      VkTensor roped_q, roped_k;
+      Tensor roped_q, roped_k;
       if ((ret = rope (q, k, roped_q, roped_k, offset)) != VK_SUCCESS)
         {
           return ret;
@@ -233,14 +233,14 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
       tmp_tensors_.push_back (roped_q);
       tmp_tensors_.push_back (roped_k);
 
-      VkTensor attn_scores;
+      Tensor attn_scores;
       if ((ret = attn_score (roped_q, roped_k, attn_scores)) != VK_SUCCESS)
         {
           return ret;
         }
       tmp_tensors_.push_back (attn_scores);
 
-      VkTensor scaled_attn_scores;
+      Tensor scaled_attn_scores;
       float attn_score_scale = 1.0f / std::sqrt (static_cast<float> (dim_));
       if ((ret = scale_op (attn_scores, attn_score_scale, scaled_attn_scores))
           != VK_SUCCESS)
@@ -249,7 +249,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
         }
       tmp_tensors_.push_back (scaled_attn_scores);
 
-      VkTensor softmax_attn_scores;
+      Tensor softmax_attn_scores;
       if ((ret = softmax_op (scaled_attn_scores, softmax_attn_scores, offset))
           != VK_SUCCESS)
         {
@@ -257,7 +257,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
         }
       tmp_tensors_.push_back (softmax_attn_scores);
 
-      VkTensor head;
+      Tensor head;
       if ((ret = weighted_matmul (softmax_attn_scores, v, head)) != VK_SUCCESS)
         {
           return ret;
@@ -266,7 +266,7 @@ MultiHeadAttention::operator() (VkTensor X, VkTensor &output,
       head_tensors.push_back (head);
     }
 
-  VkTensor concated;
+  Tensor concated;
   if ((ret = concat_->operator() (head_tensors, concated)) != VK_SUCCESS)
     {
       return ret;

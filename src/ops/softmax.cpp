@@ -12,7 +12,7 @@
 namespace vkllama
 {
 Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask, float temp,
-                  const VkTensor::DType dtype)
+                  const Tensor::DType dtype)
     : Op (dev, command), seq_mask_ (seq_mask), dtype_ (dtype), temp_ (temp)
 {
 }
@@ -40,7 +40,7 @@ Softmax::time () noexcept
 }
 
 absl::Status
-Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
+Softmax::operator() (Tensor a, Tensor &b, size_t offset) noexcept
 {
   if (a.dtype () != dtype_)
     {
@@ -49,7 +49,7 @@ Softmax::operator() (VkTensor a, VkTensor &b, size_t offset) noexcept
           int (dtype_), int (a.dtype ())));
     }
 
-  b = VkTensor::like (a);
+  b = Tensor::like (a);
   if (auto ret = b.create (); !ret.ok ())
     {
       return ret;
