@@ -34,8 +34,8 @@ public:
   {
     gpu_ = new GPUDevice ();
     command_ = new Command (gpu_);
-    ASSERT_EQ (gpu_->init (), VK_SUCCESS);
-    ASSERT_EQ (command_->init (), VK_SUCCESS);
+    ASSERT_EQ (gpu_->init (), absl::OkStatus ());
+    ASSERT_EQ (command_->init (), absl::OkStatus ());
   }
 
   void
@@ -49,7 +49,7 @@ public:
 TEST_P (TestSlice, test_slice)
 {
   auto params = GetParam ();
-  ASSERT_EQ (command_->begin (), VK_SUCCESS);
+  ASSERT_EQ (command_->begin (), absl::OkStatus ());
 
   auto input0 = random_tensor<float> (gpu_, command_, params.shape.C,
                                       params.shape.H, params.shape.W);
@@ -59,8 +59,8 @@ TEST_P (TestSlice, test_slice)
   Cast cast (gpu_, command_, VkTensor::FP32, VkTensor::FP16);
   if (params.dtype)
     {
-      ASSERT_EQ (cast.init (), VK_SUCCESS);
-      ASSERT_EQ (cast (input0->first, input_tensor), VK_SUCCESS);
+      ASSERT_EQ (cast.init (), absl::OkStatus ());
+      ASSERT_EQ (cast (input0->first, input_tensor), absl::OkStatus ());
     }
   else
     {
@@ -68,19 +68,19 @@ TEST_P (TestSlice, test_slice)
     }
 
   Slice slice_op (gpu_, command_, (VkTensor::DType)params.dtype);
-  ASSERT_EQ (slice_op.init (), VK_SUCCESS);
+  ASSERT_EQ (slice_op.init (), absl::OkStatus ());
 
   VkTensor out;
   ASSERT_EQ (slice_op (input_tensor, params.starts, params.extents, out),
-             VK_SUCCESS);
+             absl::OkStatus ());
 
   VkTensor out_fp32;
   Cast cast_output_op (gpu_, command_, VkTensor::FP16, VkTensor::FP32);
 
   if (params.dtype)
     {
-      ASSERT_EQ (cast_output_op.init (), VK_SUCCESS);
-      ASSERT_EQ (cast_output_op (out, out_fp32), VK_SUCCESS);
+      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+      ASSERT_EQ (cast_output_op (out, out_fp32), absl::OkStatus ());
     }
   else
     {
@@ -91,11 +91,11 @@ TEST_P (TestSlice, test_slice)
 
   ASSERT_EQ (
       command_->download (out_fp32, output_buf.data (), output_buf.size ()),
-      VK_SUCCESS);
+      absl::OkStatus ());
 
-  ASSERT_EQ (command_->end (), VK_SUCCESS);
-  ASSERT_EQ (command_->submit (), VK_SUCCESS);
-  ASSERT_EQ (command_->wait (), VK_SUCCESS);
+  ASSERT_EQ (command_->end (), absl::OkStatus ());
+  ASSERT_EQ (command_->submit (), absl::OkStatus ());
+  ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
   Tensor<3> vk_output_tensor = TensorMap<3> (
       output_buf.data (), (Eigen::Index)out_fp32.channels (),

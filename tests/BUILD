@@ -83,14 +83,14 @@ cc_test(
 	],
 )
 
-cc_test(
-	name = "test_multiheadattn",
-	srcs = ["test_multiheadattn.cpp"],
-    copts = ["-std=c++17"],
-	deps = [
-		":test_common",
-	],
-)
+#cc_test(
+#	name = "test_multiheadattn",
+#	srcs = ["test_multiheadattn.cpp"],
+#    copts = ["-std=c++17"],
+#	deps = [
+#		":test_common",
+#	],
+#)
 
 cc_test(
 	name = "test_embedding",

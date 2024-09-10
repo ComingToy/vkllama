@@ -48,7 +48,7 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = -1, const T max = 1)
 {
   vkllama::VkTensor tensor (c, h, w, dev, vkllama::VkTensor::to_dtype<T> ());
-  if (tensor.create () != VK_SUCCESS)
+  if (tensor.create () != absl::OkStatus())
     {
       return {};
     }
@@ -58,7 +58,7 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
   random_vec (buf.data (), n, min, max);
 
   auto ret = command->upload (buf.data (), n, tensor);
-  if (ret != VK_SUCCESS)
+  if (ret != absl::OkStatus())
     {
       return {};
     }
