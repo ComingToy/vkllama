@@ -11,7 +11,7 @@ class Embedding : public Op
 {
 public:
   Embedding (GPUDevice *dev, Command *, Tensor vocab, const uint32_t UNK,
-             Tensor::DType dtype = Tensor::FP32);
+             Tensor::DType dtype = Tensor::FP16);
 
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;

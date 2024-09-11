@@ -12,16 +12,19 @@ Slice::Slice (GPUDevice *gpu, Command *command, Tensor::DType dtype)
 absl::Status
 Slice::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "Slice op: only fp16 dtype is supported");
+    }
+
   constexpr int binding_count = 9;
   Pipeline::ShaderInfo info
       = { 0, binding_count, sizeof (uint32_t) * binding_count, 8, 8, 4 };
 
-  const auto spv_code = dtype_ == Tensor::FP32
-                            ? __get_slice_comp_spv_code ()
-                            : __get_slice_fp16_comp_spv_code ();
-  const auto spv_size = dtype_ == Tensor::FP32
-                            ? __get_slice_comp_spv_size ()
-                            : __get_slice_fp16_comp_spv_size ();
+  const auto spv_code = __get_slice_fp16_comp_spv_code ();
+  const auto spv_size = __get_slice_fp16_comp_spv_size ();
+
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, {}, info));
 
   return pipeline_->init ();

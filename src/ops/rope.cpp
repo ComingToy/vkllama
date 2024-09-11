@@ -19,18 +19,19 @@ Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
 absl::Status
 Rope::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "Rope op: only fp16 dtype is supported.");
+    }
+
   Pipeline::ShaderInfo shader_info_k
       = { 0, 2, 4 * sizeof (uint32_t), 16, 16, 1 };
   Pipeline::ShaderInfo shader_info_q
       = { 0, 2, 4 * sizeof (uint32_t), 16, 16, 1 };
 
-  const auto *spv_code = dtype_ == Tensor::FP32
-                             ? __get_rope_comp_spv_code ()
-                             : __get_rope_fp16_comp_spv_code ();
-
-  const auto spv_size = dtype_ == Tensor::FP32
-                            ? __get_rope_comp_spv_size ()
-                            : __get_rope_fp16_comp_spv_size ();
+  const auto *spv_code = __get_rope_fp16_comp_spv_code ();
+  const auto spv_size = __get_rope_fp16_comp_spv_size ();
 
   pipeline_k_.reset (
       new Pipeline (dev_, spv_code, spv_size, {}, shader_info_k));

@@ -14,7 +14,7 @@ class ElementWise : public Op
 {
 public:
   ElementWise (GPUDevice *dev, Command *command_, const int type,
-               Tensor::DType dtype = Tensor::FP32);
+               Tensor::DType dtype = Tensor::FP16);
   absl::StatusOr<Tensor> operator() (Tensor x, Tensor y) noexcept;
   absl::StatusOr<Tensor> operator() (Tensor x, float y) noexcept;
   absl::Status init () noexcept override;

@@ -15,6 +15,11 @@ UpdateKVCache::UpdateKVCache (GPUDevice *gpu, Command *command,
 absl::Status
 UpdateKVCache::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "UpdateKVCache op: only fp16 is supported.");
+    }
   const auto *spv_code = dtype_ == Tensor::FP32
                              ? nullptr
                              : __get_update_kvcache_fp16_comp_spv_code ();

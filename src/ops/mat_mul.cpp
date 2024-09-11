@@ -55,12 +55,7 @@ MatMul::init () noexcept
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
-      if (dtype_ == Tensor::FP32)                                                \
-        {                                                                        \
-          pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();        \
-          code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size ();    \
-        }                                                                        \
-      else if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())       \
+      if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())            \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_code (); \

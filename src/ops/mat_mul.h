@@ -12,12 +12,12 @@ public:
   MatMul (GPUDevice *dev, Command *command, Tensor weight,
           const float scale = 1.0f, const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
-          const Tensor::DType dtype = Tensor::FP32);
+          const Tensor::DType dtype = Tensor::FP16);
 
   MatMul (GPUDevice *dev, Command *command, const float scale = 1.0f,
           const float bias = .0f, const int act = 0,
           const int broadcast_type = 0, const bool transpose_b = false,
-          const Tensor::DType dtype = Tensor::FP32);
+          const Tensor::DType dtype = Tensor::FP16);
 
   absl::StatusOr<Tensor> operator() (Tensor c) noexcept;
   absl::StatusOr<Tensor> operator() (Tensor a, Tensor b) noexcept;
