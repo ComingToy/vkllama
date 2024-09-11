@@ -77,110 +77,39 @@ TEST_P (TestRope, test_rope)
 
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at beign command";
-  auto input_query
-      = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
-  auto input_key
-      = random_tensor<float> (dev_, command_, params.C, params.H, params.W);
+  auto input_query = random_tensor<Eigen::half> (dev_, command_, params.C,
+                                                 params.H, params.W);
 
-  ASSERT_TRUE (input_query && input_key);
-  Tensor input_query_fp16, input_query_fp32, input_key_fp16, input_key_fp32;
-  std::vector<float> input_query_buf (input_query->first.size ()),
-      input_key_buf (input_key->first.size ());
-
-  Cast input_query_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
-  Cast input_key_cast_fp16 (dev_, command_, Tensor::FP32, Tensor::FP16);
-  Cast input_query_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
-  Cast input_key_cast_fp32 (dev_, command_, Tensor::FP16, Tensor::FP32);
-  if (params.dtype)
-    {
-      ASSERT_EQ (input_query_cast_fp16.init (), absl::OkStatus ());
-      ASSERT_EQ (input_key_cast_fp16.init (), absl::OkStatus ());
-      ASSERT_EQ (input_query_cast_fp32.init (), absl::OkStatus ());
-      ASSERT_EQ (input_key_cast_fp32.init (), absl::OkStatus ());
-
-      ASSERT_EQ (input_query_cast_fp16 (input_query->first, input_query_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (input_key_cast_fp16 (input_key->first, input_key_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (input_query_cast_fp32 (input_query_fp16, input_query_fp32),
-                 absl::OkStatus ());
-      ASSERT_EQ (input_key_cast_fp32 (input_key_fp16, input_key_fp32),
-                 absl::OkStatus ());
-      ASSERT_EQ (command_->download (input_key_fp32, input_key_buf.data (),
-                                     input_key_buf.size ()),
-                 absl::OkStatus ());
-      ASSERT_EQ (command_->download (input_query_fp32, input_query_buf.data (),
-                                     input_query_buf.size ()),
-                 absl::OkStatus ());
-    }
-  else
-    {
-      input_query_fp32 = input_query->first;
-      input_key_fp32 = input_key->first;
-      input_query_buf.swap (input_query->second);
-      input_key_buf.swap (input_key->second);
-    }
-
+  ASSERT_TRUE (input_query);
   Rope rope_op (dev_, command_, params.MAXLEN, params.W, Tensor::FP16);
 
   ASSERT_EQ (rope_op.init (), absl::OkStatus ());
 
-  Tensor output_query, output_key;
-  ASSERT_EQ (rope_op (params.dtype ? input_query_fp16 : input_query_fp32,
-                      params.dtype ? input_key_fp16 : input_key_fp32,
-                      output_query, output_key, params.offset),
-             absl::OkStatus ());
+  absl::StatusOr<Tensor> output_query;
+  ASSERT_EQ (
+      (output_query = rope_op (input_query->first, params.offset)).status (),
+      absl::OkStatus ());
 
-  std::vector<float> output_query_buf (output_query.size ()),
-      output_key_buf (output_key.size ());
+  std::vector<Eigen::half> output_query_buf (output_query->size ());
 
-  Cast cast_output_query_op (dev_, command_, Tensor::FP16, Tensor::FP32);
-  Cast cast_output_key_op (dev_, command_, Tensor::FP16, Tensor::FP32);
-
-  Tensor output_query_fp32, output_key_fp32;
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_output_key_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_output_query_op.init (), absl::OkStatus ());
-
-      ASSERT_EQ (cast_output_key_op (output_key, output_key_fp32),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_output_query_op (output_query, output_query_fp32),
-                 absl::OkStatus ());
-    }
-  else
-    {
-      output_key_fp32 = output_key;
-      output_query_fp32 = output_query;
-    }
-
-  ASSERT_EQ (command_->download (output_query_fp32, output_query_buf.data (),
+  ASSERT_EQ (command_->download (*output_query, output_query_buf.data (),
                                  output_query_buf.size ()),
              absl::OkStatus ());
-  ASSERT_EQ (command_->download (output_key_fp32, output_key_buf.data (),
-                                 output_key.size ()),
-             absl::OkStatus ());
+
   ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  auto output_query_host = TensorMap<3> (
-      output_query_buf.data (), (Eigen::Index)output_query.channels (),
-      (Eigen::Index)output_query.height (),
-      (Eigen::Index)output_query.width ());
-  auto output_key_host = TensorMap<3> (
-      output_key_buf.data (), (Eigen::Index)output_key.channels (),
-      (Eigen::Index)output_key.height (), (Eigen::Index)output_key.width ());
+  auto output_query_host = _TensorMap<Eigen::half, 3> (
+      output_query_buf.data (), (Eigen::Index)output_query->channels (),
+      (Eigen::Index)output_query->height (),
+      (Eigen::Index)output_query->width ());
 
-  auto input_query_host = TensorMap<3> (
-      input_query_buf.data (), (Eigen::Index)input_query->first.channels (),
+  auto input_query_host = _TensorMap<Eigen::half, 3> (
+      input_query->second.data (),
+      (Eigen::Index)input_query->first.channels (),
       (Eigen::Index)input_query->first.height (),
       (Eigen::Index)input_query->first.width ());
-
-  auto input_key_host = TensorMap<3> (
-      input_key_buf.data (), (Eigen::Index)input_key->first.channels (),
-      (Eigen::Index)input_key->first.height (),
-      (Eigen::Index)input_key->first.width ());
 
   size_t w = input_query->first.width () / 2;
 
@@ -189,25 +118,29 @@ TEST_P (TestRope, test_rope)
                     freqc_buf);
 
   auto input_freqc_host = TensorMap<3> (freqc_buf.data (), (Eigen::Index)1,
-                                        params.MAXLEN, (Eigen::Index)w);
+                                        params.MAXLEN, (Eigen::Index)w)
+                              .cast<Eigen::half> ();
 
   auto input_freqs_host = TensorMap<3> (freqs_buf.data (), (Eigen::Index)1,
-                                        params.MAXLEN, (Eigen::Index)w);
+                                        params.MAXLEN, (Eigen::Index)w)
+                              .cast<Eigen::half> ();
 
-  auto _apply_rope = [params] (_Tensor<float, 3> input_x, _Tensor<float, 3> input_freqc,
-                               _Tensor<float, 3> input_freqs)
+  auto _apply_rope = [params] (_Tensor<Eigen::half, 3> input_x,
+                               _Tensor<Eigen::half, 3> input_freqc,
+                               _Tensor<Eigen::half, 3> input_freqs)
 
   {
     // apply rope to query
     Eigen::array<Eigen::Index, 4> dims
         = { input_x.dimension (0), input_x.dimension (1),
             input_x.dimension (2) / 2, (Eigen::Index)2 };
-    _Tensor<float, 4> query_host = input_x.reshape (dims);
-    _Tensor<float, 3> query_host_r = query_host.chip<3> (0);
-    _Tensor<float, 3> query_host_i = query_host.chip<3> (1);
 
-    _Tensor<float, 3> query_host_or (query_host_r.dimensions ());
-    _Tensor<float, 3> query_host_oi (query_host_r.dimensions ());
+    _Tensor<Eigen::half, 4> query_host = input_x.reshape (dims);
+    _Tensor<Eigen::half, 3> query_host_r = query_host.chip<3> (0);
+    _Tensor<Eigen::half, 3> query_host_i = query_host.chip<3> (1);
+
+    _Tensor<Eigen::half, 3> query_host_or (query_host_r.dimensions ());
+    _Tensor<Eigen::half, 3> query_host_oi (query_host_r.dimensions ());
 
     Eigen::array<Eigen::Index, 2> starts = { 0, 0 };
     Eigen::array<Eigen::Index, 2> sizes
@@ -236,23 +169,22 @@ TEST_P (TestRope, test_rope)
     Eigen::array<Eigen::Index, 4> out_dims
         = { query_host_or.dimension (0), query_host_or.dimension (1),
             query_host_or.dimension (2), (Eigen::Index)1 };
-    _Tensor<float, 4> reshaped_query_host_or = query_host_or.reshape (out_dims);
-    _Tensor<float, 4> reshaped_query_host_oi = query_host_oi.reshape (out_dims);
-    _Tensor<float, 4> output
+
+    _Tensor<Eigen::half, 4> reshaped_query_host_or
+        = query_host_or.reshape (out_dims);
+    _Tensor<Eigen::half, 4> reshaped_query_host_oi
+        = query_host_oi.reshape (out_dims);
+    _Tensor<Eigen::half, 4> output
         = reshaped_query_host_or.concatenate (reshaped_query_host_oi, 3);
 
-    _Tensor<float, 3> output_ = output.reshape (input_x.dimensions ());
+    _Tensor<Eigen::half, 3> output_ = output.reshape (input_x.dimensions ());
     return output_;
   };
 
   auto rope_output_query
       = _apply_rope (input_query_host, input_freqc_host, input_freqs_host);
-  auto rope_output_key
-      = _apply_rope (input_key_host, input_freqc_host, input_freqs_host);
-  auto rope_vulkan_output_query = TensorMap<3> (
+  auto rope_vulkan_output_query = _TensorMap<Eigen::half, 3> (
       output_query_buf.data (), input_query_host.dimensions ());
-  auto rope_vulkan_output_key
-      = TensorMap<3> (output_key_buf.data (), input_query_host.dimensions ());
 
 #if 1
   for (Eigen::Index i = 0; i < rope_output_query.size (); ++i)
@@ -260,28 +192,14 @@ TEST_P (TestRope, test_rope)
       if (fabs (rope_output_query (i) - rope_vulkan_output_query (i)) > 1e-1)
         {
           fprintf (stderr, "index %ld error: lhs = %f, rhs = %f\n", i,
-                   rope_output_query (i), rope_vulkan_output_query (i));
-        }
-    }
-
-  for (Eigen::Index i = 0; i < rope_output_key.size (); ++i)
-    {
-      if (fabs (rope_output_key (i) - rope_vulkan_output_key (i)) > 1e-1)
-        {
-          fprintf (stderr, "index %ld error: lhs = %f, rhs = %f\n", i,
-                   rope_output_key (i), rope_vulkan_output_key (i));
+                   float (rope_output_query (i)),
+                   float (rope_vulkan_output_query (i)));
         }
     }
 #endif
 
-  _Tensor<float, 3> err (rope_output_query.dimensions ());
-  err.setConstant (params.dtype ? 1e-2 : 1e-3);
-
-  _Tensor<int, 0> diff
-      = ((rope_output_key - rope_vulkan_output_key).abs () > err)
-            .cast<int> ()
-            .sum ();
-  ASSERT_EQ (*diff.data (), 0);
+  _Tensor<Eigen::half, 3> err (rope_output_query.dimensions ());
+  err.setConstant (Eigen::half (params.dtype ? 1e-2 : 1e-3));
 
   _Tensor<int, 0> diff_q
       = ((rope_output_query - rope_vulkan_output_query).abs () > err)
