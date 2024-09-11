@@ -41,8 +41,8 @@ Embedding::init () noexcept
   return pipeline_->update_bindings ({ vocab_ }, { 0 });
 }
 
-absl::Status
-Embedding::operator() (Tensor indices, Tensor &out) noexcept
+absl::StatusOr<Tensor>
+Embedding::operator() (Tensor indices) noexcept
 {
   if (vocab_.channels () != 1 || indices.channels () != 1)
     {
@@ -52,8 +52,8 @@ Embedding::operator() (Tensor indices, Tensor &out) noexcept
     {
     }
 
-  out = Tensor (indices.height (), indices.width (), vocab_.width (), dev_,
-                  vocab_.dtype ());
+  auto out = Tensor (indices.height (), indices.width (), vocab_.width (),
+                     dev_, vocab_.dtype ());
   auto ret = out.create ();
 
   if (!ret.ok ())
@@ -83,7 +83,7 @@ Embedding::operator() (Tensor indices, Tensor &out) noexcept
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return absl::OkStatus ();
+  return out;
 }
 
 uint64_t

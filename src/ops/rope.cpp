@@ -54,36 +54,27 @@ Rope::time () noexcept
   return std::max (pipeline_k_->time (), pipeline_q_->time ());
 }
 
-absl::Status
-Rope::operator() (Tensor query, Tensor key, Tensor &out_query,
-                  Tensor &out_key, const size_t offset) noexcept
+absl::StatusOr<Tensor>
+Rope::operator() (Tensor query, const size_t offset) noexcept
 {
-  if (query.width () != key.width () || query.channels () != key.channels ()
-      || query.width () != dim_ || query.height () > maxlen_)
+  if (query.width () != dim_ || query.height () > maxlen_)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
-          "rope shape error. query.shape = (%zu, %zu, %zu), key.shape = (%zu, "
-          "%zu, "
-          "%zu), dim = %d, maxlen = %d",
-          query.channels (), query.height (), query.width (), key.channels (),
-          query.height (), query.width (), dim_, maxlen_));
+          "rope shape error. input0.shape = (%zu, %zu, %zu)"
+          " dim = %d, maxlen = %d",
+          query.channels (), query.height (), query.width (), dim_, maxlen_));
     }
 
-  if (query.dtype () != dtype_ || key.dtype () != dtype_)
+  if (query.dtype () != dtype_)
     {
-      return absl::InvalidArgumentError (absl::StrFormat (
-          "rope defined with dtype %d. but query.dtype = %d, key.dtype = %d.",
-          int (dtype_), int (query.dtype ()), int (key.dtype ())));
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("rope defined with dtype %d. but query.dtype = %d",
+                           int (dtype_), int (query.dtype ())));
     }
 
-  out_query = Tensor::like (query);
-  out_key = Tensor::like (key);
+  auto out_query = Tensor::like (query);
   auto ret = out_query.create ();
   if (!ret.ok ())
-    {
-      return ret;
-    }
-  if (!(ret = out_key.create ()).ok ())
     {
       return ret;
     }
@@ -92,16 +83,6 @@ Rope::operator() (Tensor query, Tensor key, Tensor &out_query,
            groupy = (query.height () + 15) / 16, groupz = query.channels ();
 
   ret = pipeline_q_->set_group (groupx, groupy, groupz);
-  if (!ret.ok ())
-    {
-      return ret;
-    }
-
-  groupx = (key.width () / 2 + 15) / 16;
-  groupy = (key.height () + 15) / 16;
-  groupz = key.channels ();
-
-  ret = pipeline_k_->set_group (groupx, groupy, groupz);
   if (!ret.ok ())
     {
       return ret;
@@ -116,30 +97,9 @@ Rope::operator() (Tensor query, Tensor key, Tensor &out_query,
       return ret;
     }
 
-  int key_offset = int (offset + query.height () - key.height ());
-  if (key_offset < 0)
-    {
-      return absl::InvalidArgumentError (
-          absl::StrFormat ("total seq len less than len of key. offset = %zu, "
-                           "query.height() = %zu, key = %zu",
-                           offset, query.height (), key.height ()));
-    }
-
-  ShaderConstants key_shape
-      = { (uint32_t)key.channels (), (uint32_t)key.height (),
-          (uint32_t)key.width (), (uint32_t)key_offset };
-
-  ret = command_->record_pipeline (*pipeline_k_, { key, out_key }, key_shape);
-  if (ret.ok ())
-    {
-      return ret;
-    }
-
   out_query.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out_query.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  out_key.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out_key.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return out_query;
 }
 
 }

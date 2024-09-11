@@ -19,8 +19,8 @@ public:
           const int broadcast_type = 0, const bool transpose_b = false,
           const Tensor::DType dtype = Tensor::FP32);
 
-  absl::Status operator() (Tensor a, Tensor &c) noexcept;
-  absl::Status operator() (Tensor a, Tensor b, Tensor &c) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor c) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor a, Tensor b) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 

@@ -13,9 +13,8 @@ class Rope : public Op
 public:
   Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
         const Tensor::DType dtype = Tensor::FP32);
-  absl::Status operator() (Tensor query, Tensor key, Tensor &out_query,
-                           Tensor &out_key,
-                           const size_t offset = 0) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor query,
+                                     const size_t offset = 0) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 

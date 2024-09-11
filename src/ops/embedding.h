@@ -15,7 +15,7 @@ public:
 
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (Tensor indices, Tensor &out) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor indices) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

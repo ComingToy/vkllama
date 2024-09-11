@@ -9,6 +9,7 @@ extern "C"{
 // clang-format on
 #include "absl/status/statusor.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
@@ -37,8 +38,7 @@ namespace vkllama
 class InputLayer
 {
 public:
-  InputLayer (GPUDevice *gpu, Command *command, Tensor vocab,
-              uint32_t UNK = 0)
+  InputLayer (GPUDevice *gpu, Command *command, Tensor vocab, uint32_t UNK = 0)
       : gpu_ (gpu), command_ (command), vocab_ (vocab), UNK_ (UNK)
   {
   }
@@ -60,13 +60,8 @@ public:
   absl::StatusOr<Tensor>
   operator() (Tensor toks)
   {
-    Tensor out;
-    auto ret = embedding_op_->operator() (toks, out);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
-
+    auto out = embedding_op_->operator() (toks);
+    VKLLAMA_STATUS_OK (out);
     return out;
   }
 
@@ -159,42 +154,29 @@ public:
   absl::StatusOr<Tensor>
   operator() (Tensor in, const size_t offset)
   {
-    auto ret = norm_op_->operator() (in, normed_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    auto ret = norm_op_->operator() (in);
 
-    ret = attn_op_->operator() (normed_, transformed_, offset);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    VKLLAMA_STATUS_OK (ret);
+    normed_ = *ret;
 
-    ret = add_op_->operator() (transformed_, in, added_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    ret = attn_op_->operator() (normed_, offset);
+    VKLLAMA_STATUS_OK (ret);
+    transformed_ = *ret;
 
-    ret = norm_op2_->operator() (added_, normed2_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    ret = add_op_->operator() (transformed_, in);
+    VKLLAMA_STATUS_OK (ret);
+    added_ = *ret;
 
-    Tensor out;
-    ret = feedforward_op_->operator() (normed2_, feed_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    ret = norm_op2_->operator() (added_);
+    VKLLAMA_STATUS_OK (ret);
+    normed2_ = *ret;
 
-    ret = add_op2_->operator() (feed_, added_, out);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    ret = feedforward_op_->operator() (normed2_);
+    VKLLAMA_STATUS_OK (ret);
+    feed_ = *ret;
+
+    auto out = add_op2_->operator() (feed_, added_);
+    VKLLAMA_STATUS_OK (out);
 
     return out;
   }
@@ -234,8 +216,7 @@ private:
 class OutputLayer
 {
 public:
-  OutputLayer (GPUDevice *gpu, Command *command, Tensor wo,
-               Tensor norm_weight)
+  OutputLayer (GPUDevice *gpu, Command *command, Tensor wo, Tensor norm_weight)
       : gpu_ (gpu), command_ (command), wo_ (wo), norm_weight_ (norm_weight)
   {
   }
@@ -270,23 +251,16 @@ public:
   absl::StatusOr<Tensor>
   operator() (Tensor in)
   {
-    auto ret = norm_op_->operator() (in, norm_output_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    auto ret = norm_op_->operator() (in);
+    VKLLAMA_STATUS_OK (ret);
+    norm_output_ = *ret;
 
-    ret = matmul_op_->operator() (norm_output_, matmul_output_);
-    if (!ret.ok ())
-      {
-        return ret;
-      }
+    ret = matmul_op_->operator() (norm_output_);
+    VKLLAMA_STATUS_OK (ret);
+    matmul_output_ = *ret;
 
-    Tensor out;
-    if (!(*cast_op_) (matmul_output_, out).ok ())
-      {
-        return ret;
-      }
+    auto out = (*cast_op_) (matmul_output_);
+    VKLLAMA_STATUS_OK (out);
 
     return out;
   }
@@ -380,9 +354,9 @@ public:
       auto norm_weight = tensors["output_norm.weight"];
 
       Tensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
-                             Tensor::FP16);
+                           Tensor::FP16);
       Tensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
-                                gpu_, Tensor::FP16);
+                              gpu_, Tensor::FP16);
       Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, Tensor::FP16);
 
       std::vector<__vkllama_fp16_t> norm_weight_fp16;
@@ -507,10 +481,10 @@ public:
           block_commands_.push_back (command);
 
           Tensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
-                                        Tensor::FP16);
+                                      Tensor::FP16);
 
           Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
-                                       Tensor::FP16);
+                                     Tensor::FP16);
 
           absl::Status ret;
 
@@ -595,7 +569,7 @@ public:
             }
 
           Tensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
-                       gpu_, Tensor::FP16);
+                     gpu_, Tensor::FP16);
           if (!(ret = Wo.create ()).ok ())
             {
               return ret;
@@ -609,14 +583,14 @@ public:
               return ret;
             }
 
-          Tensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0],
-                         gpu_, Tensor::FP16);
+          Tensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0], gpu_,
+                       Tensor::FP16);
 
-          Tensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0],
-                         gpu_, Tensor::FP16);
+          Tensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0], gpu_,
+                       Tensor::FP16);
 
           Tensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
-                         Tensor::FP16);
+                       Tensor::FP16);
 
           if (!(ret = vkw1.create ()).ok () || !(ret = vkw2.create ()).ok ()
               || !(ret = vkw3.create ()).ok ())

@@ -27,8 +27,8 @@ Transpose::init () noexcept
   return pipeline_->init ();
 }
 
-absl::Status
-Transpose::operator() (Tensor in, Tensor &out) noexcept
+absl::StatusOr<Tensor>
+Transpose::operator() (Tensor in) noexcept
 {
   if (in.dtype () != dtype_)
     {
@@ -43,8 +43,8 @@ Transpose::operator() (Tensor in, Tensor &out) noexcept
           "only transpose type 0 is supported now.");
     }
 
-  out = Tensor (in.height (), in.channels (), in.width (), dev_,
-                  in.dtype ());
+  auto out
+      = Tensor (in.height (), in.channels (), in.width (), dev_, in.dtype ());
 
   auto ret = out.create ();
   if (!ret.ok ())
@@ -73,7 +73,7 @@ Transpose::operator() (Tensor in, Tensor &out) noexcept
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return out;
 };
 
 uint64_t

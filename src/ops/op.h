@@ -2,6 +2,7 @@
 #define __VKLLAMA_OP_H__
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 

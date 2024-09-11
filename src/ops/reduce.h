@@ -42,9 +42,8 @@ public:
     const auto *spv_code = dtype_ == Tensor::FP16
                                ? __get_reduce_fp16_comp_spv_code ()
                                : __get_reduce_comp_spv_code ();
-    auto spv_size = dtype_ == Tensor::FP16
-                        ? __get_reduce_fp16_comp_spv_size ()
-                        : __get_reduce_comp_spv_size ();
+    auto spv_size = dtype_ == Tensor::FP16 ? __get_reduce_fp16_comp_spv_size ()
+                                           : __get_reduce_comp_spv_size ();
 
     auto op_type = op_type_ == 3 ? 0 : op_type_;
     stage0_.reset (
@@ -59,8 +58,8 @@ public:
     return stage0_->time ();
   };
 
-  absl::Status
-  operator() (Tensor a, Tensor &b)
+  absl::StatusOr<Tensor>
+  operator() (Tensor a)
   {
     if (a.dtype () != dtype_)
       {
@@ -79,7 +78,7 @@ public:
         return ret;
       }
 
-    b = Tensor (a.channels (), a.height (), 1, dev_, dtype_);
+    auto b = Tensor (a.channels (), a.height (), 1, dev_, dtype_);
     if (!(ret = b.create ()).ok ())
       {
         return ret;
@@ -99,7 +98,7 @@ public:
     b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
     b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-    return absl::OkStatus ();
+    return b;
   }
 
 private:

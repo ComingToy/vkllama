@@ -18,7 +18,7 @@ ElementWise::init () noexcept
 
   uint32_t bytes = sizeof (int)
                    + (dtype_ == Tensor::FP16 ? sizeof (__vkllama_fp16_t) * 2
-                                               : sizeof (float));
+                                             : sizeof (float));
   Pipeline::ShaderInfo info1 = { 1, 2, bytes, 128, 1, 1 };
   ShaderConstants constants = { type_ };
 
@@ -78,8 +78,8 @@ ElementWise::time () noexcept
   return std::max (pipeline0_->time (), pipeline1_->time ());
 }
 
-absl::Status
-ElementWise::operator() (Tensor x, Tensor y, Tensor &out) noexcept
+absl::StatusOr<Tensor>
+ElementWise::operator() (Tensor x, Tensor y) noexcept
 {
   if (x.dtype () != y.dtype () || x.dtype () != dtype_)
     {
@@ -97,7 +97,7 @@ ElementWise::operator() (Tensor x, Tensor y, Tensor &out) noexcept
                            y.channels (), y.height (), y.width ()));
     }
 
-  out = Tensor::like (x);
+  auto out = Tensor::like (x);
 
   auto ret = absl::OkStatus ();
   if (!(ret = out.create ()).ok ())
@@ -121,18 +121,18 @@ ElementWise::operator() (Tensor x, Tensor y, Tensor &out) noexcept
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return out;
 }
 
-absl::Status
-ElementWise::operator() (Tensor x, float y, Tensor &out) noexcept
+absl::StatusOr<Tensor>
+ElementWise::operator() (Tensor x, float y) noexcept
 {
   if (x.dtype () != dtype_)
     {
       return absl::OkStatus ();
     }
 
-  out = Tensor::like (x);
+  auto out = Tensor::like (x);
   absl::Status ret;
   if (!(ret = out.create ()).ok ())
     {
@@ -164,7 +164,7 @@ ElementWise::operator() (Tensor x, float y, Tensor &out) noexcept
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return out;
 }
 }
 

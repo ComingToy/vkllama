@@ -17,7 +17,7 @@ public:
   FeedForward (GPUDevice *, Command *, Tensor, Tensor, Tensor,
                const bool transposed_weight = false,
                const Tensor::DType dtype = Tensor::FP32);
-  absl::Status operator() (Tensor X, Tensor &output) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor X) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 

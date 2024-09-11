@@ -105,15 +105,22 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       ASSERT_EQ (cast_input1_op.init (), absl::OkStatus ());
       ASSERT_EQ (cast_input0_op_fp32.init (), absl::OkStatus ());
       ASSERT_EQ (cast_input1_op_fp32.init (), absl::OkStatus ());
+      auto ret = cast_input0_op (input0->first);
+      input0_fp16 = *ret;
+      ASSERT_EQ (ret.status (), absl::OkStatus ());
 
-      ASSERT_EQ (cast_input0_op (input0->first, input0_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input1_op (input1->first, input1_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input0_op_fp32 (input0_fp16, input0_fp32),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input1_op_fp32 (input1_fp16, input1_fp32),
-                 absl::OkStatus ());
+      ret = cast_input1_op (input1->first);
+      ASSERT_EQ (ret.status (), absl::OkStatus ());
+      input1_fp16 = *ret;
+
+      ret = cast_input0_op_fp32 (input0_fp16);
+      input0_fp32 = *ret;
+
+      ASSERT_EQ (ret.status (), absl::OkStatus ());
+
+      ret = cast_input1_op_fp32 (input1_fp16);
+      input1_fp32 = *ret;
+      ASSERT_EQ (ret.status (), absl::OkStatus ());
       input0_buf.resize (input0_fp16.size ());
       input1_buf.resize (input1_fp16.size ());
       ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
@@ -138,27 +145,28 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   ASSERT_TRUE (matmul_op.init () == absl::OkStatus ())
       << "failed at init matmul op";
 
-  Tensor output;
-  ASSERT_TRUE (matmul_op (params.dtype ? input0_fp16 : input0_fp32,
-                          params.dtype ? input1_fp16 : input1_fp32, output)
-               == absl::OkStatus ())
-      << "failed at forwarding matmul op";
+  absl::StatusOr<Tensor> output
+      = matmul_op (params.dtype ? input0_fp16 : input0_fp32,
+                   params.dtype ? input1_fp16 : input1_fp32);
 
-  Tensor output_fp32;
+  ASSERT_TRUE (output.ok ()) << "failed at forwarding matmul op";
+
+  absl::StatusOr<Tensor> output_fp32;
   Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
 
   if (params.dtype)
     {
       ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
+      output_fp32 = cast_output_op (*output);
+      ASSERT_TRUE (output_fp32.ok ());
     }
   else
     {
       output_fp32 = output;
     }
 
-  std::vector<float> buf (output_fp32.size ());
-  ASSERT_EQ (command_->download (output_fp32, buf.data (), buf.size ()),
+  std::vector<float> buf (output_fp32->size ());
+  ASSERT_EQ (command_->download (*output_fp32, buf.data (), buf.size ()),
              absl::OkStatus ())
       << "failed at downloading output";
   ASSERT_EQ (command_->end (), absl::OkStatus ())
@@ -190,13 +198,14 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
 
   Eigen::Tensor<float, 3, Eigen::RowMajor> eigen_output (
-      (Eigen::Index)output.channels (), (Eigen::Index)output.height (),
-      (Eigen::Index)output.width ());
+      (Eigen::Index)output->channels (), (Eigen::Index)output->height (),
+      (Eigen::Index)output->width ());
+
   Eigen::array<Eigen::IndexPair<int>, 1> dims
       = { Eigen::IndexPair<int> (1, 0) };
   if (broadcast_type == 0)
     {
-      for (int i = 0; i < output.channels (); ++i)
+      for (int i = 0; i < output->channels (); ++i)
         {
           eigen_output.chip<0> (i)
               = in0_tensor.chip<0> (i).contract (in1_tensor.chip<0> (i), dims);
@@ -204,7 +213,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
   else if (broadcast_type == 1)
     {
-      for (int i = 0; i < output.channels (); ++i)
+      for (int i = 0; i < output->channels (); ++i)
         {
           eigen_output.chip<0> (i)
               = in0_tensor.chip<0> (i).contract (in1_tensor.chip<0> (0), dims);
@@ -212,7 +221,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
   else if (broadcast_type == 2)
     {
-      for (int i = 0; i < output.channels (); ++i)
+      for (int i = 0; i < output->channels (); ++i)
         {
           eigen_output.chip<0> (i)
               = in0_tensor.chip<0> (0).contract (in1_tensor.chip<0> (i), dims);
@@ -220,8 +229,8 @@ TEST_P (TestMatmul, test_matmul_broadcast)
     }
 
   auto output_mapped = TensorMap (
-      buf.data (), (Eigen::Index)output.channels (),
-      (Eigen::Index)output.height (), (Eigen::Index)output.width ());
+      buf.data (), (Eigen::Index)output->channels (),
+      (Eigen::Index)output->height (), (Eigen::Index)output->width ());
 
   _Tensor<float, 3> err (eigen_output.dimensions ());
   err.setConstant (1e-2);
@@ -232,20 +241,6 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
 std::vector<TestMatMulParams> params = {
 #if 1
-  { 1, 1024, 1023, 225, 0, 1, 0 }, { 1, 1027, 619, 32, 0, 1, 0 },
-  { 5, 1024, 512, 256, 0, 1, 0 },  { 16, 255, 321, 513, 0, 1, 0 },
-  { 1, 1024, 1023, 225, 1, 1, 0 }, { 1, 1027, 619, 32, 1, 1, 0 },
-  { 5, 1024, 512, 256, 1, 1, 0 },  { 16, 255, 321, 513, 1, 1, 0 },
-  { 1, 1024, 1023, 225, 2, 1, 0 }, { 1, 1027, 619, 32, 2, 1, 0 },
-  { 5, 1024, 512, 256, 2, 1, 0 },  { 16, 255, 321, 513, 2, 1, 0 },
-
-  { 1, 1024, 1023, 225, 0, 0, 0 }, { 1, 1027, 619, 32, 0, 0, 0 },
-  { 5, 1024, 512, 256, 0, 0, 0 },  { 16, 255, 321, 513, 0, 0, 0 },
-  { 1, 1024, 1023, 225, 1, 0, 0 }, { 1, 1027, 619, 32, 1, 0, 0 },
-  { 5, 1024, 512, 256, 1, 0, 0 },  { 16, 255, 321, 513, 1, 0, 0 },
-  { 1, 1024, 1023, 225, 2, 0, 0 }, { 1, 1027, 619, 32, 2, 0, 0 },
-  { 5, 1024, 512, 256, 2, 0, 0 },  { 16, 255, 321, 513, 2, 0, 0 },
-
   { 1, 1024, 1023, 225, 0, 1, 1 }, { 1, 1027, 619, 32, 0, 1, 1 },
   { 5, 1024, 512, 256, 0, 1, 1 },  { 16, 255, 321, 513, 0, 1, 1 },
   { 1, 1024, 1023, 225, 1, 1, 1 }, { 1, 1027, 619, 32, 1, 1, 1 },

@@ -22,15 +22,14 @@ class Command;
 class MultiHeadAttentionV2 : public Op
 {
 public:
-  MultiHeadAttentionV2 (GPUDevice *dev, Command *command, Tensor wk,
-                        Tensor wq, Tensor wv, Tensor wo,
-                        const int maxlen, const int dim,
+  MultiHeadAttentionV2 (GPUDevice *dev, Command *command, Tensor wk, Tensor wq,
+                        Tensor wv, Tensor wo, const int maxlen, const int dim,
                         const bool transposed_weight = false,
                         Tensor::DType dtype = Tensor::FP32,
                         const bool use_kvcache = false);
 
-  absl::Status operator() (Tensor X, Tensor &out,
-                           const size_t offset = 0) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor X,
+                                     const size_t offset = 0) noexcept;
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
 
@@ -56,7 +55,8 @@ private:
   std::unique_ptr<MatMul> matmul_weighted_;
   std::unique_ptr<ElementWise> scaled_;
   std::unique_ptr<Softmax> softmax_;
-  std::unique_ptr<Rope> rope_;
+  std::unique_ptr<Rope> rope_q_;
+  std::unique_ptr<Rope> rope_k_;
   std::unique_ptr<Transpose> transpose_k_;
   std::unique_ptr<Transpose> transpose_q_;
   std::unique_ptr<Transpose> transpose_v_;

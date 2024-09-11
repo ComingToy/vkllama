@@ -13,8 +13,8 @@ public:
   Concat (GPUDevice *gpu, Command *command, const int num, const int axis,
           Tensor::DType const dtype = Tensor::FP32);
   absl::Status init () noexcept override;
-  absl::Status operator() (std::vector<Tensor> const &inputs,
-                           Tensor &output) noexcept;
+  absl::StatusOr<Tensor>
+  operator() (std::vector<Tensor> const &inputs) noexcept;
   uint64_t time () noexcept override;
 
 private:

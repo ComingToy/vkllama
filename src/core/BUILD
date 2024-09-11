@@ -8,11 +8,12 @@ cc_library(
         'tensor.h',
         'float.h',
         'shader_constants.h',
-        'context.h'
+        'common.h',
 	],
     deps = [
 		"//vulkan_rules:vulkan_cc_library",
-        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
 		"@VulkanMemoryAllocator//:vma",
 	],

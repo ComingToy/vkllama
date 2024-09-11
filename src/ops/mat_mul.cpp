@@ -55,19 +55,19 @@ MatMul::init () noexcept
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
-      if (dtype_ == Tensor::FP32)                                              \
+      if (dtype_ == Tensor::FP32)                                                \
         {                                                                        \
           pcode = __get_matmul_broadcast##__boradcast##_comp_spv_code ();        \
           code_size = __get_matmul_broadcast##__boradcast##_comp_spv_size ();    \
         }                                                                        \
-      else if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())     \
+      else if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())       \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_code (); \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
-      else if (dtype_ == Tensor::FP16)                                         \
+      else if (dtype_ == Tensor::FP16)                                           \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_code ();  \
@@ -128,8 +128,8 @@ MatMul::time () noexcept
   return pipeline_->time ();
 }
 
-absl::Status
-MatMul::operator() (Tensor a, Tensor &c) noexcept
+absl::StatusOr<Tensor>
+MatMul::operator() (Tensor a) noexcept
 {
   if (weight_.size () == 0 || a.dtype () != weight_.dtype ()
       || a.dtype () != dtype_)
@@ -157,8 +157,8 @@ MatMul::operator() (Tensor a, Tensor &c) noexcept
 
   size_t out_h = a.height (),
          out_w = transpose_b_ ? weight_.height () : weight_.width ();
-  c = Tensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
-                dev_, dtype_, false);
+  auto c = Tensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
+                   dev_, dtype_, false);
 
   auto ret = c.create ();
   if (!ret.ok ())
@@ -197,11 +197,11 @@ MatMul::operator() (Tensor a, Tensor &c) noexcept
 
   c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return c;
 }
 
-absl::Status
-MatMul::operator() (Tensor a, Tensor b, Tensor &c) noexcept
+absl::StatusOr<Tensor>
+MatMul::operator() (Tensor a, Tensor b) noexcept
 {
   if (b.size () == 0 || a.dtype () != b.dtype () || a.dtype () != dtype_)
     {
@@ -221,8 +221,8 @@ MatMul::operator() (Tensor a, Tensor b, Tensor &c) noexcept
     }
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
-  c = Tensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
-                dtype_, false);
+  auto c = Tensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
+                   dtype_, false);
 
   auto ret = c.create ();
   if (!ret.ok ())
@@ -262,7 +262,7 @@ MatMul::operator() (Tensor a, Tensor b, Tensor &c) noexcept
 
   c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return absl::OkStatus ();
+  return c;
 }
 }
 

@@ -43,8 +43,8 @@ Cast::time () noexcept
   return pipeline_->time ();
 }
 
-absl::Status
-Cast::operator() (Tensor from, Tensor &to) noexcept
+absl::StatusOr<Tensor>
+Cast::operator() (Tensor from) noexcept
 {
   if (from.dtype () != from_)
     {
@@ -53,7 +53,7 @@ Cast::operator() (Tensor from, Tensor &to) noexcept
           int (from_), int (from.dtype ())));
     }
 
-  to = Tensor (from.channels (), from.height (), from.width (), dev_, to_);
+  Tensor to (from.channels (), from.height (), from.width (), dev_, to_);
   auto ret = to.create ();
   if (!ret.ok ())
     {
@@ -71,7 +71,7 @@ Cast::operator() (Tensor from, Tensor &to) noexcept
   to.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   to.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return absl::OkStatus ();
+  return to;
 }
 }
 
