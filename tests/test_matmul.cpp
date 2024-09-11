@@ -85,59 +85,11 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at begin command";
   auto input0
-      = random_tensor<float> (gpu_, command_, in0_channel, in0_h, in0_w);
+      = random_tensor<Eigen::half> (gpu_, command_, in0_channel, in0_h, in0_w);
   auto input1
-      = random_tensor<float> (gpu_, command_, in1_channel, in1_h, in1_w);
+      = random_tensor<Eigen::half> (gpu_, command_, in1_channel, in1_h, in1_w);
 
   ASSERT_TRUE (input0 && input1) << "failed at create tensors";
-
-  Tensor input0_fp16, input1_fp16, input0_fp32, input1_fp32;
-  std::vector<float> input0_buf, input1_buf;
-  Cast cast_input0_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_input1_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-
-  Cast cast_input0_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-  Cast cast_input1_op_fp32 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-
-  if (params.dtype == 1)
-    {
-      ASSERT_EQ (cast_input0_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input1_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input0_op_fp32.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input1_op_fp32.init (), absl::OkStatus ());
-      auto ret = cast_input0_op (input0->first);
-      input0_fp16 = *ret;
-      ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-      ret = cast_input1_op (input1->first);
-      ASSERT_EQ (ret.status (), absl::OkStatus ());
-      input1_fp16 = *ret;
-
-      ret = cast_input0_op_fp32 (input0_fp16);
-      input0_fp32 = *ret;
-
-      ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-      ret = cast_input1_op_fp32 (input1_fp16);
-      input1_fp32 = *ret;
-      ASSERT_EQ (ret.status (), absl::OkStatus ());
-      input0_buf.resize (input0_fp16.size ());
-      input1_buf.resize (input1_fp16.size ());
-      ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
-                                     input0_buf.size ()),
-                 absl::OkStatus ());
-
-      ASSERT_EQ (command_->download (input1_fp32, input1_buf.data (),
-                                     input1_buf.size ()),
-                 absl::OkStatus ());
-    }
-  else
-    {
-      input0_fp32 = input0->first;
-      input1_fp32 = input1->first;
-      input0_buf.swap (input0->second);
-      input1_buf.swap (input1->second);
-    }
 
   MatMul matmul_op (gpu_, command_, 1.0, .0, 0, params.broadcast_type,
                     params.transpose_b, (Tensor::DType)params.dtype);
@@ -145,28 +97,13 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   ASSERT_TRUE (matmul_op.init () == absl::OkStatus ())
       << "failed at init matmul op";
 
-  absl::StatusOr<Tensor> output
-      = matmul_op (params.dtype ? input0_fp16 : input0_fp32,
-                   params.dtype ? input1_fp16 : input1_fp32);
+  absl::StatusOr<Tensor> output = matmul_op (input0->first, input1->first);
 
   ASSERT_TRUE (output.ok ()) << "failed at forwarding matmul op";
 
-  absl::StatusOr<Tensor> output_fp32;
-  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-      output_fp32 = cast_output_op (*output);
-      ASSERT_TRUE (output_fp32.ok ());
-    }
-  else
-    {
-      output_fp32 = output;
-    }
-
-  std::vector<float> buf (output_fp32->size ());
-  ASSERT_EQ (command_->download (*output_fp32, buf.data (), buf.size ()),
+  std::vector<Eigen::half> buf (output->size ());
+  ASSERT_EQ (command_->download (*output, (__vkllama_fp16_t *)buf.data (),
+                                 buf.size ()),
              absl::OkStatus ())
       << "failed at downloading output";
   ASSERT_EQ (command_->end (), absl::OkStatus ())
@@ -176,16 +113,17 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   // eigen matmul
   using TensorMap
-      = Eigen::TensorMap<Eigen::Tensor<float, 3, Eigen::RowMajor> >;
-  _Tensor<float, 3> in0_tensor
-      = TensorMap (input0_buf.data (), (Eigen::Index)input0->first.channels (),
-                   (Eigen::Index)input0->first.height (),
-                   (Eigen::Index)input0->first.width ());
-  _Tensor<float, 3> in1_tmp
-      = TensorMap (input1_buf.data (), (Eigen::Index)input1->first.channels (),
-                   (Eigen::Index)input1->first.height (),
-                   (Eigen::Index)input1->first.width ());
-  _Tensor<float, 3> in1_tensor;
+      = Eigen::TensorMap<Eigen::Tensor<Eigen::half, 3, Eigen::RowMajor> >;
+
+  _Tensor<Eigen::half, 3> in0_tensor = TensorMap (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
+      (Eigen::Index)input0->first.height (),
+      (Eigen::Index)input0->first.width ());
+  _Tensor<Eigen::half, 3> in1_tmp = TensorMap (
+      input1->second.data (), (Eigen::Index)input1->first.channels (),
+      (Eigen::Index)input1->first.height (),
+      (Eigen::Index)input1->first.width ());
+  _Tensor<Eigen::half, 3> in1_tensor;
 
   if (params.transpose_b)
     {
@@ -197,7 +135,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       in1_tensor = in1_tmp;
     }
 
-  Eigen::Tensor<float, 3, Eigen::RowMajor> eigen_output (
+  Eigen::Tensor<Eigen::half, 3, Eigen::RowMajor> eigen_output (
       (Eigen::Index)output->channels (), (Eigen::Index)output->height (),
       (Eigen::Index)output->width ());
 
@@ -232,8 +170,8 @@ TEST_P (TestMatmul, test_matmul_broadcast)
       buf.data (), (Eigen::Index)output->channels (),
       (Eigen::Index)output->height (), (Eigen::Index)output->width ());
 
-  _Tensor<float, 3> err (eigen_output.dimensions ());
-  err.setConstant (1e-2);
+  _Tensor<Eigen::half, 3> err (eigen_output.dimensions ());
+  err.setConstant (Eigen::half (1e-1));
   _Tensor<int, 0> diff
       = ((eigen_output - output_mapped).abs () > err).cast<int> ().sum ();
   ASSERT_EQ (*diff.data (), 0);
