@@ -34,6 +34,21 @@ random_vec (T *v, const int n, const T min, const T max)
           __vkllama_fp16_t f = { .u16 = Eigen::half (dist (e2)).x };
           v[i] = f;
         }
+
+      return;
+    }
+
+  if constexpr (std::is_same<typename std::remove_const<T>::type,
+                             Eigen::half>::value)
+    {
+      float fmin = Eigen::half (min);
+      float fmax = Eigen::half (max);
+      std::uniform_real_distribution<float> dist (fmin, fmax);
+
+      for (int i = 0; i < n; ++i)
+        {
+          v[i] = Eigen::half (dist (e2));
+        }
     }
   else
     {
@@ -64,7 +79,13 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = T (-1),
                const T max = T (1))
 {
-  vkllama::Tensor tensor (c, h, w, dev, vkllama::Tensor::to_dtype<T> ());
+
+  using tensor_dtype_t =
+      typename std::conditional<std::is_same<Eigen::half, T>::value,
+                                __vkllama_fp16_t, T>::type;
+
+  vkllama::Tensor tensor (c, h, w, dev,
+                          vkllama::Tensor::to_dtype<tensor_dtype_t> ());
   if (tensor.create () != absl::OkStatus ())
     {
       return {};
@@ -72,9 +93,10 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
 
   const int n = c * h * w;
   std::vector<T> buf (n);
+
   random_vec (buf.data (), n, min, max);
 
-  auto ret = command->upload (buf.data (), n, tensor);
+  auto ret = command->upload ((tensor_dtype_t *)buf.data (), n, tensor);
   if (ret != absl::OkStatus ())
     {
       return {};
