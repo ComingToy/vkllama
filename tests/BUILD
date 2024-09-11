@@ -8,6 +8,7 @@ cc_library(
 		"@gtest//:gtest",
 		"@gtest//:gtest_main",
 		"@//src:vkllama",
+		"@abseil-cpp//absl/types:optional",
 	],
 )
 

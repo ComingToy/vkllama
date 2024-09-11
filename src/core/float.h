@@ -28,7 +28,7 @@ typedef union
   float fp32;
 } __attribute__ ((packed)) __pack32_t;
 
-inline uint16_t
+inline __pack16_t
 __fp32_to_fp16 (float fp32)
 {
   const float fp32_abs = fabs (fp32);
@@ -40,7 +40,7 @@ __fp32_to_fp16 (float fp32)
       pack16.bits.sign = pack32.bits.sign;
       pack16.bits.frac = 0;
       pack16.bits.exp = 0;
-      return pack16.u16;
+      return pack16;
     }
 
   // nan
@@ -49,7 +49,7 @@ __fp32_to_fp16 (float fp32)
       pack16.bits.exp = 0x1f;
       pack16.bits.frac = 1;
       pack16.bits.sign = pack32.bits.sign;
-      return pack16.u16;
+      return pack16;
     }
 
   // inf
@@ -58,7 +58,7 @@ __fp32_to_fp16 (float fp32)
       pack16.bits.exp = 0x1f;
       pack16.bits.frac = 0;
       pack16.bits.sign = pack32.bits.sign;
-      return pack16.u16;
+      return pack16;
     }
 
   // upper to fp16 max norm
@@ -67,13 +67,14 @@ __fp32_to_fp16 (float fp32)
       pack16.bits.sign = pack32.bits.sign;
       pack16.bits.exp = 0x1e;
       pack16.bits.frac = 1023;
-      return pack16.u16;
+      return pack16;
     }
 
   // lower than min subnormalnorm
   if (fp32_abs < 5.96046448e-8f)
     {
-      return .0f;
+      __pack16_t zero = { .u16 = 0 };
+      return zero;
     }
 
   // lower than fp16 min norm: fp32 normalized to fp16 subnormal
@@ -83,7 +84,7 @@ __fp32_to_fp16 (float fp32)
       pack16.bits.exp = 0;
       // borrow from exp
       pack16.bits.frac = (pack32.bits.frac >> 14) + 512;
-      return pack16.u16;
+      return pack16;
     }
 
   // fp32 normalized to fp16 normalzied
@@ -91,7 +92,7 @@ __fp32_to_fp16 (float fp32)
   pack16.bits.sign = pack32.bits.sign;
   pack16.bits.exp = pack32.bits.exp - 127 + 15;
   pack16.bits.frac = pack32.bits.frac >> 13;
-  return pack16.u16;
+  return pack16;
 }
 
 inline float
