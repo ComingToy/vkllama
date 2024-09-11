@@ -46,11 +46,8 @@ public:
                                         1,
                                         1 };
 
-    const auto *spv_code = dtype_ == Tensor::FP16
-                               ? __get_reduce_fp16_comp_spv_code ()
-                               : __get_reduce_comp_spv_code ();
-    auto spv_size = dtype_ == Tensor::FP16 ? __get_reduce_fp16_comp_spv_size ()
-                                           : __get_reduce_comp_spv_size ();
+    const auto *spv_code = __get_reduce_fp16_comp_spv_code ();
+    auto spv_size = dtype_ == __get_reduce_fp16_comp_spv_size ();
 
     auto op_type = op_type_ == 3 ? 0 : op_type_;
     stage0_.reset (
