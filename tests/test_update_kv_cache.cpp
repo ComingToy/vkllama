@@ -49,22 +49,17 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), absl::OkStatus ());
 
-  auto input0 = random_tensor<float> (gpu_, command_, params.heads,
-                                      params.maxlen, params.dim);
+  auto input0 = random_tensor<Eigen::half> (gpu_, command_, params.heads,
+                                            params.maxlen, params.dim);
 
-  auto input1 = random_tensor<float> (gpu_, command_, params.heads,
-                                      params.seqlen, params.dim);
+  auto input1 = random_tensor<Eigen::half> (gpu_, command_, params.heads,
+                                            params.seqlen, params.dim);
 
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
 
-  Tensor cache, input;
-  Cast cast_cache_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_input_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  ASSERT_EQ (cast_cache_op.init (), absl::OkStatus ());
-  ASSERT_EQ (cast_input_op.init (), absl::OkStatus ());
-  ASSERT_EQ (cast_cache_op (input0->first, cache), absl::OkStatus ());
-  ASSERT_EQ (cast_input_op (input1->first, input), absl::OkStatus ());
+  auto cache = input0->first;
+  auto input = input1->first;
 
   UpdateKVCache update_op (gpu_, command_, Tensor::FP16);
   ReadKVCache read_op (gpu_, command_);
@@ -72,30 +67,25 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   ASSERT_EQ (update_op.init (), absl::OkStatus ());
   ASSERT_EQ (update_op (cache, input, params.offset), absl::OkStatus ());
 
-  Tensor output;
+  absl::StatusOr<Tensor> output;
   ASSERT_EQ (read_op.init (), absl::OkStatus ());
-  ASSERT_EQ (read_op (cache, params.offset, input.height (), output),
-             absl::OkStatus ());
+  ASSERT_EQ (
+      (output = read_op (cache, params.offset, input.height ())).status (),
+      absl::OkStatus ());
 
-  std::vector<float> output_buf (output.size ());
-  std::vector<float> cache_buf (cache.size ());
-
-  Tensor output_fp32;
-  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-
-  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-  ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
+  std::vector<Eigen::half> output_buf (output->size ());
+  std::vector<Eigen::half> cache_buf (cache.size ());
 
   ASSERT_EQ (
-      command_->download (output_fp32, output_buf.data (), output_buf.size ()),
+      command_->download (*output, output_buf.data (), output_buf.size ()),
       absl::OkStatus ());
   ASSERT_EQ (command_->end (), absl::OkStatus ());
   ASSERT_EQ (command_->submit (), absl::OkStatus ());
   ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  _Tensor<float, 3> vk_output = TensorMap<3> (
-      output_buf.data (), (Eigen::Index)output_fp32.channels (),
-      (Eigen::Index)output_fp32.height (), (Eigen::Index)output_fp32.width ());
+  _Tensor<Eigen::half, 3> vk_output = _TensorMap<Eigen::half, 3> (
+      output_buf.data (), (Eigen::Index)output->channels (),
+      (Eigen::Index)output->height (), (Eigen::Index)output->width ());
 
   // _Tensor<Eigen::half, 3> cache_eigen_tensor
   //     = TensorMap<3> (input0->second.data (), (Eigen::Index)cache.channels
@@ -105,17 +95,17 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   //           .cast<Eigen::half> ();
 
   _Tensor<Eigen::half, 3> input_eigen_tensor
-      = TensorMap<3> (input1->second.data (), (Eigen::Index)input.channels (),
-                      (Eigen::Index)input.height (),
-                      (Eigen::Index)input.width ())
+      = _TensorMap<Eigen::half, 3> (
+            input1->second.data (), (Eigen::Index)input.channels (),
+            (Eigen::Index)input.height (), (Eigen::Index)input.width ())
             .cast<Eigen::half> ();
 
   // std::cerr << "input_tensor: " << input_eigen_tensor << std::endl
   //           << "cache: " << vk_output << std::endl
   //           << "cache eigen: " << cache_eigen_tensor << std::endl;
 
-  _Tensor<float, 3> err (vk_output.dimensions ());
-  err.setConstant (1e-2);
+  _Tensor<Eigen::half, 3> err (vk_output.dimensions ());
+  err.setConstant (Eigen::half (1e-2));
 
   _Tensor<int, 0> diff
       = ((input_eigen_tensor.cast<float> () - vk_output).abs () > err)
