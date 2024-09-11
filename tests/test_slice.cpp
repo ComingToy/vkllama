@@ -51,57 +51,32 @@ TEST_P (TestSlice, test_slice)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), absl::OkStatus ());
 
-  auto input0 = random_tensor<float> (gpu_, command_, params.shape.C,
-                                      params.shape.H, params.shape.W);
+  auto input0 = random_tensor<Eigen::half> (gpu_, command_, params.shape.C,
+                                            params.shape.H, params.shape.W);
   ASSERT_TRUE (input0);
-  Tensor input_tensor;
-
-  Cast cast (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast.init (), absl::OkStatus ());
-      ASSERT_EQ (cast (input0->first, input_tensor), absl::OkStatus ());
-    }
-  else
-    {
-      input_tensor = input0->first;
-    }
 
   Slice slice_op (gpu_, command_, (Tensor::DType)params.dtype);
   ASSERT_EQ (slice_op.init (), absl::OkStatus ());
 
-  Tensor out;
-  ASSERT_EQ (slice_op (input_tensor, params.starts, params.extents, out),
+  absl::StatusOr<Tensor> out;
+  ASSERT_EQ ((out = slice_op (input0->first, params.starts, params.extents))
+                 .status (),
              absl::OkStatus ());
 
-  Tensor out_fp32;
-  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
+  std::vector<Eigen::half> output_buf (out->size ());
 
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_output_op (out, out_fp32), absl::OkStatus ());
-    }
-  else
-    {
-      out_fp32 = out;
-    }
-
-  std::vector<float> output_buf (out_fp32.size ());
-
-  ASSERT_EQ (
-      command_->download (out_fp32, output_buf.data (), output_buf.size ()),
-      absl::OkStatus ());
+  ASSERT_EQ (command_->download (*out, output_buf.data (), output_buf.size ()),
+             absl::OkStatus ());
 
   ASSERT_EQ (command_->end (), absl::OkStatus ());
   ASSERT_EQ (command_->submit (), absl::OkStatus ());
   ASSERT_EQ (command_->wait (), absl::OkStatus ());
 
-  _Tensor<float, 3> vk_output_tensor = TensorMap<3> (
-      output_buf.data (), (Eigen::Index)out_fp32.channels (),
-      (Eigen::Index)out_fp32.height (), (Eigen::Index)out_fp32.width ());
+  _Tensor<Eigen::half, 3> vk_output_tensor = _TensorMap<Eigen::half, 3> (
+      output_buf.data (), (Eigen::Index)out->channels (),
+      (Eigen::Index)out->height (), (Eigen::Index)out->width ());
 
-  _Tensor<float, 3> input_eigen_tensor = TensorMap<3> (
+  _Tensor<Eigen::half, 3> input_eigen_tensor = _TensorMap<Eigen::half, 3> (
       input0->second.data (), (Eigen::Index)params.shape.C,
       (Eigen::Index)params.shape.H, (Eigen::Index)params.shape.W);
 
@@ -110,20 +85,13 @@ TEST_P (TestSlice, test_slice)
   Eigen::array<Eigen::Index, 3> extents
       = { params.extents[0], params.extents[1], params.extents[2] };
 
-  _Tensor<float, 3> output_tensor;
-  if (params.dtype)
-    {
-      output_tensor = input_eigen_tensor.cast<Eigen::half> ()
-                          .slice (starts, extents)
-                          .cast<float> ();
-    }
-  else
-    {
-      output_tensor = input_eigen_tensor.slice (starts, extents);
-    }
+  _Tensor<Eigen::half, 3> output_tensor;
+  output_tensor
+      = input_eigen_tensor.cast<Eigen::half> ().slice (starts, extents);
 
-  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
-  err.setConstant (params.dtype ? 1e-2 : 1e-3);
+  _Tensor<Eigen::half, 3> err (vk_output_tensor.dimensions ());
+  err.setConstant (Eigen::half (params.dtype ? 1e-2 : 1e-3));
+
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
 
@@ -134,11 +102,9 @@ TEST_P (TestSlice, test_slice)
 }
 
 std::vector<TestSliceParams> params = {
-  // { 0, { 1, 65, 33 }, { 0, 0, 0 }, { 1, 33, 22 } },
-  // { 0, { 3, 65, 33 }, { 1, 5, 8 }, { 1, 33, 22 } },
   { 1, { 32, 1024, 100 }, { 0, 0, 0 }, { 32, 33, 100 } },
-  // { 1, { 1, 65, 33 }, { 0, 0, 0 }, { 1, 33, 22 } },
-  // { 1, { 3, 65, 33 }, { 1, 5, 8 }, { 1, 33, 22 } },
+  { 1, { 1, 65, 33 }, { 0, 0, 0 }, { 1, 33, 22 } },
+  { 1, { 3, 65, 33 }, { 1, 5, 8 }, { 1, 33, 22 } },
 };
 
 INSTANTIATE_TEST_SUITE_P (test_slice, TestSlice, ::testing::ValuesIn (params));
