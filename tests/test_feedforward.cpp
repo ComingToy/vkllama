@@ -96,15 +96,35 @@ TEST_P (TestFeedForawrd, test_2d)
         ASSERT_EQ (cast_w3_op1.init (), absl::OkStatus ());
         ASSERT_EQ (cast_X_op1.init (), absl::OkStatus ());
 
-        ASSERT_EQ (cast_w1_op (w1->first, w1_fp16), absl::OkStatus ());
-        ASSERT_EQ (cast_w2_op (w2->first, w2_fp16), absl::OkStatus ());
-        ASSERT_EQ (cast_w3_op (w3->first, w3_fp16), absl::OkStatus ());
-        ASSERT_EQ (cast_X_op (X->first, X_fp16), absl::OkStatus ());
+        auto ret = cast_w1_op (w1->first);
+        w1_fp16 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+        ret = cast_w2_op (w2->first);
+        w2_fp16 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+        ret = cast_w3_op (w3->first);
+        w3_fp16 = *ret;
 
-        ASSERT_EQ (cast_w1_op1 (w1_fp16, w1_fp32), absl::OkStatus ());
-        ASSERT_EQ (cast_w2_op1 (w2_fp16, w2_fp32), absl::OkStatus ());
-        ASSERT_EQ (cast_w3_op1 (w3_fp16, w3_fp32), absl::OkStatus ());
-        ASSERT_EQ (cast_X_op1 (X_fp16, X_fp32), absl::OkStatus ());
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+
+        ret = cast_X_op (X->first);
+        X_fp16 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+
+        ret = cast_w1_op1 (w1_fp16);
+        w1_fp32 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+
+        ret = cast_w2_op1 (w2_fp16);
+        w2_fp32 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+        ret = cast_w3_op1 (w3_fp16);
+        w3_fp32 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
+
+        ret = cast_X_op1 (X_fp16);
+        X_fp32 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
 
         ASSERT_EQ (
             command_->download (w1_fp32, w1_buf.data (), w1_buf.size ()),
@@ -142,26 +162,25 @@ TEST_P (TestFeedForawrd, test_2d)
     ASSERT_TRUE (feed_forward_op.init () == absl::OkStatus ())
         << "fail at init feed_forward_op";
 
-    Tensor output;
-    ASSERT_TRUE (
-        feed_forward_op (dtype == Tensor::FP32 ? X_fp32 : X_fp16, output)
-        == absl::OkStatus ())
-        << "fail at forwarding feed_forward op";
+    auto output = feed_forward_op (dtype == Tensor::FP32 ? X_fp32 : X_fp16);
+    ASSERT_TRUE (output.ok ()) << "fail at forwarding feed_forward op";
 
     Tensor output_fp32;
     Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
     if (params.dtype)
       {
         ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
+        auto ret = cast_output_op (*output);
+        output_fp32 = *ret;
+        ASSERT_EQ (ret.status (), absl::OkStatus ());
       }
     else
       {
-        output_fp32 = output;
+        output_fp32 = *output;
       }
 
-    std::vector<float> buf (output.channels () * output.height ()
-                            * output.width ());
+    std::vector<float> buf (output->channels () * output->height ()
+                            * output->width ());
 
     ASSERT_TRUE (command.download (output_fp32, buf.data (), buf.size ())
                  == absl::OkStatus ())
@@ -182,7 +201,7 @@ TEST_P (TestFeedForawrd, test_2d)
     auto ew3
         = EigenMap (w3_buf.data (), w3->first.height (), w3->first.width ());
     auto eX = EigenMap (X_buf.data (), X->first.height (), X->first.width ());
-    auto eoutput = EigenMap (buf.data (), output.height (), output.width ());
+    auto eoutput = EigenMap (buf.data (), output->height (), output->width ());
 
     auto dnn1 = (eX * ew1);
     auto dnn3 = (eX * ew3);
@@ -213,11 +232,9 @@ TEST_P (TestFeedForawrd, test_2d)
 }
 
 std::vector<FeedFowardParams> params = {
-  { 16, 16, 0 },   { 8, 8, 0 },     { 256, 256, 0 }, { 17, 17, 0 },
-  { 9, 9, 0 },     { 259, 259, 0 }, { 17, 19, 0 },   { 19, 17, 0 },
-  { 259, 128, 0 }, { 128, 259, 0 }, { 16, 16, 1 },   { 8, 8, 1 },
-  { 256, 256, 1 }, { 17, 17, 1 },   { 9, 9, 1 },     { 259, 259, 1 },
-  { 17, 19, 1 },   { 19, 17, 1 },   { 259, 128, 1 }, { 128, 259, 1 },
+  { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
+  { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
+  { 259, 128, 1 }, { 128, 259, 1 },
 };
 INSTANTIATE_TEST_SUITE_P (TestFeedForawrd2DInput, TestFeedForawrd,
                           testing::ValuesIn (params));

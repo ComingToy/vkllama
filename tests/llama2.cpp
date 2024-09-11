@@ -215,7 +215,6 @@ main (const int argc, const char *argv[])
   std::string buffer = argv[2];
   // replace_all (buffer, " ", "\xe2\x96\x81");
   // string_process_escapes (buffer);
-  buffer = prompt_template + buffer;
 
   sp.Encode (buffer, &prompt_tmp);
 

@@ -223,7 +223,10 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
     }
 
   auto roped_q = (*rope_q_) (*transposed_q, offset);
-  auto roped_k = (*rope_k_) (*transposed_k, offset);
+
+  int key_offset
+      = int (offset + transposed_q->height () - transposed_k->height ());
+  auto roped_k = (*rope_k_) (*transposed_k, key_offset);
 
   VKLLAMA_STATUS_OK (roped_k);
   VKLLAMA_STATUS_OK (roped_q);
