@@ -10,13 +10,12 @@ namespace vkllama
 class UpdateKVCache : public Op
 {
 public:
-  UpdateKVCache (GPUDevice *gpu, Command *command,
-                 const Tensor::DType dtype);
+  UpdateKVCache (GPUDevice *gpu, Command *command, const Tensor::DType dtype);
 
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
   absl::Status operator() (Tensor cache, Tensor key_or_value,
-                       uint32_t offset) noexcept;
+                           uint32_t offset) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;

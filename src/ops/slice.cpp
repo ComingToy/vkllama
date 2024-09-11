@@ -27,10 +27,9 @@ Slice::init () noexcept
   return pipeline_->init ();
 }
 
-absl::Status
+absl::StatusOr<Tensor>
 Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
-                   const std::array<uint32_t, 3> &extents,
-                   Tensor &out) noexcept
+                   const std::array<uint32_t, 3> &extents) noexcept
 {
   if (starts[0] + extents[0] > in.channels ()
       || starts[1] + extents[1] > in.height ()
@@ -52,7 +51,7 @@ Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
                                 extents[1],
                                 extents[2] };
 
-  out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
+  auto out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
   auto ret = out.create ();
   if (!ret.ok ())
     {
@@ -76,7 +75,7 @@ Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return ret;
+  return out;
 }
 
 uint64_t

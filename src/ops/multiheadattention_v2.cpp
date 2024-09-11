@@ -1,5 +1,6 @@
 #include "src/ops/multiheadattention_v2.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/gpu_device.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/mat_mul.h"
@@ -62,7 +63,8 @@ MultiHeadAttentionV2::init () noexcept
   matmul_qk_ = std::make_unique<MatMul> (dev_, command_, attn_score_scale, 0,
                                          0, 0, 1, dtype_);
 
-  rope_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
+  rope_q_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
+  rope_k_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
   matmul_weighted_
       = std::make_unique<MatMul> (dev_, command_, 1.0, 0, 0, 0, 0, dtype_);
 
@@ -79,7 +81,7 @@ MultiHeadAttentionV2::init () noexcept
       || !(ret = matmul_v_->init ()).ok () || !(ret = matmul_o_->init ()).ok ()
       || !(ret = matmul_qk_->init ()).ok ()
       || !(ret = matmul_weighted_->init ()).ok ()
-      || !(ret = rope_->init ()).ok ()
+      || !(ret = rope_q_->init ()).ok () || !(ret = rope_k_->init ()).ok ()
       || !(ret = matmul_attn_score_->init ()).ok ()
       || !(ret = transpose_k_->init ()).ok ()
       || !(ret = transpose_q_->init ()).ok ()
@@ -121,9 +123,8 @@ MultiHeadAttentionV2::init () noexcept
   return absl::OkStatus ();
 }
 
-absl::Status
-MultiHeadAttentionV2::operator() (Tensor X, Tensor &out,
-                                  const size_t offset) noexcept
+absl::StatusOr<Tensor>
+MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 {
   absl::Status ret;
 
@@ -147,52 +148,49 @@ MultiHeadAttentionV2::operator() (Tensor X, Tensor &out,
 
   tmp_tensors_.clear ();
 
-  Tensor k, q, v;
-  if (!(ret = (*matmul_k_) (X, k)).ok () || !(ret = (*matmul_q_) (X, q)).ok ()
-      || !(ret = (*matmul_v_) (X, v)).ok ())
-    {
-      return ret;
-    }
+  auto k = (*matmul_k_) (X);
+  auto q = (*matmul_q_) (X);
+  auto v = (*matmul_v_) (X);
 
-  tmp_tensors_.push_back (k);
-  tmp_tensors_.push_back (q);
-  tmp_tensors_.push_back (v);
+  VKLLAMA_STATUS_OK (k);
+  VKLLAMA_STATUS_OK (q);
+  VKLLAMA_STATUS_OK (v);
+
+  tmp_tensors_.push_back (*k);
+  tmp_tensors_.push_back (*q);
+  tmp_tensors_.push_back (*v);
 
   // [seqlen, heads, dim]
-  if (auto ret = k.reshape (k.height (), k.width () / dim_, dim_); !ret.ok ())
-    {
-      return ret;
-    }
-  if (auto ret = q.reshape (q.height (), q.width () / dim_, dim_); !ret.ok ())
+  if (auto ret = k->reshape (k->height (), k->width () / dim_, dim_);
+      !ret.ok ())
     {
       return ret;
     }
 
-  if (auto ret = v.reshape (v.height (), v.width () / dim_, dim_); !ret.ok ())
+  if (auto ret = q->reshape (q->height (), q->width () / dim_, dim_);
+      !ret.ok ())
+    {
+      return ret;
+    }
+
+  if (auto ret = v->reshape (v->height (), v->width () / dim_, dim_);
+      !ret.ok ())
     {
       return ret;
     }
 
   //[heads, seqlen, dim]
-  Tensor transposed_k, transposed_q, transposed_v;
-  if (!(ret = (*transpose_k_) (k, transposed_k)).ok ())
-    {
-      return ret;
-    }
+  auto transposed_k = (*transpose_k_) (*k);
+  auto transposed_q = (*transpose_q_) (*q);
+  auto transposed_v = (*transpose_v_) (*v);
 
-  if (!(ret = (*transpose_q_) (q, transposed_q)).ok ())
-    {
-      return ret;
-    }
+  VKLLAMA_STATUS_OK (transposed_k);
+  VKLLAMA_STATUS_OK (transposed_q);
+  VKLLAMA_STATUS_OK (transposed_v);
 
-  if (!(ret = (*transpose_v_) (v, transposed_v)).ok ())
-    {
-      return ret;
-    }
-
-  tmp_tensors_.push_back (transposed_k);
-  tmp_tensors_.push_back (transposed_q);
-  tmp_tensors_.push_back (transposed_v);
+  tmp_tensors_.push_back (*transposed_k);
+  tmp_tensors_.push_back (*transposed_q);
+  tmp_tensors_.push_back (*transposed_v);
 
   if (use_kvcache_)
     {
@@ -201,106 +199,73 @@ MultiHeadAttentionV2::operator() (Tensor X, Tensor &out,
       auto &kcache_read_op = *kcache_read_op_;
       auto &vcache_read_op = *vcache_read_op_;
 
-      if (!(ret = update_kcache_op (kcache_, transposed_k, (uint32_t)offset))
-               .ok ())
-        {
-          return ret;
-        }
-
-      if (!(ret = update_vcache_op (vcache_, transposed_v, (uint32_t)offset))
-               .ok ())
-        {
-          return ret;
-        }
+      auto ret = update_kcache_op (kcache_, *transposed_k, (uint32_t)offset);
+      VKLLAMA_STATUS_OK (ret);
+      ret = update_vcache_op (vcache_, *transposed_v, (uint32_t)offset);
+      VKLLAMA_STATUS_OK (ret);
 
       uint32_t read_offset = offset >= (size_t)maxlen_
                                  ? (uint32_t)offset % (uint32_t)maxlen_
                                  : 0;
 
       uint32_t read_len = std::min (
-          (uint32_t)(offset + transposed_k.height ()), (uint32_t)maxlen_);
+          (uint32_t)(offset + transposed_k->height ()), (uint32_t)maxlen_);
 
-      ret = kcache_read_op (kcache_, read_offset, read_len, transposed_k);
+      transposed_k = kcache_read_op (kcache_, read_offset, read_len);
 
-      if (!ret.ok ())
-        {
-          return ret;
-        }
+      VKLLAMA_STATUS_OK (transposed_k);
 
-      ret = vcache_read_op (vcache_, read_offset, read_len, transposed_v);
+      transposed_v = vcache_read_op (vcache_, read_offset, read_len);
+      VKLLAMA_STATUS_OK (transposed_v);
 
-      if (!ret.ok ())
-        {
-          return ret;
-        }
-
-      tmp_tensors_.push_back (transposed_k);
-      tmp_tensors_.push_back (transposed_v);
+      tmp_tensors_.push_back (*transposed_k);
+      tmp_tensors_.push_back (*transposed_v);
     }
 
-  Tensor roped_k, roped_q;
-  if (!(ret = (*rope_) (transposed_q, transposed_k, roped_q, roped_k, offset))
-           .ok ())
-    {
-      return ret;
-    }
+  auto roped_q = (*rope_q_) (*transposed_q, offset);
+  auto roped_k = (*rope_k_) (*transposed_k, offset);
 
-  tmp_tensors_.push_back (roped_k);
-  tmp_tensors_.push_back (roped_q);
+  VKLLAMA_STATUS_OK (roped_k);
+  VKLLAMA_STATUS_OK (roped_q);
+
+  tmp_tensors_.push_back (*roped_k);
+  tmp_tensors_.push_back (*roped_q);
 
   // [heads, seqlen, seqlen]
-  Tensor attn_scores;
-  if (!(ret = (*matmul_qk_) (roped_q, roped_k, attn_scores)).ok ())
-    {
-      return ret;
-    }
+  auto attn_scores = (*matmul_qk_) (*roped_q, *roped_k);
+  VKLLAMA_STATUS_OK (attn_scores);
 
-  tmp_tensors_.push_back (attn_scores);
+  tmp_tensors_.push_back (*attn_scores);
 
   // TODO: could be funsed
-  Tensor softmax_attn_scores;
+  auto softmax_attn_scores = (*softmax_) (
+      *attn_scores, attn_scores->width () - attn_scores->height ());
 
-  if (!(ret = (*softmax_) (attn_scores, softmax_attn_scores,
-                           attn_scores.width () - attn_scores.height ()))
-           .ok ())
-    {
-      return ret;
-    }
+  VKLLAMA_STATUS_OK (softmax_attn_scores);
 
-  tmp_tensors_.push_back (softmax_attn_scores);
+  tmp_tensors_.push_back (*softmax_attn_scores);
 
   // [heads, seqlen, dim]
-  Tensor heads;
-  if (!(ret = (*matmul_weighted_) (softmax_attn_scores, transposed_v, heads))
-           .ok ())
-    {
-      return ret;
-    }
-  tmp_tensors_.push_back (heads);
+  auto heads = (*matmul_weighted_) (*softmax_attn_scores, *transposed_v);
+  VKLLAMA_STATUS_OK (heads);
+
+  tmp_tensors_.push_back (*heads);
 
   //[seqlen, heads, dim]
-  Tensor concated;
-  if (!(ret = (*transpose_heads_) (heads, concated)).ok ())
-    {
-      return ret;
-    }
+  auto concated = (*transpose_heads_) (*heads);
+  VKLLAMA_STATUS_OK (concated);
 
   //[1, seqlen, heads*dim]
-  ret = concated.reshape (1, concated.channels (),
-                          concated.height () * concated.width ());
-  if (!ret.ok ())
-    {
-      return ret;
-    }
+  ret = concated->reshape (1, concated->channels (),
+                           concated->height () * concated->width ());
+  VKLLAMA_STATUS_OK (ret);
 
-  tmp_tensors_.push_back (concated);
+  tmp_tensors_.push_back (*concated);
 
-  if (!(ret = (*matmul_o_) (concated, out)).ok ())
-    {
-      return ret;
-    }
+  auto out = (*matmul_o_) (*concated);
+  VKLLAMA_STATUS_OK (out);
 
-  return absl::OkStatus ();
+  return out;
 }
 
 uint64_t
@@ -321,7 +286,7 @@ MultiHeadAttentionV2::time () noexcept
       kvcache_cost = update_cost + slice_cost;
     }
 
-  auto rope_cost = rope_->time ();
+  auto rope_cost = rope_k_->time ();
   auto attn_score_cost = matmul_qk_->time ();
   auto softmax_cost = softmax_->time ();
   auto weighted_cost = matmul_weighted_->time ();

@@ -54,8 +54,8 @@ RMSNorm::time () noexcept
   return pipeline_->time ();
 }
 
-absl::Status
-RMSNorm::operator() (Tensor x, Tensor &output) noexcept
+absl::StatusOr<Tensor>
+RMSNorm::operator() (Tensor x) noexcept
 {
   if (x.dtype () != dtype_)
     {
@@ -64,16 +64,13 @@ RMSNorm::operator() (Tensor x, Tensor &output) noexcept
           int (dtype_), int (x.dtype ())));
     }
 
-  output
+  auto output
       = Tensor (x.channels (), x.height (), x.width (), dev_, dtype_, false);
   auto ret = output.create ();
   if (!ret.ok ())
     {
       return ret;
     }
-
-  output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   ret = pipeline_->set_group ((x.width () + dev_->subgroup_size () - 1)
                                   / dev_->subgroup_size (),
@@ -83,10 +80,18 @@ RMSNorm::operator() (Tensor x, Tensor &output) noexcept
       return ret;
     }
 
-  return command_->record_pipeline (*pipeline_, { x, output }, { 0, 2 },
-                                    { (uint32_t)x.channels (),
-                                      (uint32_t)x.height (),
-                                      (uint32_t)x.width () });
+  ret = command_->record_pipeline (*pipeline_, { x, output }, { 0, 2 },
+                                   { (uint32_t)x.channels (),
+                                     (uint32_t)x.height (),
+                                     (uint32_t)x.width () });
+  if (!ret.ok ())
+    {
+      return ret;
+    }
+
+  output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return output;
 }
 }
 

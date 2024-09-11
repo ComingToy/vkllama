@@ -39,8 +39,8 @@ Softmax::time () noexcept
   return softmax0_->time ();
 }
 
-absl::Status
-Softmax::operator() (Tensor a, Tensor &b, size_t offset) noexcept
+absl::StatusOr<Tensor>
+Softmax::operator() (Tensor a, size_t offset) noexcept
 {
   if (a.dtype () != dtype_)
     {
@@ -49,7 +49,7 @@ Softmax::operator() (Tensor a, Tensor &b, size_t offset) noexcept
           int (dtype_), int (a.dtype ())));
     }
 
-  b = Tensor::like (a);
+  auto b = Tensor::like (a);
   if (auto ret = b.create (); !ret.ok ())
     {
       return ret;
@@ -78,7 +78,7 @@ Softmax::operator() (Tensor a, Tensor &b, size_t offset) noexcept
   b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return absl::OkStatus ();
+  return b;
 }
 }
 

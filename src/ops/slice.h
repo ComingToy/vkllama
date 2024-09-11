@@ -13,9 +13,9 @@ public:
   Slice (GPUDevice *gpu_, Command *command_, Tensor::DType dtype);
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (Tensor in, std::array<uint32_t, 3> const &starts,
-                           std::array<uint32_t, 3> const &extents,
-                           Tensor &out) noexcept;
+  absl::StatusOr<Tensor>
+  operator() (Tensor in, std::array<uint32_t, 3> const &starts,
+              std::array<uint32_t, 3> const &extents) noexcept;
 
 private:
   Tensor::DType dtype_;

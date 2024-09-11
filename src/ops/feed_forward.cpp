@@ -1,6 +1,7 @@
 #include "src/ops/feed_forward.h"
 
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
@@ -88,11 +89,7 @@ FeedForward::operator() (Tensor X) noexcept
   t1_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   t2_ = Tensor::like (t0_);
-
-  if (!(ret = t2_.create ()).ok ())
-    {
-      return ret;
-    }
+  VKLLAMA_STATUS_OK (t2_.create ());
 
   ret = elemwise_op_->operator() (t0_, t1_);
   if (!ret.ok ())

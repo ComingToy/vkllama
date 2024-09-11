@@ -13,8 +13,8 @@ public:
   ReadKVCache (GPUDevice *gpu, Command *command);
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
-  absl::Status operator() (Tensor cache, uint32_t offset, uint32_t len,
-                           Tensor &key_or_value) noexcept;
+  absl::StatusOr<Tensor> operator() (Tensor cache, uint32_t offset,
+                                     uint32_t len) noexcept;
 
 private:
   std::unique_ptr<Pipeline> pipeline_;
