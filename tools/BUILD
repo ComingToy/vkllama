@@ -11,3 +11,20 @@ py_binary(
         '@platforms//os:linux': [requirement('jinja2')]
     })
 )
+
+cc_binary(
+	name="quantize_gguf",
+	srcs=[
+        "quantize_gguf.cpp"
+    ],
+    copts = [
+        "-std=c++17"
+    ],
+    deps = [
+        "@gguf-tools//:gguf",
+		"@abseil-cpp//absl/flags:flag",
+		"@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/status:status",
+        "@abseil-cpp//absl/status:statusor",
+    ]
+)
