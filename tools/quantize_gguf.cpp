@@ -186,6 +186,14 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
     {
       if (tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
         {
+          auto ret = gguf_append_tensor_data (gguf, tensor.weights_data,
+                                              tensor.num_weights);
+          if (!ret)
+            {
+              return absl::InternalError (absl::StrFormat (
+                  "failed to append %s quantized tensor data", name));
+            }
+
           continue;
         }
 
