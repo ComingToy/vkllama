@@ -26,5 +26,6 @@ cc_binary(
 		"@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/status:status",
         "@abseil-cpp//absl/status:statusor",
+        "//src/core:core",
     ]
 )

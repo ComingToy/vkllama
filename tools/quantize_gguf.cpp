@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <type_traits>
 #include <vector>
 extern "C"
@@ -15,6 +16,7 @@ extern "C"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "src/core/float.h"
+#include <errno.h>
 #include <map>
 
 ABSL_FLAG (std::string, in, "", "path to input gguf file");
@@ -23,6 +25,7 @@ ABSL_FLAG (std::string, type, "", "quantize type. int8_0|int8_1");
 
 static absl::Status
 read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
+           std::map<std::string, size_t> &kv_lens,
            std::map<std::string, gguf_tensor> &tensors)
 {
   gguf_key key;
@@ -30,11 +33,16 @@ read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
     {
       printf ("%.*s: [%s] ", (int)key.namelen, key.name,
               gguf_get_value_type_name (key.type));
+
+      auto value_start = gguf->off;
       gguf_print_value (gguf, key.type, key.val, 0);
+      auto value_len = gguf->off - value_start;
+
       printf ("\n");
 
       std::string name (key.name, key.namelen);
       meta[name] = key;
+      kv_lens[name] = value_len;
     }
 
   gguf_tensor tensor;
@@ -106,7 +114,9 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 
       for (auto i = start; i < end; ++i)
         {
-          write_dst[i] = (int8_t)roundf (load_fp (src, i) * inverse_scale);
+          auto v = roundf (load_fp (src, i) * inverse_scale);
+          *write_dst = (int8_t)v;
+          ++write_dst;
         }
     }
 
@@ -115,9 +125,63 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 
 absl::Status
 qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
+                  std::map<std::string, size_t> &kv_lens,
                   std::map<std::string, gguf_tensor> &tensors)
 {
+
+  for (auto const &[name, key] : meta)
+    {
+      if (!kv_lens.count (name))
+        {
+          return absl::InternalError (
+              absl::StrFormat ("value length of %s is missed", name));
+        }
+
+      gguf_append_kv (gguf, key.name, key.namelen, key.type, key.val,
+                      kv_lens[name]);
+    }
+
+  size_t tensor_offset = 0;
   constexpr size_t items_per_block = 32;
+  std::map<std::string, size_t> offsets;
+
+  for (auto &[name, tensor] : tensors)
+    {
+      tensor_offset
+          += gguf_get_alignment_padding (gguf->alignment, tensor_offset);
+
+      auto type = tensor.type;
+      auto tensor_size = tensor.bsize;
+
+      if (tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
+        {
+          type = GGUF_TYPE_Q8_0;
+
+          auto block_counts
+              = (tensor.num_weights + items_per_block - 1) / items_per_block;
+          tensor_size = block_counts * (items_per_block + 2);
+        }
+
+      auto ret = gguf_append_tensor_info (gguf, tensor.name, tensor.namelen,
+                                          tensor.ndim, tensor.dim, type,
+                                          tensor_offset);
+      if (ret == 0)
+        {
+          return absl::InternalError (
+              absl::StrFormat ("failed to append %s tensor info", name));
+        }
+
+      fprintf (stderr,
+               "append tensor info, name = %s, ndim = %d, dims = [%lu, %lu, "
+               "%lu, %lu, %lu, %lu, %lu, %lu], type = %s, offset = %lu\n",
+               name.c_str (), (int)tensor.ndim, tensor.dim[0], tensor.dim[1],
+               tensor.dim[2], tensor.dim[3], tensor.dim[4], tensor.dim[5],
+               tensor.dim[6], tensor.dim[7], gguf_get_value_type_name (type),
+               tensor_offset);
+
+      tensor_offset += tensor_size;
+    }
+
   for (auto &[name, tensor] : tensors)
     {
       if (tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
@@ -147,7 +211,14 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
       if (!status.ok ())
         return status;
-      ;
+
+      auto ret = gguf_append_tensor_data (
+          gguf, (void *)quantized_weights.data (), quantized_weights.size ());
+      if (!ret)
+        {
+          return absl::InternalError (absl::StrFormat (
+              "failed to append %s quantized tensor data", name));
+        }
     }
 
   return absl::OkStatus ();
@@ -182,8 +253,10 @@ main (int argc, char *argv[])
     }
 
   std::map<std::string, gguf_key> meta;
+  std::map<std::string, size_t> kv_lens;
+
   std::map<std::string, gguf_tensor> tensors;
-  if (auto ret = read_gguf (gguf, meta, tensors); !ret.ok ())
+  if (auto ret = read_gguf (gguf, meta, kv_lens, tensors); !ret.ok ())
     {
       std::cerr << "read gguf failed: " << ret << std::endl;
       return -1;
@@ -191,7 +264,15 @@ main (int argc, char *argv[])
 
   if (type == "int8_0")
     {
-      auto s = qint8_0_quantize (gguf, meta, tensors);
+      gguf_ctx *gguf_quantized = gguf_create (out.c_str (), GGUF_OVERWRITE);
+      if (!gguf_quantized)
+        {
+          fprintf (stderr, "create output gguf file error: %s",
+                   strerror (errno));
+          return -1;
+        }
+
+      auto s = qint8_0_quantize (gguf_quantized, meta, kv_lens, tensors);
       if (!s.ok ())
         {
           std::cerr << "qint8_0_quantize failed: " << s << std::endl;
