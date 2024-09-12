@@ -16,7 +16,7 @@ Tensor::Tensor ()
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 Tensor::Tensor (const int c, const int h, const int w, GPUDevice *dev,
-                    const DType dtype, const bool visable)
+                const DType dtype, const bool visable)
     : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
@@ -82,6 +82,10 @@ Tensor::elem_bytes () const
   else if (dtype_ == FP16)
     {
       return sizeof (uint16_t);
+    }
+  else if (dtype_ == INT8 || dtype_ == Q8_0)
+    {
+      return sizeof (int8_t);
     }
   else
     {
@@ -302,7 +306,7 @@ Tensor
 Tensor::like (const Tensor &tensor)
 {
   Tensor tmp (tensor.channels (), tensor.height (), tensor.width (),
-                tensor.dev_, tensor.dtype (), tensor.visable ());
+              tensor.dev_, tensor.dtype (), tensor.visable ());
   return tmp;
 }
 }

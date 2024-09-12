@@ -18,24 +18,10 @@ public:
   {
     FP32 = 0,
     FP16,
-    UINT32
+    UINT32,
+    INT8,
+    Q8_0, // block-wise quantize
   } DType;
-
-  template <typename T> DType static to_dtype ()
-  {
-    if (std::is_same<T, float>::value)
-      {
-        return FP32;
-      }
-    else if (std::is_same<T, __vkllama_fp16_t>::value)
-      {
-        return FP16;
-      }
-    else
-      {
-        return UINT32;
-      }
-  }
 
   static Tensor like (Tensor const &);
   Tensor ();

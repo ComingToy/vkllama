@@ -78,15 +78,15 @@ template <typename T>
 inline absl::optional<std::pair<vkllama::Tensor, std::vector<T> > >
 random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = T (-1),
-               const T max = T (1))
+               const T max = T (1),
+               const vkllama::Tensor::DType dtype = vkllama::Tensor::FP16)
 {
 
   using tensor_dtype_t =
       typename std::conditional<std::is_same<Eigen::half, T>::value,
                                 __vkllama_fp16_t, T>::type;
 
-  vkllama::Tensor tensor (c, h, w, dev,
-                          vkllama::Tensor::to_dtype<tensor_dtype_t> ());
+  vkllama::Tensor tensor (c, h, w, dev, dtype);
   if (tensor.create () != absl::OkStatus ())
     {
       return {};
