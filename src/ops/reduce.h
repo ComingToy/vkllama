@@ -47,7 +47,7 @@ public:
                                         1 };
 
     const auto *spv_code = __get_reduce_fp16_comp_spv_code ();
-    auto spv_size = dtype_ == __get_reduce_fp16_comp_spv_size ();
+    auto spv_size = __get_reduce_fp16_comp_spv_size ();
 
     auto op_type = op_type_ == 3 ? 0 : op_type_;
     stage0_.reset (
