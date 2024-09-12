@@ -12,7 +12,7 @@ class Softmax : public Op
 {
 public:
   Softmax (GPUDevice *dev, Command *command, bool seq_mask = false,
-           const float temp = 1.0, Tensor::DType const dtype = Tensor::FP32);
+           const float temp = 1.0, Tensor::DType const dtype = Tensor::FP16);
   absl::Status init () noexcept override;
   uint64_t time () noexcept override;
   absl::StatusOr<Tensor> operator() (Tensor a, size_t offset = 0) noexcept;

@@ -19,7 +19,7 @@ class Reduce : public Op
 {
 public:
   Reduce (GPUDevice *gpu, Command *command, int op_type,
-          Tensor::DType const dtype = Tensor::FP32)
+          Tensor::DType const dtype = Tensor::FP16)
       : Op (gpu, command), op_type_ (op_type), dtype_ (dtype)
   {
   }
@@ -27,9 +27,16 @@ public:
   absl::Status
   init () noexcept override
   {
+    if (dtype_ != Tensor::FP16)
+      {
+        return absl::InvalidArgumentError (
+            "Reduce op: only fp16 dtype is supported");
+      }
+
     if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
       {
-        return absl::InternalError ("fp16 is unsupported on the device");
+        return absl::InvalidArgumentError (
+            "fp16 is unsupported on the device");
       }
 
     Pipeline::ShaderInfo stage0Info = { 1,
@@ -39,11 +46,8 @@ public:
                                         1,
                                         1 };
 
-    const auto *spv_code = dtype_ == Tensor::FP16
-                               ? __get_reduce_fp16_comp_spv_code ()
-                               : __get_reduce_comp_spv_code ();
-    auto spv_size = dtype_ == Tensor::FP16 ? __get_reduce_fp16_comp_spv_size ()
-                                           : __get_reduce_comp_spv_size ();
+    const auto *spv_code = __get_reduce_fp16_comp_spv_code ();
+    auto spv_size = __get_reduce_fp16_comp_spv_size ();
 
     auto op_type = op_type_ == 3 ? 0 : op_type_;
     stage0_.reset (

@@ -14,13 +14,15 @@ Transpose::Transpose (GPUDevice *gpu, Command *command, const int type,
 absl::Status
 Transpose::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "Transpose op: only fp16 is supported.");
+    }
+
   Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 4, 4 };
-  const auto *spv_code = dtype_ == Tensor::FP32
-                             ? __get_transpose_type0_comp_spv_code ()
-                             : __get_transpose_type0_fp16_comp_spv_code ();
-  auto spv_size = dtype_ == Tensor::FP32
-                      ? __get_transpose_type0_comp_spv_size ()
-                      : __get_transpose_type0_fp16_comp_spv_size ();
+  const auto *spv_code = __get_transpose_type0_fp16_comp_spv_code ();
+  auto spv_size = __get_transpose_type0_fp16_comp_spv_size ();
 
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, {}, info));
 

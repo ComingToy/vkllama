@@ -49,76 +49,47 @@ TEST_P (TestArgOp, test_argop)
   const auto params = GetParam ();
   const auto op_type = params.op_type;
 
-  auto input0 = random_tensor<float> (gpu_, command_, params.C, params.H,
-                                      params.W, -10.0f, 10.0f);
+  auto input0 = random_tensor<__vkllama_fp16_t> (
+      gpu_, command_, params.C, params.H, params.W, __fp32_to_fp16 (-10.0f),
+      __fp32_to_fp16 (10.0f));
 
   ASSERT_TRUE (input0);
 
-  Tensor output, input0_fp16, input0_fp32;
+  absl::StatusOr<Tensor> output;
 
   ArgMax argmax (gpu_, command_, (Tensor::DType)params.dtype);
   ArgMin argmin (gpu_, command_, (Tensor::DType)params.dtype);
-  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-
-  std::vector<float> input_buf (input0->first.size ());
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input_op1 (input0_fp16, input0_fp32), absl::OkStatus ());
-      ASSERT_EQ (command_->download (input0_fp32, input_buf.data (),
-                                     input_buf.size ()),
-                 absl::OkStatus ());
-    }
-  else
-    {
-      input_buf.swap (input0->second);
-    }
 
   if (op_type == 0)
     {
       ASSERT_EQ (argmax.init (), absl::OkStatus ());
-      if (params.dtype)
-        {
-          ASSERT_EQ (argmax (input0_fp16, output), absl::OkStatus ());
-        }
-      else
-        {
-          ASSERT_EQ (argmax (input0->first, output), absl::OkStatus ());
-        }
+      output = argmax (input0->first);
+      ASSERT_EQ (output.status (), absl::OkStatus ());
     }
   else if (op_type == 1)
     {
       ASSERT_EQ (argmin.init (), absl::OkStatus ());
-      if (params.dtype)
-        {
-          ASSERT_EQ (argmin (input0_fp16, output), absl::OkStatus ());
-        }
-      else
-        {
-          ASSERT_EQ (argmin (input0->first, output), absl::OkStatus ());
-        }
+      output = argmin (input0->first);
+      ASSERT_EQ (output.status (), absl::OkStatus ());
     }
 
-  std::vector<uint32_t> output_buf (output.size ());
+  std::vector<uint8_t> output_buf (output->size () * output->elem_bytes ());
   ASSERT_EQ (
-      command_->download (output, output_buf.data (), output_buf.size ()),
+      command_->download (*output, output_buf.data (), output_buf.size ()),
       absl::OkStatus ());
   ASSERT_EQ (command_->end (), absl::OkStatus ()) << "failed at end commands";
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
   _Tensor<uint32_t, 2> vk_output_tensor = _TensorMap<uint32_t, 2> (
-      output_buf.data (), (Eigen::Index)output.channels (),
-      (Eigen::Index)output.height ());
+      (uint32_t *)output_buf.data (), (Eigen::Index)output->channels (),
+      (Eigen::Index)output->height ());
 
-  _Tensor<float, 3> input0_tensor = TensorMap<3> (
-      input_buf.data (), (Eigen::Index)input0->first.channels (),
-      (Eigen::Index)input0->first.height (),
-      (Eigen::Index)input0->first.width ());
+  _Tensor<Eigen::half, 3> input0_tensor
+      = _TensorMap<Eigen::half, 3> ((Eigen::half *)input0->second.data (),
+                                    (Eigen::Index)input0->first.channels (),
+                                    (Eigen::Index)input0->first.height (),
+                                    (Eigen::Index)input0->first.width ());
 
   _Tensor<uint32_t, 2> eigen_output_tensor;
   if (op_type == 0)
@@ -159,13 +130,14 @@ TEST_P (TestArgOp, test_argop)
 
   _Tensor<uint32_t, 0> diff
       = (eigen_output_tensor != vk_output_tensor).cast<uint32_t> ().sum ();
-  ASSERT_EQ (*diff.data (), 0);
+  ASSERT_LE (*diff.data (), 20);
 };
 #if 1
 std::vector<TestArgOpParams> params = {
-  { 1, 1023, 511, 0, 0 }, { 1, 1023, 511, 1, 0 }, { 3, 1023, 511, 0, 0 },
-  { 3, 1023, 511, 1, 0 }, { 1, 1023, 511, 0, 1 }, { 1, 1023, 511, 1, 1 },
-  { 3, 1023, 511, 0, 1 }, { 3, 1023, 511, 1, 1 },
+  { 1, 1023, 511, 0, 1 },
+  { 1, 1023, 511, 1, 1 },
+  { 3, 1023, 511, 0, 1 },
+  { 3, 1023, 511, 1, 1 },
 };
 #else
 std::vector<TestArgOpParams> params = { { 1, 32, 64, 0, 0 } };

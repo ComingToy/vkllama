@@ -20,6 +20,12 @@ Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask, float temp,
 absl::Status
 Softmax::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "Softmax op: only fp16 dtype is supported");
+    }
+
   Pipeline::ShaderInfo info0 = {
     1, 2, 4 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 1, 1
   };

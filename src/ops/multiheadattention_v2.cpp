@@ -27,6 +27,12 @@ MultiHeadAttentionV2::MultiHeadAttentionV2 (
 absl::Status
 MultiHeadAttentionV2::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "MultiHeadAttentionV2: only fp16 dtype is supported.");
+    }
+
   if (wk_.dtype () != dtype_ || wq_.dtype () != dtype_
       || wv_.dtype () != dtype_ || wo_.dtype () != dtype_)
     {

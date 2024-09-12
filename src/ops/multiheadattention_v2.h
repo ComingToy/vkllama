@@ -25,7 +25,7 @@ public:
   MultiHeadAttentionV2 (GPUDevice *dev, Command *command, Tensor wk, Tensor wq,
                         Tensor wv, Tensor wo, const int maxlen, const int dim,
                         const bool transposed_weight = false,
-                        Tensor::DType dtype = Tensor::FP32,
+                        Tensor::DType dtype = Tensor::FP16,
                         const bool use_kvcache = false);
 
   absl::StatusOr<Tensor> operator() (Tensor X,

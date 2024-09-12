@@ -27,13 +27,19 @@ Concat::init () noexcept
           "fp16 dtype is unsupported on device");
     }
 
-  const auto *spv_code = dtype_ == Tensor::FP32
-                             ? __get_concat_comp_spv_code ()
-                             : __get_concat_fp16_comp_spv_code ();
+  const uint8_t *spv_code = nullptr;
+  size_t spv_size = 0;
 
-  size_t spv_size = dtype_ == Tensor::FP32
-                        ? __get_concat_comp_spv_size ()
-                        : __get_concat_fp16_comp_spv_size ();
+  if (dtype_ == Tensor::FP16)
+    {
+      spv_code = __get_concat_fp16_comp_spv_code ();
+      spv_size = __get_concat_fp16_comp_spv_size ();
+    }
+  else
+    {
+      return absl::InvalidArgumentError (
+          "Concat op: only fp16 dtype is supported.");
+    }
 
   std::vector<std::unique_ptr<Pipeline> > pipelines;
 

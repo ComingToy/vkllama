@@ -16,21 +16,15 @@ ElementWise::init () noexcept
 {
   Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 128, 1, 1 };
 
-  uint32_t bytes = sizeof (int)
-                   + (dtype_ == Tensor::FP16 ? sizeof (__vkllama_fp16_t) * 2
-                                             : sizeof (float));
+  uint32_t bytes = sizeof (int) + sizeof (__vkllama_fp16_t) * 2;
+
   Pipeline::ShaderInfo info1 = { 1, 2, bytes, 128, 1, 1 };
   ShaderConstants constants = { type_ };
 
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
 
-  if (dtype_ == Tensor::FP32)
-    {
-      spv_code = __get_element_wise_comp_spv_code ();
-      spv_size = __get_element_wise_comp_spv_size ();
-    }
-  else if (dtype_ == Tensor::FP16 && dev_->support_16bit_storage ())
+  if (dtype_ == Tensor::FP16 && dev_->support_16bit_storage ())
     {
       spv_code = dev_->support_fp16_arithmetic ()
                      ? __get_element_wise_fp16a_comp_spv_code ()
@@ -42,7 +36,7 @@ ElementWise::init () noexcept
   else
     {
       return absl::InvalidArgumentError (
-          "fp16 dtype is unsupported on device");
+          "only fp16 dtype is supported on device");
     }
 
   pipeline0_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info));
@@ -53,20 +47,12 @@ ElementWise::init () noexcept
       return ret;
     }
 
-  if (dtype_ == Tensor::FP32)
-    {
-      spv_code = __get_element_wise_constant_comp_spv_code ();
-      spv_size = __get_element_wise_constant_comp_spv_size ();
-    }
-  else if (dtype_ == Tensor::FP16 && dev_->support_16bit_storage ())
-    {
-      spv_code = dev_->support_fp16_arithmetic ()
-                     ? __get_element_wise_constant_fp16a_comp_spv_code ()
-                     : __get_element_wise_constant_fp16_comp_spv_code ();
-      spv_size = dev_->support_fp16_arithmetic ()
-                     ? __get_element_wise_constant_fp16a_comp_spv_size ()
-                     : __get_element_wise_constant_fp16_comp_spv_size ();
-    }
+  spv_code = dev_->support_fp16_arithmetic ()
+                 ? __get_element_wise_constant_fp16a_comp_spv_code ()
+                 : __get_element_wise_constant_fp16_comp_spv_code ();
+  spv_size = dev_->support_fp16_arithmetic ()
+                 ? __get_element_wise_constant_fp16a_comp_spv_size ()
+                 : __get_element_wise_constant_fp16_comp_spv_size ();
 
   pipeline1_.reset (new Pipeline (dev_, spv_code, spv_size, constants, info1));
   return pipeline1_->init ();
@@ -146,7 +132,7 @@ ElementWise::operator() (Tensor x, float y) noexcept
     }
 
   ShaderConstants constants = { (int)x.size () };
-  if (dtype_ == Tensor::FP32 || !dev_->support_fp16_arithmetic ())
+  if (!dev_->support_fp16_arithmetic ())
     {
       constants.push_back (y);
     }

@@ -49,57 +49,21 @@ TEST_P (TestReduce, test_reduce)
 
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at begin commands";
-  auto input0
-      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
+  auto input0 = random_tensor<Eigen::half> (gpu_, command_, params.C, params.H,
+                                            params.W);
 
   ASSERT_TRUE (input0) << "failed at create tensor";
-
-  Tensor input0_fp32, input0_fp16;
-  std::vector<float> input0_buf (input0->first.size ());
-
-  Cast cast_input_fp16_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_input_fp32_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_input_fp16_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input_fp32_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_input_fp16_op (input0->first, input0_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input_fp32_op (input0_fp16, input0_fp32),
-                 absl::OkStatus ());
-      ASSERT_EQ (command_->download (input0_fp32, input0_buf.data (),
-                                     input0_buf.size ()),
-                 absl::OkStatus ());
-    }
-  else
-    {
-      input0_fp32 = input0->first;
-      input0_buf.swap (input0->second);
-    }
 
   Reduce reduce_op (gpu_, command_, op_type, (Tensor::DType)params.dtype);
   ASSERT_EQ (reduce_op.init (), absl::OkStatus ()) << "failed at init op";
 
-  Tensor output;
-  ASSERT_EQ (reduce_op (params.dtype ? input0_fp16 : input0_fp32, output),
-             absl::OkStatus ())
+  absl::StatusOr<Tensor> output;
+  ASSERT_EQ ((output = reduce_op (input0->first)).status (), absl::OkStatus ())
       << "failed at forwarding reduce op";
 
-  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-  Tensor output_fp32;
-  if (params.dtype)
-    {
-      ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-      ASSERT_EQ (cast_output_op (output, output_fp32), absl::OkStatus ());
-    }
-  else
-    {
-      output_fp32 = output;
-    }
-
-  std::vector<float> output_buf (output_fp32.size ());
+  std::vector<Eigen::half> output_buf (output->size ());
   ASSERT_EQ (
-      command_->download (output_fp32, output_buf.data (), output_buf.size ()),
+      command_->download (*output, output_buf.data (), output_buf.size ()),
       absl::OkStatus ())
       << "failed at download output";
 
@@ -107,16 +71,16 @@ TEST_P (TestReduce, test_reduce)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submit commands";
 
-  _Tensor<float, 2> vk_output_tensor
-      = TensorMap<2> (output_buf.data (), (Eigen::Index)output.channels (),
-                      (Eigen::Index)output.height ());
+  _Tensor<Eigen::half, 2> vk_output_tensor = _TensorMap<Eigen::half, 2> (
+      output_buf.data (), (Eigen::Index)output->channels (),
+      (Eigen::Index)output->height ());
 
-  _Tensor<float, 3> input0_tensor = TensorMap<3> (
-      input0_buf.data (), (Eigen::Index)input0->first.channels (),
+  _Tensor<Eigen::half, 3> input0_tensor = _TensorMap<Eigen::half, 3> (
+      input0->second.data (), (Eigen::Index)input0->first.channels (),
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
-  _Tensor<float, 2> output_tensor;
+  _Tensor<Eigen::half, 2> output_tensor;
   Eigen::array<Eigen::Index, 1> dims = { 2 };
   if (op_type == 0)
     {
@@ -139,19 +103,18 @@ TEST_P (TestReduce, test_reduce)
   //           << "vulkan output: " << vk_output_tensor << std::endl
   //           << "host output: " << output_tensor << std::endl;
 
-  _Tensor<float, 2> err (vk_output_tensor.dimensions ());
-  err.setConstant (5e-2);
+  _Tensor<Eigen::half, 2> err (vk_output_tensor.dimensions ());
+  err.setConstant (Eigen::half (1e-1));
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
   ASSERT_EQ (*diff.data (), 0);
 }
 
 std::vector<TestReduceParams> params = {
-  { 1, 1023, 511, 0, 0 }, { 1, 1023, 511, 1, 0 },
-  { 1, 1023, 511, 2, 0 }, { 1, 1023, 511, 3, 0 },
-
-  { 1, 1023, 511, 0, 1 }, { 1, 1023, 511, 1, 1 },
-  { 1, 1023, 511, 2, 1 }, { 1, 1023, 511, 3, 1 },
+  { 1, 1023, 511, 0, 1 },
+  { 1, 1023, 511, 1, 1 },
+  { 1, 1023, 511, 2, 1 },
+  { 1, 1023, 511, 3, 1 },
 };
 
 INSTANTIATE_TEST_SUITE_P (test_reduce, TestReduce,

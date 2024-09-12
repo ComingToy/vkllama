@@ -13,12 +13,8 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
     2, 3, 3 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 1, 1
   };
 
-  const auto *spv_code = dtype_ == Tensor::FP16
-                             ? __get_rms_norm_fp16_comp_spv_code ()
-                             : __get_rms_norm_comp_spv_code ();
-  const auto spv_size = dtype_ == Tensor::FP16
-                            ? __get_rms_norm_fp16_comp_spv_size ()
-                            : __get_rms_norm_comp_spv_size ();
+  const auto *spv_code = __get_rms_norm_fp16_comp_spv_code ();
+  const auto spv_size = __get_rms_norm_fp16_comp_spv_size ();
 
   pipeline_.reset (
       new Pipeline (dev_, spv_code, spv_size, { 2.0f, eps_ }, info));
@@ -27,6 +23,12 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
 absl::Status
 RMSNorm::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "RMSNorm op: only fp16 dtype is supported.");
+    }
+
   if (weight_.dtype () != dtype_)
     {
       return absl::InvalidArgumentError (absl::StrFormat (

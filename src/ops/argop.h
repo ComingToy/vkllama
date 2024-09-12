@@ -14,7 +14,7 @@ template <int op_type> class ArgOp : public Op
 {
 public:
   ArgOp (GPUDevice *gpu, Command *command,
-         const Tensor::DType dtype = Tensor::FP32)
+         const Tensor::DType dtype = Tensor::FP16)
       : Op (gpu, command), dtype_ (dtype)
   {
   }
@@ -46,13 +46,6 @@ public:
       {
         spv_code0 = __get_argmax_stage0_fp16_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_fp16_comp_spv_size ();
-        spv_code1 = __get_argmax_stage1_comp_spv_code ();
-        spv_size1 = __get_argmax_stage1_comp_spv_size ();
-      }
-    else if (dtype_ == Tensor::FP32)
-      {
-        spv_code0 = __get_argmax_stage0_comp_spv_code ();
-        spv_size0 = __get_argmax_stage0_comp_spv_size ();
         spv_code1 = __get_argmax_stage1_comp_spv_code ();
         spv_size1 = __get_argmax_stage1_comp_spv_size ();
       }

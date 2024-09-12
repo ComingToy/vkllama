@@ -59,130 +59,36 @@ TEST_P (TestFeedForawrd, test_2d)
         << "fail at begin command";
 
     auto w1
-        = random_tensor<float> (gpu_, &command, 1, indim, units, -0.5, 0.5);
+        = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
+                                      Eigen::half (-0.5), Eigen::half (0.5));
     auto w2
-        = random_tensor<float> (gpu_, &command, 1, units, outdim, -0.5, 0.5);
+        = random_tensor<Eigen::half> (gpu_, &command, 1, units, outdim,
+                                      Eigen::half (-0.5), Eigen::half (0.5));
     auto w3
-        = random_tensor<float> (gpu_, &command, 1, indim, units, -0.5, 0.5);
-    auto X = random_tensor<float> (gpu_, &command, 1, 64, indim, -0.5, 0.5);
+        = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
+                                      Eigen::half (-0.5), Eigen::half (0.5));
+
+    auto X = random_tensor<Eigen::half> (
+        gpu_, &command, 1, 64, indim, Eigen::half (-0.5), Eigen::half (0.5));
+
     ASSERT_TRUE (w1 && w2 && w3 && X) << "fail at creating tensors";
 
-    Tensor w1_fp16, w2_fp16, w3_fp16, X_fp16, w1_fp32, w2_fp32, w3_fp32,
-        X_fp32;
-
-    std::vector<float> w1_buf (w1->second.size ()),
-        w2_buf (w2->second.size ()), w3_buf (w3->second.size ()),
-        X_buf (X->second.size ());
-
-    Cast cast_w1_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-    Cast cast_w2_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-    Cast cast_w3_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-    Cast cast_X_op (gpu_, command_, Tensor::FP32, Tensor::FP16);
-
-    Cast cast_w1_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-    Cast cast_w2_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-    Cast cast_w3_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-    Cast cast_X_op1 (gpu_, command_, Tensor::FP16, Tensor::FP32);
-
-    if (params.dtype)
-      {
-        ASSERT_EQ (cast_w1_op.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_w2_op.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_w3_op.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_X_op.init (), absl::OkStatus ());
-
-        ASSERT_EQ (cast_w1_op1.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_w2_op1.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_w3_op1.init (), absl::OkStatus ());
-        ASSERT_EQ (cast_X_op1.init (), absl::OkStatus ());
-
-        auto ret = cast_w1_op (w1->first);
-        w1_fp16 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-        ret = cast_w2_op (w2->first);
-        w2_fp16 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-        ret = cast_w3_op (w3->first);
-        w3_fp16 = *ret;
-
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-        ret = cast_X_op (X->first);
-        X_fp16 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-        ret = cast_w1_op1 (w1_fp16);
-        w1_fp32 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-        ret = cast_w2_op1 (w2_fp16);
-        w2_fp32 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-        ret = cast_w3_op1 (w3_fp16);
-        w3_fp32 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-        ret = cast_X_op1 (X_fp16);
-        X_fp32 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-
-        ASSERT_EQ (
-            command_->download (w1_fp32, w1_buf.data (), w1_buf.size ()),
-            absl::OkStatus ());
-
-        ASSERT_EQ (
-            command_->download (w2_fp32, w2_buf.data (), w2_buf.size ()),
-            absl::OkStatus ());
-
-        ASSERT_EQ (
-            command_->download (w3_fp32, w3_buf.data (), w3_buf.size ()),
-            absl::OkStatus ());
-
-        ASSERT_EQ (command_->download (X_fp32, X_buf.data (), X_buf.size ()),
-                   absl::OkStatus ());
-      }
-    else
-      {
-        w1_buf.swap (w1->second);
-        w2_buf.swap (w2->second);
-        w3_buf.swap (w3->second);
-        X_buf.swap (X->second);
-        w1_fp32 = w1->first;
-        w2_fp32 = w2->first;
-        w3_fp32 = w3->first;
-        X_fp32 = X->first;
-      }
-
     Tensor::DType dtype = (Tensor::DType)params.dtype;
-    FeedForward feed_forward_op (
-        gpu_, &command, dtype == Tensor::FP32 ? w1_fp32 : w1_fp16,
-        dtype == Tensor::FP32 ? w2_fp32 : w2_fp16,
-        dtype == Tensor::FP32 ? w3_fp32 : w3_fp16, false, dtype);
+    FeedForward feed_forward_op (gpu_, &command, w1->first, w2->first,
+                                 w3->first, false, dtype);
 
-    ASSERT_TRUE (feed_forward_op.init () == absl::OkStatus ())
-        << "fail at init feed_forward_op";
+    absl::Status ret;
+    ASSERT_TRUE ((ret = feed_forward_op.init ()) == absl::OkStatus ())
+        << "fail at init feed_forward_op: " << ret;
 
-    auto output = feed_forward_op (dtype == Tensor::FP32 ? X_fp32 : X_fp16);
+    auto output = feed_forward_op (X->first);
     ASSERT_TRUE (output.ok ()) << "fail at forwarding feed_forward op";
 
-    Tensor output_fp32;
-    Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-    if (params.dtype)
-      {
-        ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
-        auto ret = cast_output_op (*output);
-        output_fp32 = *ret;
-        ASSERT_EQ (ret.status (), absl::OkStatus ());
-      }
-    else
-      {
-        output_fp32 = *output;
-      }
+    std::vector<Eigen::half> buf (output->channels () * output->height ()
+                                  * output->width ());
 
-    std::vector<float> buf (output->channels () * output->height ()
-                            * output->width ());
-
-    ASSERT_TRUE (command.download (output_fp32, buf.data (), buf.size ())
+    ASSERT_TRUE (command.download (*output, (__vkllama_fp16_t *)buf.data (),
+                                   buf.size ())
                  == absl::OkStatus ())
         << "fail at downloading";
 
@@ -191,25 +97,27 @@ TEST_P (TestFeedForawrd, test_2d)
         << "failed at submit_and_wait";
 
     using EigenMap
-        = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic,
+        = Eigen::Map<Eigen::Matrix<Eigen::half, Eigen::Dynamic, Eigen::Dynamic,
                                    Eigen::RowMajor> >;
 
-    auto ew1
-        = EigenMap (w1_buf.data (), w1->first.height (), w1->first.width ());
-    auto ew2
-        = EigenMap (w2_buf.data (), w2->first.height (), w2->first.width ());
-    auto ew3
-        = EigenMap (w3_buf.data (), w3->first.height (), w3->first.width ());
-    auto eX = EigenMap (X_buf.data (), X->first.height (), X->first.width ());
+    auto ew1 = EigenMap (w1->second.data (), w1->first.height (),
+                         w1->first.width ());
+    auto ew2 = EigenMap (w2->second.data (), w2->first.height (),
+                         w2->first.width ());
+    auto ew3 = EigenMap (w3->second.data (), w3->first.height (),
+                         w3->first.width ());
+    auto eX
+        = EigenMap (X->second.data (), X->first.height (), X->first.width ());
     auto eoutput = EigenMap (buf.data (), output->height (), output->width ());
 
     auto dnn1 = (eX * ew1);
     auto dnn3 = (eX * ew3);
-    auto dnn1_act = dnn1.array () / ((-dnn1.array ()).exp () + 1.0f);
+    auto dnn1_act
+        = dnn1.array () / ((-dnn1.array ()).exp () + Eigen::half (1.0f));
     auto inner = dnn1_act * dnn3.array ();
     auto output_ref = (inner.matrix () * ew2).eval ();
 
-    auto err = params.dtype ? 5e-2 : 1e-3;
+    auto err = Eigen::half (params.dtype ? 1e-1 : 1e-3);
     auto diff
         = ((output_ref - eoutput).array ().abs () > err).cast<int> ().sum ();
 #if 0
@@ -221,7 +129,7 @@ TEST_P (TestFeedForawrd, test_2d)
               {
                 fprintf (stderr,
                          "index %d, %d output ref = %f, vk output = %f\n", h,
-                         w, output_ref (h, w), eoutput (h, w));
+                         w, float (output_ref (h, w)), float (eoutput (h, w)));
               }
           }
       }

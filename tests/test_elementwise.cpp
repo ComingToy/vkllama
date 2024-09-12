@@ -50,69 +50,38 @@ TEST_P (TestElementwise, test_elementwise)
   auto params = GetParam ();
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at begining commands";
-  auto input0
-      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
-  auto input1
-      = random_tensor<float> (gpu_, command_, params.C, params.H, params.W);
-  float alpha = random_number (-2.0f, 2.0f);
+  auto input0 = random_tensor<__vkllama_fp16_t> (
+      gpu_, command_, params.C, params.H, params.W, __fp32_to_fp16 (-1.0),
+      __fp32_to_fp16 (1.0));
 
-  Tensor input0_fp16;
-  Tensor input1_fp16;
-  Cast cast_input_op0 (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_input_op1 (gpu_, command_, Tensor::FP32, Tensor::FP16);
-  Cast cast_output_op (gpu_, command_, Tensor::FP16, Tensor::FP32);
-  ASSERT_EQ (cast_input_op0.init (), absl::OkStatus ());
-  ASSERT_EQ (cast_input_op1.init (), absl::OkStatus ());
-  ASSERT_EQ (cast_output_op.init (), absl::OkStatus ());
+  auto input1 = random_tensor<__vkllama_fp16_t> (
+      gpu_, command_, params.C, params.H, params.W, __fp32_to_fp16 (-1.0),
+      __fp32_to_fp16 (1.0));
 
-  if (params.dtype == 1)
-    {
-      ASSERT_EQ (cast_input_op0 (input0->first, input0_fp16),
-                 absl::OkStatus ());
-      ASSERT_EQ (cast_input_op1 (input1->first, input1_fp16),
-                 absl::OkStatus ());
-    }
+  auto alpha = Eigen::half (random_number (-2.0f, 2.0f));
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
-                              params.dtype == 0 ? Tensor::FP32
-                                                : Tensor::FP16);
+                              params.dtype == 0 ? Tensor::FP32 : Tensor::FP16);
   ASSERT_EQ (elementwise_op.init (), absl::OkStatus ())
       << "failed at init elementwise op";
 
-  Tensor out;
-  Tensor out_fp16;
-  if (params.dtype == 0)
+  absl::StatusOr<Tensor> output;
+  if (params.constant_b)
     {
-      if (params.constant_b)
-        {
-          ASSERT_EQ (elementwise_op (input0->first, alpha, out),
-                     absl::OkStatus ());
-        }
-      else
-        {
-          ASSERT_EQ (elementwise_op (input0->first, input1->first, out),
-                     absl::OkStatus ());
-        }
+      ASSERT_EQ ((output = elementwise_op (input0->first, alpha)).status (),
+                 absl::OkStatus ());
     }
   else
     {
-      if (params.constant_b)
-        {
-          ASSERT_EQ (elementwise_op (input0_fp16, alpha, out_fp16),
-                     absl::OkStatus ());
-        }
-      else
-        {
-          ASSERT_EQ (elementwise_op (input0_fp16, input1_fp16, out_fp16),
-                     absl::OkStatus ());
-        }
-
-      ASSERT_EQ (cast_output_op (out_fp16, out), absl::OkStatus ());
+      ASSERT_EQ (
+          (output = elementwise_op (input0->first, input1->first)).status (),
+          absl::OkStatus ());
     }
 
-  std::vector<float> output_buf (out.size ());
-  ASSERT_EQ (command_->download (out, output_buf.data (), output_buf.size ()),
-             absl::OkStatus ())
+  std::vector<uint8_t> output_buf (output->size () * output->elem_bytes ());
+  ASSERT_EQ (
+      command_->download (*output, output_buf.data (), output_buf.size ()),
+      absl::OkStatus ())
       << "failed at download output tensor";
 
   ASSERT_EQ (command_->end (), absl::OkStatus ())
@@ -120,20 +89,23 @@ TEST_P (TestElementwise, test_elementwise)
   ASSERT_EQ (command_->submit_and_wait (), absl::OkStatus ())
       << "failed at submiting commands";
 
-  _Tensor<float, 3> vk_output_tensor
-      = TensorMap<3> (output_buf.data (), (Eigen::Index)out.channels (),
-                      (Eigen::Index)out.height (), (Eigen::Index)out.width ());
-  _Tensor<float, 3> input0_tensor = TensorMap<3> (
-      input0->second.data (), (Eigen::Index)input0->first.channels (),
-      (Eigen::Index)input0->first.height (),
-      (Eigen::Index)input0->first.width ());
+  _Tensor<Eigen::half, 3> vk_output_tensor = _TensorMap<Eigen::half, 3> (
+      (Eigen::half *)output_buf.data (), (Eigen::Index)output->channels (),
+      (Eigen::Index)output->height (), (Eigen::Index)output->width ());
 
-  _Tensor<float, 3> input1_tensor = TensorMap<3> (
-      input1->second.data (), (Eigen::Index)input1->first.channels (),
-      (Eigen::Index)input1->first.height (),
-      (Eigen::Index)input1->first.width ());
+  _Tensor<Eigen::half, 3> input0_tensor
+      = _TensorMap<Eigen::half, 3> ((Eigen::half *)input0->second.data (),
+                                    (Eigen::Index)input0->first.channels (),
+                                    (Eigen::Index)input0->first.height (),
+                                    (Eigen::Index)input0->first.width ());
 
-  _Tensor<float, 3> output_tensor;
+  _Tensor<Eigen::half, 3> input1_tensor
+      = _TensorMap<Eigen::half, 3> ((Eigen::half *)input1->second.data (),
+                                    (Eigen::Index)input1->first.channels (),
+                                    (Eigen::Index)input1->first.height (),
+                                    (Eigen::Index)input1->first.width ());
+
+  _Tensor<Eigen::half, 3> output_tensor;
   if (params.op_type == 0)
     {
       if (params.constant_b)
@@ -179,7 +151,7 @@ TEST_P (TestElementwise, test_elementwise)
         }
     }
 
-  _Tensor<float, 3> err (vk_output_tensor.dimensions ());
+  _Tensor<Eigen::half, 3> err (vk_output_tensor.dimensions ());
 
   auto delta = params.dtype ? 1e-2 : 1e-3;
 #if 0
@@ -199,7 +171,7 @@ TEST_P (TestElementwise, test_elementwise)
     }
 #endif
 
-  err.setConstant (delta);
+  err.setConstant (Eigen::half (delta));
   _Tensor<int, 0> diff
       = ((vk_output_tensor - output_tensor).abs () > err).cast<int> ().sum ();
 
@@ -208,12 +180,7 @@ TEST_P (TestElementwise, test_elementwise)
 
 #if 1
 std::vector<TestElementwiseParams> params
-    = { { 3, 1023, 512, 0, 0, 0 }, { 3, 1023, 511, 1, 0, 0 },
-        { 3, 1023, 511, 2, 0, 0 }, { 3, 1023, 511, 3, 0, 0 },
-        { 3, 1023, 511, 0, 1, 0 }, { 3, 1023, 511, 1, 1, 0 },
-        { 3, 1023, 511, 2, 1, 0 }, { 3, 1023, 511, 3, 1, 0 },
-
-        { 3, 1023, 512, 0, 0, 1 }, { 3, 1023, 511, 1, 0, 1 },
+    = { { 3, 1023, 512, 0, 0, 1 }, { 3, 1023, 511, 1, 0, 1 },
         { 3, 1023, 511, 2, 0, 1 }, { 3, 1023, 511, 3, 0, 1 },
         { 3, 1023, 511, 0, 1, 1 }, { 3, 1023, 511, 1, 1, 1 },
         { 3, 1023, 511, 2, 1, 1 }, { 3, 1023, 511, 3, 1, 1 } };

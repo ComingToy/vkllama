@@ -20,16 +20,17 @@ Embedding::init () noexcept
       return absl::InvalidArgumentError ("fp16 is unsupported on device.");
     }
 
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "Embedding op: only fp16 is supported.");
+    }
+
   Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
   ShaderConstants unk = { UNK_ };
 
-  const auto *spv_code = dtype_ == Tensor::FP32
-                             ? __get_embedding_comp_spv_code ()
-                             : __get_embedding_fp16_comp_spv_code ();
-
-  const auto spv_size = dtype_ == Tensor::FP32
-                            ? __get_embedding_comp_spv_size ()
-                            : __get_embedding_fp16_comp_spv_size ();
+  const auto *spv_code = __get_embedding_fp16_comp_spv_code ();
+  const auto spv_size = __get_embedding_fp16_comp_spv_size ();
 
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, unk, info));
   auto ret = pipeline_->init ();

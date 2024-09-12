@@ -29,6 +29,12 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
 absl::Status
 FeedForward::init () noexcept
 {
+  if (dtype_ != Tensor::FP16)
+    {
+      return absl::InvalidArgumentError (
+          "FeedForward op: only fp16 is supported.");
+    }
+
   if (w1_.dtype () != w2_.dtype () || w2_.dtype () != w3_.dtype ()
       || dtype_ != w1_.dtype ())
     {
