@@ -29,17 +29,18 @@ random_vec (T *v, const int n, const T min, const T max)
       float fmax = Eigen::half (max.u16);
       std::uniform_real_distribution<float> dist (fmin, fmax);
 
+      static_assert (sizeof (__vkllama_fp16_t) == sizeof (Eigen::half::x),
+                     "Eigen::half is not 16bit storage.");
       for (int i = 0; i < n; ++i)
         {
-          __vkllama_fp16_t f = { .u16 = Eigen::half (dist (e2)).x };
+          auto v16 = Eigen::half (dist (e2)).x;
+
+          __vkllama_fp16_t f = { .u16 = *reinterpret_cast<uint16_t *> (&v16) };
           v[i] = f;
         }
-
-      return;
     }
-
-  if constexpr (std::is_same<typename std::remove_const<T>::type,
-                             Eigen::half>::value)
+  else if constexpr (std::is_same<typename std::remove_const<T>::type,
+                                  Eigen::half>::value)
     {
       float fmin = Eigen::half (min);
       float fmax = Eigen::half (max);
