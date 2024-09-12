@@ -1,3 +1,4 @@
+#include "absl/strings/str_replace.h"
 #include "models/llama2.h"
 #include "models/samplers.h"
 #include "models/tokenizer.h"
@@ -14,123 +15,6 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
-
-static std::string prompt_template = R"(
-User: Hello, Bob.
-Bob: Hello. How may I help you today?
-User: Please tell me the largest city in Europe.
-Bob: Sure. The largest city in Europe is Moscow, the capital of Russia.
-User: )";
-
-static bool is_anti_prompt(std::string const& output_buf, std::string const& anti)
-{
-  if (output_buf.size () < anti.size ())
-    {
-      return false;
-    }
-
-  auto start = output_buf.size () - anti.size ();
-  return output_buf.substr (start, anti.size ()) == anti;
-}
-static void
-replace_all (std::string &s, const std::string &search,
-             const std::string &replace)
-{
-  std::string result;
-  for (size_t pos = 0;; pos += search.length ())
-    {
-      auto new_pos = s.find (search, pos);
-      if (new_pos == std::string::npos)
-        {
-          result += s.substr (pos, s.size () - pos);
-          break;
-        }
-      result += s.substr (pos, new_pos - pos) + replace;
-      pos = new_pos;
-    }
-  s = std::move (result);
-}
-
-void
-string_process_escapes (std::string &input)
-{
-  std::size_t input_len = input.length ();
-  std::size_t output_idx = 0;
-
-  for (std::size_t input_idx = 0; input_idx < input_len; ++input_idx)
-    {
-      if (input[input_idx] == '\\' && input_idx + 1 < input_len)
-        {
-          switch (input[++input_idx])
-            {
-            case 'n':
-              input[output_idx++] = '\n';
-              break;
-            case 'r':
-              input[output_idx++] = '\r';
-              break;
-            case 't':
-              input[output_idx++] = '\t';
-              break;
-            case '\'':
-              input[output_idx++] = '\'';
-              break;
-            case '\"':
-              input[output_idx++] = '\"';
-              break;
-            case '\\':
-              input[output_idx++] = '\\';
-              break;
-            case 'x':
-              // Handle \x12, etc
-              if (input_idx + 2 < input_len)
-                {
-                  const char x[3]
-                      = { input[input_idx + 1], input[input_idx + 2], 0 };
-                  char *err_p = nullptr;
-                  const long val = std::strtol (x, &err_p, 16);
-                  if (err_p == x + 2)
-                    {
-                      input_idx += 2;
-                      input[output_idx++] = char (val);
-                      break;
-                    }
-                }
-              // fall through
-            default:
-              input[output_idx++] = '\\';
-              input[output_idx++] = input[input_idx];
-              break;
-            }
-        }
-      else
-        {
-          input[output_idx++] = input[input_idx];
-        }
-    }
-
-  input.resize (output_idx);
-}
-
-void
-print_sp_model (sentencepiece::ModelProto const &model)
-{
-  fprintf (
-      stderr,
-      "size of model::pieces = %d\nhas trainer_spec = %d\nhas normalizer_spec "
-      "= %d\n has self_test_data = %d\nhas denormalizer_spec = %d\n",
-      model.pieces_size (), (int)model.has_trainer_spec (),
-      (int)model.has_normalizer_spec (), (int)model.has_self_test_data (),
-      (int)model.has_denormalizer_spec ());
-
-  for (int i = 0; i < std::max (10, model.pieces_size ()); ++i)
-    {
-      auto piece = model.pieces (i);
-      fprintf (stderr, "index %d, piece = %s, score = %f, type = %d\n", i,
-               piece.has_piece () ? piece.piece ().c_str () : "null",
-               piece.score (), piece.type ());
-    }
-}
 
 std::string
 escape_byte (std::string const &b)
@@ -213,8 +97,6 @@ main (const int argc, const char *argv[])
 
   std::vector<int> prompt_tmp;
   std::string buffer = argv[2];
-  // replace_all (buffer, " ", "\xe2\x96\x81");
-  // string_process_escapes (buffer);
 
   sp.Encode (buffer, &prompt_tmp);
 
@@ -304,7 +186,7 @@ main (const int argc, const char *argv[])
               piece = piece + "[CONTROL]";
             }
 
-          replace_all (piece, "▁", " ");
+          piece = absl::StrReplaceAll (piece, { { "▁", " " } });
           std::cerr << piece;
           output_buf.append (piece);
 

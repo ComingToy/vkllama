@@ -129,13 +129,6 @@ cc_test(
 	],
 )
 
-cc_binary(
-	name="llama2",
-	srcs=["llama2.cpp"],
-    copts = ["-std=c++17"],
-    deps = ["//models:llama2", "//src:vkllama", "@sentencepiece//:sentencepiece", "@gguf-tools//:gguf"],
-)
-
 cc_test(
     name = "test_transpose",
     srcs = ["test_transpose.cpp"],
