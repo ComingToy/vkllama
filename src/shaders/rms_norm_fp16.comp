@@ -24,7 +24,7 @@ layout (set = 0, binding = 0) readonly buffer InTensor0
 
 layout (set = 0, binding = 1) readonly buffer InTensor1
 {
-  float16_t input_weights[];
+  float input_weights[];
 };
 
 layout (set = 0, binding = 2) writeonly buffer OutTensor

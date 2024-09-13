@@ -10,7 +10,6 @@ extern "C"{
 #include "absl/status/statusor.h"
 #include "src/core/command.h"
 #include "src/core/common.h"
-#include "src/core/float.h"
 #include "src/core/tensor.h"
 #include "src/ops/argop.h"
 #include "src/ops/cast.h"
@@ -357,16 +356,7 @@ public:
                            Tensor::FP16);
       Tensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
                               gpu_, Tensor::FP16);
-      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, Tensor::FP16);
-
-      std::vector<__vkllama_fp16_t> norm_weight_fp16;
-      const float *p
-          = reinterpret_cast<const float *> (norm_weight.weights_data);
-      for (size_t i = 0; i < norm_weight.num_weights; ++i)
-        {
-          __vkllama_fp16_t v = { .u16 = __fp32_to_fp16 (p[i]) };
-          norm_weight_fp16.push_back (v);
-        }
+      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, Tensor::FP32);
 
       absl::Status ret;
 
@@ -393,7 +383,7 @@ public:
           return ret;
         }
 
-      ret = input_command_->upload (norm_weight_fp16.data (),
+      ret = input_command_->upload ((const float *)norm_weight.weights_data,
                                     norm_weight.num_weights, vknorm_weight);
       if (!ret.ok ())
         {
@@ -481,10 +471,10 @@ public:
           block_commands_.push_back (command);
 
           Tensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
-                                      Tensor::FP16);
+                                      Tensor::FP32);
 
           Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
-                                     Tensor::FP16);
+                                     Tensor::FP32);
 
           absl::Status ret;
 
@@ -494,33 +484,16 @@ public:
               return ret;
             }
 
-          std::vector<__vkllama_fp16_t> attn_norm_weight_fp16;
-          const float *p = reinterpret_cast<const float *> (
-              attn_norm_weight.weights_data);
-          for (size_t i = 0; i < attn_norm_weight.num_weights; ++i)
-            {
-              attn_norm_weight_fp16.push_back (
-                  { .u16 = __fp32_to_fp16 (p[i]) });
-            }
-
-          ret = command->upload (attn_norm_weight_fp16.data (),
-                                 attn_norm_weight_fp16.size (),
+          ret = command->upload ((const float *)attn_norm_weight.weights_data,
+                                 attn_norm_weight.num_weights,
                                  vk_attn_norm_weight);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          std::vector<__vkllama_fp16_t> ffn_norm_weight_fp16;
-          p = reinterpret_cast<const float *> (ffn_norm_weight.weights_data);
-          for (size_t i = 0; i < ffn_norm_weight.num_weights; ++i)
-            {
-              ffn_norm_weight_fp16.push_back (
-                  { .u16 = __fp32_to_fp16 (p[i]) });
-            }
-
-          ret = command->upload (ffn_norm_weight_fp16.data (),
-                                 ffn_norm_weight_fp16.size (),
+          ret = command->upload ((const float *)ffn_norm_weight.weights_data,
+                                 ffn_norm_weight.num_weights,
                                  vk_ffn_norm_weight);
           if (!ret.ok ())
             {

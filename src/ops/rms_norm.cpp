@@ -29,7 +29,7 @@ RMSNorm::init () noexcept
           "RMSNorm op: only fp16 dtype is supported.");
     }
 
-  if (weight_.dtype () != dtype_)
+  if (weight_.dtype () != Tensor::FP32)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
           "rms_norm op defined with %d dtype but the dtype of weight is %d",
