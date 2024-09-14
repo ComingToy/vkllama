@@ -153,7 +153,10 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
       auto type = tensor.type;
       auto tensor_size = tensor.bsize;
 
-      if (tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
+      auto skip = name.find ("_norm.weight") != std::string::npos;
+
+      if ((tensor.type == GGUF_TYPE_F16 || tensor.type == GGUF_TYPE_F32)
+          && !skip)
         {
           type = GGUF_TYPE_Q8_0;
 
@@ -173,10 +176,9 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
       fprintf (stderr,
                "append tensor info, name = %s, ndim = %d, dims = [%lu, %lu, "
-               "%lu, %lu, %lu, %lu, %lu, %lu], type = %s, offset = %lu\n",
+               "%lu, %lu], type = %s, offset = %lu\n",
                name.c_str (), (int)tensor.ndim, tensor.dim[0], tensor.dim[1],
-               tensor.dim[2], tensor.dim[3], tensor.dim[4], tensor.dim[5],
-               tensor.dim[6], tensor.dim[7], gguf_get_value_type_name (type),
+               tensor.dim[2], tensor.dim[3], gguf_get_tensor_type_name (type),
                tensor_offset);
 
       tensor_offset += tensor_size;
