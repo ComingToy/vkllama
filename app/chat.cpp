@@ -337,6 +337,7 @@ start_sess (const Params &params, vkllama::Model &model,
               if (is_anti_prompt (sess.output_buf, anti, removed_anti))
                 {
                   is_anti = true;
+                  sess.output_buf.clear ();
                   break;
                 }
             }
