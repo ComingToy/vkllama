@@ -25,6 +25,8 @@ layout (binding = 2) writeonly buffer OutputTensor0
   float16_t output_tensor0[];
 };
 
+#define u8BufToU32(buf, idx) ((uint(buf[idx + 3]) << 24) | (uint(buf[idx + 2]) << 16) | (uint(buf[idx + 1]) << 8) | (uint(buf[idx])))
+
 layout (push_constant) uniform constants
 {
   int C;
@@ -58,14 +60,14 @@ main ()
           continue;
         }
 
-      uint block_offset = g * (gl_SubgroupSize + 2);
+      uint block_offset = g * (gl_SubgroupSize + 4);
 
       // subgroupsize = 32
-      uint bi = block_offset + gl_SubgroupInvocationID.x + 2;
+      uint bi = block_offset + gl_SubgroupInvocationID.x + 4;
 
-      uint16_t u16d = ((uint16_t (input_tensor1[block_offset + 1]) << 8)
-                       | uint16_t (input_tensor1[block_offset]));
-      float d = float (uint16BitsToHalf (u16d));
+      uint u32scale = u8BufToU32 (input_tensor1, block_offset);
+
+      float d = float (uintBitsToFloat (u32scale));
       float a = float (input_tensor0[ai]);
       float b = float (input_tensor1[bi]);
 
