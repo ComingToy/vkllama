@@ -9,6 +9,7 @@ cc_library(
         'float.h',
         'shader_constants.h',
         'common.h',
+        'quants.h',
 	],
     deps = [
 		"//vulkan_rules:vulkan_cc_library",

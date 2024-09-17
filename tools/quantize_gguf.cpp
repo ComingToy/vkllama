@@ -16,6 +16,7 @@ extern "C"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "src/core/float.h"
+#include "src/core/quants.h"
 #include <errno.h>
 #include <map>
 
@@ -56,75 +57,6 @@ read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
               "model weights must be float point type. dtype of tensor %s is "
               "%s\n",
               name.c_str (), gguf_get_tensor_type_name (tensor.type)));
-        }
-    }
-
-  return absl::OkStatus ();
-}
-
-/**
- * @brief quantize float weights to int8.
- *
- * @param src fp32 weight data
- * @param dst q8_0 format block. mem layout [<fp16 scale>, int8 weights...]
- * @param n num of fp32 weights
- * @param block_size
- *
- * @return
- */
-template <typename T>
-absl::Status
-qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
-                        const size_t block_size, const int d_type = 0)
-{
-  const size_t block_counts = (n + block_size - 1) / block_size;
-
-  int8_t *write_dst = dst;
-
-  auto load_fp = [] (const T *src, size_t i) {
-    if constexpr (std::is_same<typename std::remove_const<T>::type,
-                               __vkllama_fp16_t>::value)
-      {
-        return __fp16_to_fp32 (src[i].u16);
-      }
-    else
-      {
-        return src[i];
-      }
-  };
-
-  for (size_t b = 0; b < block_counts; ++b)
-    {
-      size_t start = b * block_size;
-      size_t end = std::min (start + block_size, n);
-
-      float max_abs_val = fabsf (load_fp (src, start));
-
-      for (auto i = start; i < end; ++i)
-        {
-          max_abs_val = std::max (fabsf (load_fp (src, i)), max_abs_val);
-        }
-
-      float scale = max_abs_val / 127.0f;
-      float inverse_scale = scale > 0 ? 127.0f / max_abs_val : .0f;
-
-      if (d_type == 0)
-        {
-          __vkllama_fp16_t scale16 = __fp32_to_fp16 (scale);
-          *((uint16_t *)write_dst) = scale16.u16;
-        }
-      else if (d_type == 1)
-        {
-          *((float *)write_dst) = scale;
-        }
-
-      write_dst += 4;
-
-      for (auto i = start; i < end; ++i)
-        {
-          auto v = roundf (load_fp (src, i) * inverse_scale);
-          *write_dst = (int8_t)v;
-          ++write_dst;
         }
     }
 
@@ -216,13 +148,13 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
       if (tensor.type == GGUF_TYPE_F32)
         {
-          status = qint8_0_quantize_block (
+          status = vkllama::qint8_0_quantize_block (
               (const float *)tensor.weights_data, quantized_weights.data (),
               tensor.num_weights, items_per_block, d_type);
         }
       else
         {
-          status = qint8_0_quantize_block (
+          status = vkllama::qint8_0_quantize_block (
               (const __vkllama_fp16_t *)tensor.weights_data,
               quantized_weights.data (), tensor.num_weights, items_per_block,
               d_type);
