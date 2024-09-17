@@ -21,7 +21,7 @@ extern "C"
 
 ABSL_FLAG (std::string, in, "", "path to input gguf file");
 ABSL_FLAG (std::string, out, "", "path to output gguf file");
-ABSL_FLAG (std::string, type, "", "quantize type. int8_0|int8_1");
+ABSL_FLAG (std::string, type, "", "quantize type. int8_0|int8_1|int8_2");
 
 static absl::Status
 read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
@@ -75,7 +75,7 @@ read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 template <typename T>
 absl::Status
 qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
-                        const size_t block_size)
+                        const size_t block_size, const int d_type = 0)
 {
   const size_t block_counts = (n + block_size - 1) / block_size;
 
@@ -108,9 +108,17 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
       float scale = max_abs_val / 127.0f;
       float inverse_scale = scale > 0 ? 127.0f / max_abs_val : .0f;
 
-      __vkllama_fp16_t scale16 = __fp32_to_fp16 (scale);
-      *((uint16_t *)write_dst) = scale16.u16;
-      write_dst += 2;
+      if (d_type == 0)
+        {
+          __vkllama_fp16_t scale16 = __fp32_to_fp16 (scale);
+          *((uint16_t *)write_dst) = scale16.u16;
+        }
+      else if (d_type == 1)
+        {
+          *((float *)write_dst) = scale;
+        }
+
+      write_dst += 4;
 
       for (auto i = start; i < end; ++i)
         {
@@ -126,7 +134,7 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 absl::Status
 qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
                   std::map<std::string, size_t> &kv_lens,
-                  std::map<std::string, gguf_tensor> &tensors)
+                  std::map<std::string, gguf_tensor> &tensors, int d_type = 0)
 {
 
   for (auto const &[name, key] : meta)
@@ -162,7 +170,7 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
           auto block_counts
               = (tensor.num_weights + items_per_block - 1) / items_per_block;
-          tensor_size = block_counts * (items_per_block + 2);
+          tensor_size = block_counts * (items_per_block + 4);
         }
 
       auto ret = gguf_append_tensor_info (gguf, tensor.name, tensor.namelen,
@@ -202,7 +210,7 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
       auto block_counts
           = (tensor.num_weights + items_per_block - 1) / items_per_block;
       std::vector<int8_t> quantized_weights (block_counts
-                                             * (items_per_block + 2));
+                                             * (items_per_block + 4));
 
       auto status = absl::OkStatus ();
 
@@ -210,13 +218,14 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
         {
           status = qint8_0_quantize_block (
               (const float *)tensor.weights_data, quantized_weights.data (),
-              tensor.num_weights, items_per_block);
+              tensor.num_weights, items_per_block, d_type);
         }
       else
         {
           status = qint8_0_quantize_block (
               (const __vkllama_fp16_t *)tensor.weights_data,
-              quantized_weights.data (), tensor.num_weights, items_per_block);
+              quantized_weights.data (), tensor.num_weights, items_per_block,
+              d_type);
         }
 
       if (!status.ok ())
