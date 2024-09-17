@@ -291,7 +291,7 @@ main (int argc, char *argv[])
           return -1;
         }
 
-      auto s = qint8_0_quantize (gguf_quantized, meta, kv_lens, tensors);
+      auto s = qint8_0_quantize (gguf_quantized, meta, kv_lens, tensors, 1);
       if (!s.ok ())
         {
           std::cerr << "qint8_0_quantize failed: " << s << std::endl;
