@@ -21,7 +21,7 @@ extern "C"
 
 ABSL_FLAG (std::string, in, "", "path to input gguf file");
 ABSL_FLAG (std::string, out, "", "path to output gguf file");
-ABSL_FLAG (std::string, type, "", "quantize type. int8_0|int8_1|int8_2");
+ABSL_FLAG (std::string, type, "", "quantize type. q8_0");
 
 static absl::Status
 read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
@@ -281,7 +281,7 @@ main (int argc, char *argv[])
       return -1;
     }
 
-  if (type == "int8_0")
+  if (type == "q8_0")
     {
       gguf_ctx *gguf_quantized = gguf_create (out.c_str (), GGUF_OVERWRITE);
       if (!gguf_quantized)
@@ -294,7 +294,7 @@ main (int argc, char *argv[])
       auto s = qint8_0_quantize (gguf_quantized, meta, kv_lens, tensors, 1);
       if (!s.ok ())
         {
-          std::cerr << "qint8_0_quantize failed: " << s << std::endl;
+          std::cerr << "q8_0_quantize failed: " << s << std::endl;
           return -1;
         }
     }
