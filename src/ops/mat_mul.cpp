@@ -50,7 +50,6 @@ MatMul::init () noexcept
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
 
-  dev_->support_fp16_arithmetic ();
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
@@ -69,7 +68,7 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_size ();  \
         }                                                                        \
-      if (a_dtype_ == Tensor::FP16 && b_dtype_ == Tensor::Q8_0)                  \
+      else if (a_dtype_ == Tensor::FP16 && b_dtype_ == Tensor::Q8_0)             \
         {                                                                        \
           pcode = __get_matmul_b0_fp16_x_q8_0_comp_spv_code ();                  \
           code_size = __get_matmul_b0_fp16_x_q8_0_comp_spv_size ();              \

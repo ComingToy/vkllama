@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/command.h"
+#include "core/quants.h"
 #include "core/tensor.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 #include "gtest/gtest.h"
@@ -97,10 +98,29 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
 
   random_vec (buf.data (), n, min, max);
 
-  auto ret = command->upload ((tensor_dtype_t *)buf.data (), n, tensor);
-  if (ret != absl::OkStatus ())
+  if (dtype == vkllama::Tensor::Q8_0)
     {
-      return {};
+      std::vector<int8_t> q8_0_buf ((buf.size () / 32) * 36 + 4
+                                    + buf.size () % 32);
+
+      vkllama::qint8_0_quantize_block (buf.data (), q8_0_buf.data (),
+                                       buf.size (), 32, 1);
+      vkllama::qint8_0_dequantize_block (
+          q8_0_buf.data (), (tensor_dtype_t *)buf.data (), buf.size (), 32, 1);
+
+      auto ret = command->upload (q8_0_buf.data (), q8_0_buf.size (), tensor);
+      if (ret != absl::OkStatus ())
+        {
+          return {};
+        }
+    }
+  else
+    {
+      auto ret = command->upload ((tensor_dtype_t *)buf.data (), n, tensor);
+      if (ret != absl::OkStatus ())
+        {
+          return {};
+        }
     }
 
   return std::pair<vkllama::Tensor, std::vector<T> > (tensor, buf);

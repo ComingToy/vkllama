@@ -81,5 +81,56 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 
   return absl::OkStatus ();
 }
+
+template <typename T>
+absl::Status
+qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n,
+                          const size_t block_size, int d_type)
+{
+  auto store_fp = [] (T *buf, size_t i, const float val) {
+    if constexpr (std::is_same<typename std::remove_const<T>::type,
+                               __vkllama_fp16_t>::value)
+      {
+        buf[i] = __fp32_to_fp16 (val);
+      }
+    else
+      {
+        buf[i] = val;
+      }
+  };
+
+  const size_t d_size = d_type ? 4 : 2;
+  const size_t block_counts = (n + block_size - 1) / block_size;
+
+  for (size_t b = 0; b < block_counts; ++b)
+    {
+      const int8_t *block = src + b * (block_size + d_size);
+
+      float d = .0f;
+      if (d_type == 0)
+        {
+          const __vkllama_fp16_t *p
+              = reinterpret_cast<const __vkllama_fp16_t *> (block);
+          d = __fp16_to_fp32 (p->u16);
+        }
+      else
+        {
+          d = *reinterpret_cast<const float *> (block);
+        }
+
+      block += d_size;
+
+      for (size_t i = 0; i < block_size; ++i)
+        {
+          if (b * block_size + i >= n)
+            break;
+
+          float v = block[i] * d;
+          store_fp (dst, b * block_size + i, v);
+        }
+    }
+
+  return absl::OkStatus ();
+}
 }
 #endif
