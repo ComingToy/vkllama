@@ -143,14 +143,20 @@ size_t
 Tensor::bytes () const
 {
   const auto align = dev_->limits ().nonCoherentAtomSize;
-  auto elems = w_ * h_ * c_;
-  auto bytes = elem_bytes () * w_ * h_ * c_;
+
+  const auto dtype_property = get_dtype_property (dtype_);
+  const auto w = (w_ + dtype_property.items_per_block - 1)
+                 / dtype_property.items_per_block
+                 * dtype_property.items_per_block;
+
+  auto elems = w * dtype_property.items_per_block * h_ * c_;
+  auto bytes = elem_bytes () * elems;
 
   if (dtype_ == Q8_0)
     {
-      auto const q8_0_property = get_dtype_property (Q8_0);
-      bytes = (elems + q8_0_property.items_per_block - 1)
-              / q8_0_property.items_per_block * q8_0_property.bytes_per_block;
+      bytes = (elems + dtype_property.items_per_block - 1)
+              / dtype_property.items_per_block
+              * dtype_property.bytes_per_block;
     }
 
   bytes = (bytes + align - 1) / align * align;

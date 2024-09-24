@@ -14,6 +14,7 @@ extern "C"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "src/core/float.h"
 #include "src/core/quants.h"
@@ -23,6 +24,33 @@ extern "C"
 ABSL_FLAG (std::string, in, "", "path to input gguf file");
 ABSL_FLAG (std::string, out, "", "path to output gguf file");
 ABSL_FLAG (std::string, type, "", "quantize type. q8_0");
+
+static absl::StatusOr<std::tuple<size_t, size_t, size_t> >
+get_tensor_shape (const gguf_tensor *tensor)
+{
+  if (tensor->ndim > 3)
+    {
+      return absl::InvalidArgumentError (
+          absl::StrFormat ("%d dims is unsupported.", (int)tensor->ndim));
+    }
+
+  // c, h , w
+  std::tuple<size_t, size_t, size_t> dims;
+
+  switch (tensor->ndim)
+    {
+    case 3:
+      std::get<0> (dims) = tensor->dim[2];
+    case 2:
+      std::get<1> (dims) = tensor->dim[1];
+    case 1:
+      std::get<2> (dims) = tensor->dim[0];
+    default:
+      break;
+    }
+
+  return absl::OkStatus ();
+}
 
 static absl::Status
 read_gguf (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
@@ -96,14 +124,25 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
       auto skip = name.find ("_norm.weight") != std::string::npos;
 
+      auto shape = get_tensor_shape (&tensor);
+      if (!shape.ok ())
+        {
+          return shape.status ();
+        }
+
+      auto [c, h, w] = *shape;
+
       if ((tensor.type == GGUF_TYPE_F16 || tensor.type == GGUF_TYPE_F32)
           && !skip)
         {
           type = GGUF_TYPE_Q8_0;
 
-          auto block_counts
-              = (tensor.num_weights + q8_0_property.items_per_block - 1)
-                / q8_0_property.items_per_block;
+          w = (w + q8_0_property.items_per_block - 1)
+              / q8_0_property.items_per_block * q8_0_property.items_per_block;
+          auto n = w * c * h;
+
+          auto block_counts = n / q8_0_property.items_per_block;
+
           tensor_size = block_counts * q8_0_property.bytes_per_block;
         }
 
@@ -141,9 +180,20 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
           continue;
         }
 
-      auto block_counts
-          = (tensor.num_weights + q8_0_property.items_per_block - 1)
-            / q8_0_property.items_per_block;
+      auto shape = get_tensor_shape (&tensor);
+      if (!shape.ok ())
+        {
+          return shape.status ();
+        }
+
+      auto [c, h, w] = *shape;
+
+      auto aligned_w = (w + q8_0_property.items_per_block - 1)
+                       / q8_0_property.items_per_block
+                       * q8_0_property.items_per_block;
+
+      auto block_counts = (c * h * aligned_w) / q8_0_property.items_per_block;
+
       std::vector<int8_t> quantized_weights (block_counts
                                              * q8_0_property.bytes_per_block);
 
@@ -151,16 +201,16 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
 
       if (tensor.type == GGUF_TYPE_F32)
         {
-          status = vkllama::qint8_0_quantize_block (
+
+          status = vkllama::qint8_0_quantize (
               (const float *)tensor.weights_data, quantized_weights.data (),
-              tensor.num_weights);
+              c * h, w);
         }
       else
         {
-          status = vkllama::qint8_0_quantize_block (
+          status = vkllama::qint8_0_quantize (
               (const __vkllama_fp16_t *)tensor.weights_data,
-              quantized_weights.data (), tensor.num_weights, items_per_block,
-              d_type);
+              quantized_weights.data (), c * h, w);
         }
 
       if (!status.ok ())

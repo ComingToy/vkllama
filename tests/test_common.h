@@ -101,15 +101,20 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
   if (dtype == vkllama::Q8_0)
     {
       const auto q8_0_property = vkllama::get_dtype_property (vkllama::Q8_0);
-      std::vector<int8_t> q8_0_buf (
-          (buf.size () + q8_0_property.items_per_block - 1)
-          / q8_0_property.items_per_block * q8_0_property.bytes_per_block);
+      const auto aligned_w = (w + q8_0_property.items_per_block - 1)
+                             / q8_0_property.items_per_block
+                             * q8_0_property.items_per_block;
 
-      vkllama::qint8_0_quantize_block (buf.data (), q8_0_buf.data (),
-                                       buf.size ());
+      const auto block_count
+          = c * h * aligned_w / q8_0_property.items_per_block;
 
-      vkllama::qint8_0_dequantize_block (
-          q8_0_buf.data (), (tensor_dtype_t *)buf.data (), buf.size ());
+      std::vector<int8_t> q8_0_buf (block_count
+                                    * q8_0_property.bytes_per_block);
+
+      vkllama::qint8_0_quantize (buf.data (), q8_0_buf.data (), c * h, w);
+
+      // vkllama::qint8_0_dequantize (q8_0_buf.data (),
+      //                              (tensor_dtype_t *)buf.data (), c * h, w);
 
       auto ret = command->upload (q8_0_buf.data (), q8_0_buf.size (), tensor);
       if (ret != absl::OkStatus ())

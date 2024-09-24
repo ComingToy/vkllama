@@ -37,7 +37,7 @@ MatMul::init () noexcept
     }
 
   Pipeline::ShaderInfo info
-      = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1 };
+      = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
@@ -53,7 +53,7 @@ MatMul::init () noexcept
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
-      if (a_dtype_ == b_dtype_ && a_dtype_ == FP16                       \
+      if (a_dtype_ == b_dtype_ && a_dtype_ == FP16                               \
           && dev_->support_fp16_arithmetic ())                                   \
         {                                                                        \
           pcode                                                                  \
@@ -61,14 +61,14 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == FP16)             \
+      else if (a_dtype_ == FP16 && b_dtype_ == FP16)                             \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_code ();  \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_size ();  \
         }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0)             \
+      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0)                             \
         {                                                                        \
           pcode = __get_matmul_b0_fp16_x_q8_0_comp_spv_code ();                  \
           code_size = __get_matmul_b0_fp16_x_q8_0_comp_spv_size ();              \
@@ -169,7 +169,7 @@ MatMul::operator() (Tensor a) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = out_w, groupy = (a.height () + 7) / 8, groupz = channels;
+  uint32_t groupx = out_w, groupy = (a.height ()), groupz = channels;
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
       return ret;
@@ -221,7 +221,7 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = out_w, groupy = (a.height () + 7) / 8, groupz = channels;
+  uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
   auto s = pipeline_->set_group (groupx, groupy, groupz);
   if (!s.ok ())
     return s;

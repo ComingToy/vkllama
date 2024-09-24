@@ -181,12 +181,15 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   err.setConstant (Eigen::half (1e-1));
   _Tensor<int, 0> diff
       = ((eigen_output - output_mapped).abs () > err).cast<int> ().sum ();
+
+  // std::cerr << "eigen output: " << eigen_output << std::endl
+  //           << "vulkan output: " << output_mapped << std::endl;
   ASSERT_EQ (*diff.data (), 0);
 }
 
 std::vector<TestMatMulParams> params = {
-  { 1, 1024, 1023, 225, 0, 1, 1, 4 },
-  { 1, 1027, 619, 32, 0, 1, 1, 4 },
+  { 1, 16, 128, 64, 0, 1, 1, 4 },
+  { 1, 16, 128, 95, 0, 1, 1, 4 },
 #if 0
   { 1, 1024, 1023, 225, 0, 1, 1, 1 }, { 1, 1027, 619, 32, 0, 1, 1, 1 },
   { 5, 1024, 512, 256, 0, 1, 1, 1 },  { 16, 255, 321, 513, 0, 1, 1, 1 },

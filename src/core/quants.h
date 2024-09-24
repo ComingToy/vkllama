@@ -42,7 +42,7 @@ extern DTypeProperty get_dtype_property (DType const dtype);
  */
 template <typename T>
 absl::Status
-qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n)
+qint8_0_quantize_row (const T *src, int8_t *dst, const size_t n)
 {
   const auto q8_0_property = get_dtype_property (Q8_0);
   const size_t block_counts = (n + q8_0_property.items_per_block - 1)
@@ -65,12 +65,16 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n)
   for (size_t b = 0; b < block_counts; ++b)
     {
       size_t start = b * q8_0_property.items_per_block;
-      size_t end = std::min (start + q8_0_property.items_per_block, n);
+      size_t end = start + q8_0_property.items_per_block;
 
       float max_abs_val = fabsf (load_fp (src, start));
 
       for (auto i = start; i < end; ++i)
         {
+          if (i >= n)
+            {
+              break;
+            }
           max_abs_val = std::max (fabsf (load_fp (src, i)), max_abs_val);
         }
 
@@ -83,8 +87,15 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n)
 
       for (auto i = start; i < end; ++i)
         {
-          auto v = roundf (load_fp (src, i) * inverse_scale);
-          *write_dst = (int8_t)v;
+          if (i >= n)
+            {
+              *write_dst = int8_t (0);
+            }
+          else
+            {
+              auto v = roundf (load_fp (src, i) * inverse_scale);
+              *write_dst = (int8_t)v;
+            }
           ++write_dst;
         }
     }
@@ -94,7 +105,7 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n)
 
 template <typename T>
 absl::Status
-qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n)
+qint8_0_dequantize_row (const int8_t *src, T *dst, const size_t n)
 {
   auto store_fp = [] (T *buf, size_t i, const float val) {
     if constexpr (std::is_same<typename std::remove_const<T>::type,
@@ -127,9 +138,53 @@ qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n)
             {
               break;
             }
-
           float v = block[i] * d;
           store_fp (dst, offset, v);
+        }
+    }
+
+  return absl::OkStatus ();
+}
+
+template <typename T>
+absl::Status
+qint8_0_quantize (const T *src, int8_t *dst, const size_t h, const size_t w)
+{
+  const auto property = get_dtype_property (Q8_0);
+  const size_t blocks
+      = (w + property.items_per_block - 1) / property.items_per_block;
+
+  const auto row_bytes = blocks * property.bytes_per_block;
+
+  for (size_t i = 0; i < h; ++i)
+    {
+      auto *p = dst + i * row_bytes;
+      auto s = qint8_0_quantize_row (src + i * w, p, w);
+      if (!s.ok ())
+        {
+          return s;
+        }
+    }
+
+  return absl::OkStatus ();
+}
+
+template <typename T>
+absl::Status
+qint8_0_dequantize (const int8_t *src, T *dst, const size_t h, const size_t w)
+{
+  const auto property = get_dtype_property (Q8_0);
+  const size_t blocks
+      = (w + property.items_per_block - 1) / property.items_per_block;
+
+  const auto row_bytes = blocks * property.bytes_per_block;
+  for (size_t i = 0; i < h; ++i)
+    {
+      auto *p = src + i * row_bytes;
+      auto s = qint8_0_dequantize_row (p, dst + i * w, w);
+      if (!s.ok ())
+        {
+          return s;
         }
     }
 
