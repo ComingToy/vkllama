@@ -1,6 +1,7 @@
 #include "tensor.h"
 #include "absl/strings/str_format.h"
 #include "gpu_device.h"
+#include "src/core/quants.h"
 #include "vk_mem_alloc.h"
 #include <atomic>
 #include <cstddef>
@@ -96,9 +97,7 @@ Tensor::elem_bytes () const
 absl::Status
 Tensor::create ()
 {
-  const size_t align = dev_->limits ().nonCoherentAtomSize;
-  auto bytes = elem_bytes () * w_ * h_ * c_;
-  bytes = (bytes + align - 1) / align * align;
+  auto bytes = this->bytes ();
   {
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                       nullptr,
@@ -143,8 +142,17 @@ Tensor::create ()
 size_t
 Tensor::bytes () const
 {
-  auto bytes = elem_bytes () * w_ * h_ * c_;
   const auto align = dev_->limits ().nonCoherentAtomSize;
+  auto elems = w_ * h_ * c_;
+  auto bytes = elem_bytes () * w_ * h_ * c_;
+
+  if (dtype_ == Q8_0)
+    {
+      auto const q8_0_property = get_dtype_property (Q8_0);
+      bytes = (elems + q8_0_property.items_per_block - 1)
+              / q8_0_property.items_per_block * q8_0_property.bytes_per_block;
+    }
+
   bytes = (bytes + align - 1) / align * align;
   return bytes;
 }

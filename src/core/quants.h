@@ -23,13 +23,13 @@ typedef enum : int
   Q8_0, // block-wise quantize
 } DType;
 
-struct vkllama_dtype_property
+struct DTypeProperty
 {
-  const char *name;
   uint32_t items_per_block;
   uint32_t bytes_per_block;
 };
 
+extern DTypeProperty get_dtype_property (DType const dtype);
 /**
  * @brief quantize float weights to int8.
  *
@@ -42,10 +42,11 @@ struct vkllama_dtype_property
  */
 template <typename T>
 absl::Status
-qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
-                        const size_t block_size, const int d_type = 0)
+qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n)
 {
-  const size_t block_counts = (n + block_size - 1) / block_size;
+  const auto q8_0_property = get_dtype_property (Q8_0);
+  const size_t block_counts = (n + q8_0_property.items_per_block - 1)
+                              / q8_0_property.items_per_block;
 
   int8_t *write_dst = dst;
 
@@ -63,8 +64,8 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 
   for (size_t b = 0; b < block_counts; ++b)
     {
-      size_t start = b * block_size;
-      size_t end = std::min (start + block_size, n);
+      size_t start = b * q8_0_property.items_per_block;
+      size_t end = std::min (start + q8_0_property.items_per_block, n);
 
       float max_abs_val = fabsf (load_fp (src, start));
 
@@ -76,15 +77,7 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
       float scale = max_abs_val / 127.0f;
       float inverse_scale = scale > 0 ? 127.0f / max_abs_val : .0f;
 
-      if (d_type == 0)
-        {
-          __vkllama_fp16_t scale16 = __fp32_to_fp16 (scale);
-          *((uint16_t *)write_dst) = scale16.u16;
-        }
-      else if (d_type == 1)
-        {
-          *((float *)write_dst) = scale;
-        }
+      *((float *)write_dst) = scale;
 
       write_dst += 4;
 
@@ -101,8 +94,7 @@ qint8_0_quantize_block (const T *src, int8_t *dst, const size_t n,
 
 template <typename T>
 absl::Status
-qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n,
-                          const size_t block_size, int d_type)
+qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n)
 {
   auto store_fp = [] (T *buf, size_t i, const float val) {
     if constexpr (std::is_same<typename std::remove_const<T>::type,
@@ -116,34 +108,28 @@ qint8_0_dequantize_block (const int8_t *src, T *dst, const size_t n,
       }
   };
 
-  const size_t d_size = d_type ? 4 : 2;
-  const size_t block_counts = (n + block_size - 1) / block_size;
+  auto const q8_0_property = get_dtype_property (Q8_0);
+  const size_t block_counts = (n + q8_0_property.items_per_block - 1)
+                              / q8_0_property.items_per_block;
 
   for (size_t b = 0; b < block_counts; ++b)
     {
-      const int8_t *block = src + b * (block_size + d_size);
+      const int8_t *block = src + b * q8_0_property.bytes_per_block;
 
-      float d = .0f;
-      if (d_type == 0)
-        {
-          const __vkllama_fp16_t *p
-              = reinterpret_cast<const __vkllama_fp16_t *> (block);
-          d = __fp16_to_fp32 (p->u16);
-        }
-      else
-        {
-          d = *reinterpret_cast<const float *> (block);
-        }
+      float d = *reinterpret_cast<const float *> (block);
 
-      block += d_size;
+      block += sizeof (float);
 
-      for (size_t i = 0; i < block_size; ++i)
+      for (size_t i = 0; i < q8_0_property.items_per_block; ++i)
         {
-          if (b * block_size + i >= n)
-            break;
+          auto offset = b * q8_0_property.items_per_block + i;
+          if (offset >= n)
+            {
+              break;
+            }
 
           float v = block[i] * d;
-          store_fp (dst, b * block_size + i, v);
+          store_fp (dst, offset, v);
         }
     }
 

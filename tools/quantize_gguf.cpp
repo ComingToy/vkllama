@@ -82,7 +82,8 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
     }
 
   size_t tensor_offset = 0;
-  constexpr size_t items_per_block = 32;
+  const auto q8_0_property = vkllama::get_dtype_property (vkllama::Q8_0);
+
   std::map<std::string, size_t> offsets;
 
   for (auto &[name, tensor] : tensors)
@@ -101,8 +102,9 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
           type = GGUF_TYPE_Q8_0;
 
           auto block_counts
-              = (tensor.num_weights + items_per_block - 1) / items_per_block;
-          tensor_size = block_counts * (items_per_block + 4);
+              = (tensor.num_weights + q8_0_property.items_per_block - 1)
+                / q8_0_property.items_per_block;
+          tensor_size = block_counts * q8_0_property.bytes_per_block;
         }
 
       auto ret = gguf_append_tensor_info (gguf, tensor.name, tensor.namelen,
@@ -140,9 +142,10 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
         }
 
       auto block_counts
-          = (tensor.num_weights + items_per_block - 1) / items_per_block;
+          = (tensor.num_weights + q8_0_property.items_per_block - 1)
+            / q8_0_property.items_per_block;
       std::vector<int8_t> quantized_weights (block_counts
-                                             * (items_per_block + 4));
+                                             * q8_0_property.bytes_per_block);
 
       auto status = absl::OkStatus ();
 
@@ -150,7 +153,7 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
         {
           status = vkllama::qint8_0_quantize_block (
               (const float *)tensor.weights_data, quantized_weights.data (),
-              tensor.num_weights, items_per_block, d_type);
+              tensor.num_weights);
         }
       else
         {

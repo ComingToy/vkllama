@@ -28,15 +28,14 @@ TEST_P (TestQuants, test_quants)
   std::vector<int8_t> q8_0_buf (((buf.size () + 31) / 32) * 36);
 
   absl::Status ret;
-  ret = qint8_0_quantize_block (buf.data (), q8_0_buf.data (), buf.size (), 32,
-                                1);
+  ret = qint8_0_quantize_block (buf.data (), q8_0_buf.data (), buf.size ());
   ASSERT_TRUE (ret.ok ()) << ret;
 
   std::vector<float> de_q8_0_buf;
   de_q8_0_buf.resize (buf.size ());
 
   ret = vkllama::qint8_0_dequantize_block (
-      q8_0_buf.data (), de_q8_0_buf.data (), de_q8_0_buf.size (), 32, 1);
+      q8_0_buf.data (), de_q8_0_buf.data (), de_q8_0_buf.size ());
 
   ASSERT_TRUE (ret.ok ()) << ret;
 

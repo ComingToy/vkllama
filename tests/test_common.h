@@ -100,13 +100,16 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
 
   if (dtype == vkllama::Q8_0)
     {
-      std::vector<int8_t> q8_0_buf ((buf.size () / 32) * 36 + 4
-                                    + buf.size () % 32);
+      const auto q8_0_property = vkllama::get_dtype_property (vkllama::Q8_0);
+      std::vector<int8_t> q8_0_buf (
+          (buf.size () + q8_0_property.items_per_block - 1)
+          / q8_0_property.items_per_block * q8_0_property.bytes_per_block);
 
       vkllama::qint8_0_quantize_block (buf.data (), q8_0_buf.data (),
-                                       buf.size (), 32, 1);
+                                       buf.size ());
+
       vkllama::qint8_0_dequantize_block (
-          q8_0_buf.data (), (tensor_dtype_t *)buf.data (), buf.size (), 32, 1);
+          q8_0_buf.data (), (tensor_dtype_t *)buf.data (), buf.size ());
 
       auto ret = command->upload (q8_0_buf.data (), q8_0_buf.size (), tensor);
       if (ret != absl::OkStatus ())
