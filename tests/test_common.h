@@ -80,7 +80,7 @@ inline absl::optional<std::pair<vkllama::Tensor, std::vector<T> > >
 random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = T (-1),
                const T max = T (1),
-               const vkllama::Tensor::DType dtype = vkllama::Tensor::FP16)
+               const vkllama::DType dtype = ::vkllama::FP16)
 {
 
   using tensor_dtype_t =
@@ -98,7 +98,7 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
 
   random_vec (buf.data (), n, min, max);
 
-  if (dtype == vkllama::Tensor::Q8_0)
+  if (dtype == vkllama::Q8_0)
     {
       std::vector<int8_t> q8_0_buf ((buf.size () / 32) * 36 + 4
                                     + buf.size () % 32);

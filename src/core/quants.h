@@ -13,6 +13,23 @@
 
 namespace vkllama
 {
+
+typedef enum : int
+{
+  FP32 = 0,
+  FP16,
+  UINT32,
+  INT8,
+  Q8_0, // block-wise quantize
+} DType;
+
+struct vkllama_dtype_property
+{
+  const char *name;
+  uint32_t items_per_block;
+  uint32_t bytes_per_block;
+};
+
 /**
  * @brief quantize float weights to int8.
  *

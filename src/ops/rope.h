@@ -12,7 +12,7 @@ class Rope : public Op
 {
 public:
   Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
-        const Tensor::DType dtype = Tensor::FP16);
+        const Tensor::DType dtype = FP16);
 
   absl::StatusOr<Tensor> operator() (Tensor query,
                                      const size_t offset = 0) noexcept;

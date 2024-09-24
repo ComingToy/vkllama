@@ -4,6 +4,7 @@
 #include "absl/status/status.h"
 #include "gpu_device.h"
 #include "src/core/float.h"
+#include "src/core/quants.h"
 #include <atomic>
 #include <set>
 #include <type_traits>
@@ -14,15 +15,7 @@ namespace vkllama
 class Tensor
 {
 public:
-  typedef enum : int
-  {
-    FP32 = 0,
-    FP16,
-    UINT32,
-    INT8,
-    Q8_0, // block-wise quantize
-  } DType;
-
+  using DType = ::vkllama::DType;
   static Tensor like (Tensor const &);
   Tensor ();
   Tensor (const int c, const int h, const int w, GPUDevice *dev,

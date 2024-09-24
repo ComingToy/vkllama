@@ -206,7 +206,7 @@ public:
     Tensor staging (1, 1,
                     from.channels () * from.height () * from.width ()
                         * from.elem_bytes (),
-                    dev_, Tensor::INT8, true);
+                    dev_, INT8, true);
 
     auto ret = staging.create ();
     if (!ret.ok ())

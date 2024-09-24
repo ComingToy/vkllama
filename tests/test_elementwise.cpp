@@ -61,7 +61,7 @@ TEST_P (TestElementwise, test_elementwise)
   auto alpha = Eigen::half (random_number (-2.0f, 2.0f));
 
   ElementWise elementwise_op (gpu_, command_, params.op_type,
-                              params.dtype == 0 ? Tensor::FP32 : Tensor::FP16);
+                              params.dtype == 0 ? ::vkllama::FP32 : ::vkllama::FP16);
   ASSERT_EQ (elementwise_op.init (), absl::OkStatus ())
       << "failed at init elementwise op";
 

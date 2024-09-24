@@ -11,7 +11,7 @@ class Concat : public Op
 {
 public:
   Concat (GPUDevice *gpu, Command *command, const int num, const int axis,
-          Tensor::DType const dtype = Tensor::FP16);
+          Tensor::DType const dtype = FP16);
   absl::Status init () noexcept override;
   absl::StatusOr<Tensor>
   operator() (std::vector<Tensor> const &inputs) noexcept;

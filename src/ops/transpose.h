@@ -12,7 +12,7 @@ class Transpose : public Op
 public:
   // type 0: axis = [1, 0, 2]
   Transpose (GPUDevice *gpu, Command *command, const int type,
-             Tensor::DType const dtype = Tensor::FP16);
+             Tensor::DType const dtype = FP16);
 
   uint64_t time () noexcept override;
   absl::Status init () noexcept override;

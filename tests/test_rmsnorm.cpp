@@ -29,7 +29,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   auto input0 = random_tensor<Eigen::half> (gpu_, command_, params.C, params.H,
                                             params.W);
   auto input1 = random_tensor<float> (gpu_, command_, 1, 1, params.W, -1.0f,
-                                      1.0f, Tensor::FP32);
+                                      1.0f, ::vkllama::FP32);
 
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);

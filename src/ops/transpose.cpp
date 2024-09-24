@@ -14,7 +14,7 @@ Transpose::Transpose (GPUDevice *gpu, Command *command, const int type,
 absl::Status
 Transpose::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Transpose op: only fp16 is supported.");

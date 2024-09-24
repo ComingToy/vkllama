@@ -19,7 +19,7 @@ Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
 absl::Status
 Rope::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Rope op: only fp16 dtype is supported.");

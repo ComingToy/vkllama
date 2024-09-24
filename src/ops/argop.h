@@ -13,8 +13,7 @@ namespace vkllama
 template <int op_type> class ArgOp : public Op
 {
 public:
-  ArgOp (GPUDevice *gpu, Command *command,
-         const Tensor::DType dtype = Tensor::FP16)
+  ArgOp (GPUDevice *gpu, Command *command, const Tensor::DType dtype = FP16)
       : Op (gpu, command), dtype_ (dtype)
   {
   }
@@ -25,7 +24,7 @@ public:
     Pipeline::ShaderInfo info0 = { 1, 2, sizeof (uint32_t) * 3, 32, 4, 1 };
     Pipeline::ShaderInfo info1 = { 1, 2, sizeof (uint32_t) * 3, 1, 128, 1 };
 
-    if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
+    if (dtype_ == FP16 && !dev_->support_16bit_storage ())
       {
         return absl::InvalidArgumentError (
             "fp16 dtype is unsupported on device");
@@ -35,14 +34,14 @@ public:
     size_t spv_size0 = 0;
     const uint8_t *spv_code1 = nullptr;
     size_t spv_size1 = 0;
-    if (dtype_ == Tensor::FP16 && dev_->support_fp16_arithmetic ())
+    if (dtype_ == FP16 && dev_->support_fp16_arithmetic ())
       {
         spv_code0 = __get_argmax_stage0_fp16a_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_fp16a_comp_spv_size ();
         spv_code1 = __get_argmax_stage1_fp16a_comp_spv_code ();
         spv_size1 = __get_argmax_stage1_fp16a_comp_spv_size ();
       }
-    else if (dtype_ == Tensor::FP16)
+    else if (dtype_ == FP16)
       {
         spv_code0 = __get_argmax_stage0_fp16_comp_spv_code ();
         spv_size0 = __get_argmax_stage0_fp16_comp_spv_size ();
@@ -80,7 +79,7 @@ public:
                              int (dtype_), int (in.dtype ())));
       }
 
-    Tensor out (in.channels (), in.height (), 1, dev_, Tensor::UINT32);
+    Tensor out (in.channels (), in.height (), 1, dev_, UINT32);
     auto ret = out.create ();
     if (!ret.ok ())
       {

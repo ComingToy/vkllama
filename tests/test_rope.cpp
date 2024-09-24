@@ -81,7 +81,7 @@ TEST_P (TestRope, test_rope)
                                                  params.H, params.W);
 
   ASSERT_TRUE (input_query);
-  Rope rope_op (dev_, command_, params.MAXLEN, params.W, Tensor::FP16);
+  Rope rope_op (dev_, command_, params.MAXLEN, params.W, ::vkllama::FP16);
 
   ASSERT_EQ (rope_op.init (), absl::OkStatus ());
 

@@ -15,12 +15,12 @@ Embedding::Embedding (GPUDevice *dev, Command *command, Tensor vocab,
 absl::Status
 Embedding::init () noexcept
 {
-  if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
+  if (dtype_ == FP16 && !dev_->support_16bit_storage ())
     {
       return absl::InvalidArgumentError ("fp16 is unsupported on device.");
     }
 
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Embedding op: only fp16 is supported.");
@@ -49,7 +49,7 @@ Embedding::operator() (Tensor indices) noexcept
     {
     }
 
-  if (indices.dtype () != Tensor::UINT32 || vocab_.dtype () != dtype_)
+  if (indices.dtype () != UINT32 || vocab_.dtype () != dtype_)
     {
     }
 

@@ -15,12 +15,12 @@ Cast::init () noexcept
 {
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
-  if (from_ == Tensor::FP32 && to_ == Tensor::FP16)
+  if (from_ == FP32 && to_ == FP16)
     {
       spv_code = __get_cast_fp32_to_fp16_comp_spv_code ();
       spv_size = __get_cast_fp32_to_fp16_comp_spv_size ();
     }
-  else if (from_ == Tensor::FP16 && to_ == Tensor::FP32)
+  else if (from_ == FP16 && to_ == FP32)
     {
       spv_code = __get_cast_fp16_to_fp32_comp_spv_code ();
       spv_size = __get_cast_fp16_to_fp32_comp_spv_size ();

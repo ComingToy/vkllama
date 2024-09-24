@@ -21,7 +21,7 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num,
 absl::Status
 Concat::init () noexcept
 {
-  if (axis_ > 2 || (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ()))
+  if (axis_ > 2 || (dtype_ == FP16 && !dev_->support_16bit_storage ()))
     {
       return absl::InvalidArgumentError (
           "fp16 dtype is unsupported on device");
@@ -30,7 +30,7 @@ Concat::init () noexcept
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
 
-  if (dtype_ == Tensor::FP16)
+  if (dtype_ == FP16)
     {
       spv_code = __get_concat_fp16_comp_spv_code ();
       spv_size = __get_concat_fp16_comp_spv_size ();

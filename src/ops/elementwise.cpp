@@ -24,7 +24,7 @@ ElementWise::init () noexcept
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
 
-  if (dtype_ == Tensor::FP16 && dev_->support_16bit_storage ())
+  if (dtype_ == FP16 && dev_->support_16bit_storage ())
     {
       spv_code = dev_->support_fp16_arithmetic ()
                      ? __get_element_wise_fp16a_comp_spv_code ()
