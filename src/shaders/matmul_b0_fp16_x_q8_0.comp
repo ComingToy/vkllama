@@ -10,7 +10,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_control_flow_attributes : enable
 
-
 layout (constant_id = 0) const int act = 0;
 layout (constant_id = 1) const int transpose_b = 0; // must be 1
 layout (constant_id = 2) const float scale = 1.0;
@@ -48,33 +47,25 @@ main ()
     }
 
   float sum = .0;
-
   uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
-
-  uint a_base = gid_z * M * K + gid_y * K;
-
   uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
-  uint b_base = gid_z * N * QK + gid_x * QK;
 
-  for (uint g = 0; g < group_counts; g += 1)
+  uint offset_a = gid_z * M * K + gid_y * K;
+  uint offset_b = gid_z * N * QK + gid_x * QK;
+
+  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
     {
-      uint ai = g * gl_SubgroupSize + gl_SubgroupInvocationID.x;
+      uint ai = offset_a + i;
 
-      if (ai >= K)
-        {
-          continue;
-        }
+      uint block_id = i / Q8_0_ITEMS_PER_BLOCK;
+      uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
+      uint bi = block_offset + Q8_0_SCALE_BYTES + i % Q8_0_ITEMS_PER_BLOCK;
 
-      uint block_offset = g * (gl_SubgroupSize + Q8_0_SCALE_BYTES);
-
-      // subgroupsize = 32
-      uint bi = block_offset + gl_SubgroupInvocationID.x + Q8_0_SCALE_BYTES;
-
-      uint u32scale = u8BufToU32 (input_tensor1, b_base + block_offset);
+      uint u32scale = u8BufToU32 (input_tensor1, block_offset);
 
       float d = (uintBitsToFloat (u32scale));
-      float a = float (input_tensor0[a_base + ai]);
-      float b = float (int8_t (input_tensor1[b_base + bi]));
+      float a = float (input_tensor0[ai]);
+      float b = float (int8_t (input_tensor1[bi]));
 
       sum += (a * b * d);
     }
