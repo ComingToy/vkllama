@@ -35,7 +35,7 @@ get_tensor_shape (const gguf_tensor *tensor)
     }
 
   // c, h , w
-  std::tuple<size_t, size_t, size_t> dims;
+  std::tuple<size_t, size_t, size_t> dims = { 1, 1, 1 };
 
   switch (tensor->ndim)
     {
@@ -49,7 +49,7 @@ get_tensor_shape (const gguf_tensor *tensor)
       break;
     }
 
-  return absl::OkStatus ();
+  return dims;
 }
 
 static absl::Status
