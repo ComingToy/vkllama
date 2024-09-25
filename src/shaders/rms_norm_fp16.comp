@@ -1,11 +1,11 @@
 #version 450 core
+#include "common.h"
+
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_control_flow_attributes : enable
 
 // block_size = [subGroupSize, H, C]
-layout (local_size_x_id = 253, local_size_y_id = 254,
-        local_size_z_id = 255) in;
 
 layout (constant_id = 0) const float power = 2.0;
 layout (constant_id = 1) const float eps = .0;

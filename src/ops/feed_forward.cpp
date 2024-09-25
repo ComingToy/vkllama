@@ -15,24 +15,23 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
     : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
 {
-
   gate_op_.reset (new MatMul (dev_, command_, w1_, 1.0, .0, 1, 0,
-                              transposed_weight_, dtype_));
+                              transposed_weight_, FP16, dtype));
   down_op_.reset (new MatMul (dev_, command_, w2_, 1.0, .0, 0, 0,
-                              transposed_weight_, dtype_));
+                              transposed_weight_, FP16, dtype_));
   up_op_.reset (new MatMul (dev_, command_, w3_, 1.0, .0, 0, 0,
-                            transposed_weight_, dtype_));
+                            transposed_weight_, FP16, dtype_));
 
-  elemwise_op_.reset (new ElementWise (dev_, command_, 2, dtype_));
+  elemwise_op_.reset (new ElementWise (dev_, command_, 2, FP16));
 }
 
 absl::Status
 FeedForward::init () noexcept
 {
-  if (dtype_ != FP16)
+  if (dtype_ != FP16 && dtype_ != Q8_0)
     {
       return absl::InvalidArgumentError (
-          "FeedForward op: only fp16 is supported.");
+          "FeedForward op: only fp16 and q8_0 are supported.");
     }
 
   if (w1_.dtype () != w2_.dtype () || w2_.dtype () != w3_.dtype ()
@@ -66,11 +65,11 @@ FeedForward::time () noexcept
 absl::StatusOr<Tensor>
 FeedForward::operator() (Tensor X) noexcept
 {
-  if (X.dtype () != dtype_)
+  if (X.dtype () != FP16)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
-          "feed_forward op defined with %d dtype but input X.dtype() = %d",
-          int (dtype_), int (X.dtype ())));
+          "feed_forward op defined with FP16 input but input X.dtype() = %d",
+          int (X.dtype ())));
     }
 
   absl::StatusOr<Tensor> ret;

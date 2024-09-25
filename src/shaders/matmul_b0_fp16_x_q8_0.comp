@@ -62,8 +62,8 @@ main ()
       uint bi = block_offset + Q8_0_SCALE_BYTES + i % Q8_0_ITEMS_PER_BLOCK;
 
       uint u32scale = u8BufToU32 (input_tensor1, block_offset);
-
       float d = (uintBitsToFloat (u32scale));
+
       float a = float (input_tensor0[ai]);
       float b = float (int8_t (input_tensor1[bi]));
 
