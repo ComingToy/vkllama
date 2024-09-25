@@ -29,7 +29,6 @@ layout (binding = 2) writeonly buffer OutputTensor0
   float16_t output_tensor0[];
 };
 
-
 layout (push_constant) uniform constants
 {
   int C;
@@ -52,11 +51,11 @@ main ()
 
   float sum = .0;
 
-  uint group_counts = (K + gl_SubgroupSize - 1) / gl_SubgroupSize;
+  uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
 
   uint a_base = gid_z * M * K + gid_y * K;
 
-  uint QK = group_counts * 36;
+  uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
   uint b_base = gid_z * N * QK + gid_x * QK;
 
   for (uint g = 0; g < group_counts; g += 1)
@@ -68,10 +67,10 @@ main ()
           continue;
         }
 
-      uint block_offset = g * (gl_SubgroupSize + 4);
+      uint block_offset = g * (gl_SubgroupSize + Q8_0_SCALE_BYTES);
 
       // subgroupsize = 32
-      uint bi = block_offset + gl_SubgroupInvocationID.x + 4;
+      uint bi = block_offset + gl_SubgroupInvocationID.x + Q8_0_SCALE_BYTES;
 
       uint u32scale = u8BufToU32 (input_tensor1, b_base + block_offset);
 
