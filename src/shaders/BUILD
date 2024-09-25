@@ -4,6 +4,9 @@ load("//vulkan_rules:shader.bzl", "cc_shader_library")
 glsl_shader(
     name = "vkllama_comp_shaders",
     shaders = glob(["*.comp"]),
+    hdrs = [
+        "common.h"
+    ],
     extra_args = [
         "--target-spv=spv1.3",
     ],

@@ -17,7 +17,12 @@ def _glsl_shader(ctx):
     toolchain = ctx.toolchains['//vulkan_rules:toolchain_type']
     output_spvs = []
 
+
     shaders = ctx.files.shaders
+
+    includes = {}
+    for header in ctx.files.hdrs:
+        includes[header.dirname] = 1
 
     for shader in shaders:
         spv_name = shader.basename + '.spv'
@@ -25,12 +30,15 @@ def _glsl_shader(ctx):
         print('genereate spv file: %s' % spv_name)
         
         args = ctx.actions.args()
+        for d, _ in includes.items():
+            args.add('-I', d)
+
         args.add_all(ctx.attr.extra_args)
         args.add('-o', spv_file.path)
         args.add(shader.path)
 
         ctx.actions.run(
-            inputs = [shader],
+            inputs = [shader] + ctx.files.hdrs,
             outputs = [spv_file],
             arguments = [args],
             executable = toolchain.glslc_executable,
@@ -173,6 +181,7 @@ glsl_shader = rule(
     implementation = _glsl_shader,
     attrs = {
         'shaders': attr.label_list(allow_files=['.comp']),
+        'hdrs': attr.label_list(allow_files=['.h']),
         'extra_args': attr.string_list(allow_empty=False),
         'tool': attr.label(executable=True, cfg='exec', allow_files=True),
     },

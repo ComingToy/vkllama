@@ -1,4 +1,7 @@
 #version 450 core
+
+#include "common.h"
+
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_8bit_storage : require
@@ -26,9 +29,6 @@ layout (binding = 2) writeonly buffer OutputTensor0
   float16_t output_tensor0[];
 };
 
-#define u8BufToU32(buf, idx)                                                  \
-  ((uint (buf[idx + 3]) << 24) | (uint (buf[idx + 2]) << 16)                  \
-   | (uint (buf[idx + 1]) << 8) | (uint (buf[idx])))
 
 layout (push_constant) uniform constants
 {
