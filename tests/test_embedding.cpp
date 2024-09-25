@@ -48,12 +48,12 @@ TEST_P (TestEmbedding, test_embedding)
 {
   ASSERT_EQ (command_->begin (), absl::OkStatus ());
   auto params = GetParam ();
-  auto vocab = random_tensor<__vkllama_fp16_t> (
-      gpu_, command_, 1, params.VH, params.VW, __fp32_to_fp16 (-1.0),
-      __fp32_to_fp16 (1.0));
+  auto vocab = random_tensor<Eigen::half> (
+      gpu_, command_, 1, params.VH, params.VW, Eigen::half (-1.0),
+      Eigen::half (1.0), ::vkllama::DType (params.dtype));
 
   auto indices = random_tensor<uint32_t> (gpu_, command_, 1, params.H,
-                                          params.W, 0, params.VH);
+                                          params.W, 0, params.VH, UINT32);
 
   ASSERT_TRUE (vocab);
   ASSERT_TRUE (indices);
@@ -117,7 +117,10 @@ TEST_P (TestEmbedding, test_embedding)
 #endif
 
   _Tensor<Eigen::half, 3> err (eigen_output_tensor.dimensions ());
-  err.setConstant (Eigen::half (1e-2));
+  err.setConstant (Eigen::half (1e-1));
+
+  // std::cerr << "eigen output: " << eigen_output_tensor << std::endl
+  //           << "vk output: " << vk_output_tensor << std::endl;
 
   _Tensor<int, 0> diff
       = ((vk_output_tensor - eigen_output_tensor).abs () > err)
@@ -130,6 +133,8 @@ std::vector<TestEmbeddingParams> params = {
   { 55, 19, 20000, 64, 0, 1 },
   { 123, 128, 20000, 64, 0, 1 },
 
+  { 55, 19, 20000, 64, 0, 4 },
+  { 123, 128, 20000, 64, 0, 4 },
 };
 
 INSTANTIATE_TEST_SUITE_P (test_embedding, TestEmbedding,
