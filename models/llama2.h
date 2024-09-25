@@ -45,8 +45,7 @@ public:
   absl::Status
   init ()
   {
-    embedding_op_.reset (
-        new Embedding (gpu_, command_, vocab_, UNK_, Tensor::FP16));
+    embedding_op_.reset (new Embedding (gpu_, command_, vocab_, UNK_, FP16));
     auto ret = embedding_op_->init ();
     if (!ret.ok ())
       {
@@ -124,19 +123,19 @@ public:
     attn_op_.reset (new MultiHeadAttentionV2 (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
-        transformer_params_.maxlen, transformer_params_.dim, true,
-        Tensor::FP16, true));
+        transformer_params_.maxlen, transformer_params_.dim, true, FP16,
+        true));
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
-        feedforward_params_.w3, true, Tensor::FP16));
+        feedforward_params_.w3, true, FP16));
 
     norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1,
-                                 rmsnorm_params_.eps, Tensor::FP16));
+                                 rmsnorm_params_.eps, FP16));
     norm_op2_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight2,
-                                  feedforward_params_.eps, Tensor::FP16));
-    add_op_.reset (new ElementWise (gpu_, command_, 0, Tensor::FP16));
-    add_op2_.reset (new ElementWise (gpu_, command_, 0, Tensor::FP16));
+                                  feedforward_params_.eps, FP16));
+    add_op_.reset (new ElementWise (gpu_, command_, 0, FP16));
+    add_op2_.reset (new ElementWise (gpu_, command_, 0, FP16));
 
     auto ret = attn_op_->init ();
     if (!ret.ok () || !(ret = feedforward_op_->init ()).ok ()
@@ -224,26 +223,25 @@ public:
   init ()
   {
     matmul_op_.reset (
-        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, Tensor::FP16));
+        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, FP16));
     auto ret = matmul_op_->init ();
     if (!ret.ok ())
       {
         return ret;
       }
 
-    norm_op_.reset (
-        new RMSNorm (gpu_, command_, norm_weight_, 1e-6, Tensor::FP16));
+    norm_op_.reset (new RMSNorm (gpu_, command_, norm_weight_, 1e-6, FP16));
     if (!(ret = norm_op_->init ()).ok ())
       {
         return ret;
       }
 
-    cast_op_.reset (new Cast (gpu_, command_, Tensor::FP16, Tensor::FP32));
+    cast_op_.reset (new Cast (gpu_, command_, FP16, FP32));
     if (!(ret = cast_op_->init ()).ok ())
       {
         return ret;
       }
-    argmax_op_.reset (new ArgMax (gpu_, command_, Tensor::FP16));
+    argmax_op_.reset (new ArgMax (gpu_, command_, FP16));
     return argmax_op_->init ();
   }
 
@@ -353,10 +351,10 @@ public:
       auto norm_weight = tensors["output_norm.weight"];
 
       Tensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
-                           Tensor::FP16);
+                           FP16);
       Tensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
-                              gpu_, Tensor::FP16);
-      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, Tensor::FP32);
+                              gpu_, FP16);
+      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, FP32);
 
       absl::Status ret;
 
@@ -471,10 +469,9 @@ public:
           block_commands_.push_back (command);
 
           Tensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
-                                      Tensor::FP32);
+                                      FP32);
 
-          Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
-                                     Tensor::FP32);
+          Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_, FP32);
 
           absl::Status ret;
 
@@ -504,9 +501,9 @@ public:
           size_t input_dim = attn_k_weight.dim[0];
           size_t head_weight_size = head_dim * input_dim;
 
-          Tensor vkWk (1, head_dim, input_dim, gpu_, Tensor::FP16);
-          Tensor vkWq (1, head_dim, input_dim, gpu_, Tensor::FP16);
-          Tensor vkWv (1, head_dim, input_dim, gpu_, Tensor::FP16);
+          Tensor vkWk (1, head_dim, input_dim, gpu_, FP16);
+          Tensor vkWq (1, head_dim, input_dim, gpu_, FP16);
+          Tensor vkWv (1, head_dim, input_dim, gpu_, FP16);
 
           if (!(ret = vkWk.create ()).ok () || !(ret = vkWq.create ()).ok ()
               || !(ret = vkWv.create ()).ok ())
@@ -542,7 +539,7 @@ public:
             }
 
           Tensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
-                     gpu_, Tensor::FP16);
+                     gpu_, FP16);
           if (!(ret = Wo.create ()).ok ())
             {
               return ret;
@@ -557,13 +554,13 @@ public:
             }
 
           Tensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0], gpu_,
-                       Tensor::FP16);
+                       FP16);
 
           Tensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0], gpu_,
-                       Tensor::FP16);
+                       FP16);
 
           Tensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
-                       Tensor::FP16);
+                       FP16);
 
           if (!(ret = vkw1.create ()).ok () || !(ret = vkw2.create ()).ok ()
               || !(ret = vkw3.create ()).ok ())
@@ -635,7 +632,7 @@ public:
   operator() (std::vector<uint32_t> const &toks, const size_t offset)
   {
     auto t0 = std::chrono::high_resolution_clock::now ();
-    Tensor vktoks (1, 1, toks.size (), gpu_, Tensor::UINT32, true);
+    Tensor vktoks (1, 1, toks.size (), gpu_, UINT32, true);
     if (!vktoks.create ().ok ())
       {
         throw std::runtime_error ("failed at creating vktoks");
