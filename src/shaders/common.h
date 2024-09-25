@@ -5,3 +5,6 @@
 #define Q8_0_ITEMS_PER_BLOCK 32
 #define Q8_0_BYTES_PER_BLOCK 36
 #define Q8_0_SCALE_BYTES 4
+
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;

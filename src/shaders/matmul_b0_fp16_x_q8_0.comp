@@ -10,8 +10,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_control_flow_attributes : enable
 
-layout (local_size_x_id = 253, local_size_y_id = 254,
-        local_size_z_id = 255) in;
 
 layout (constant_id = 0) const int act = 0;
 layout (constant_id = 1) const int transpose_b = 0; // must be 1
