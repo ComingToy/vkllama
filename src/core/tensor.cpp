@@ -149,7 +149,7 @@ Tensor::bytes () const
                  / dtype_property.items_per_block
                  * dtype_property.items_per_block;
 
-  auto elems = w * dtype_property.items_per_block * h_ * c_;
+  auto elems = w * h_ * c_;
   auto bytes = elem_bytes () * elems;
 
   if (dtype_ == Q8_0)

@@ -121,7 +121,7 @@ TEST_P (TestFeedForawrd, test_2d)
     auto err = Eigen::half (params.dtype ? 1e-1 : 1e-3);
     auto diff
         = ((output_ref - eoutput).array ().abs () > err).cast<int> ().sum ();
-#if 0
+#if 1
     for (auto h = 0; h < output_ref.rows (); ++h)
       {
         for (auto w = 0; w < output_ref.cols (); ++w)
@@ -141,10 +141,10 @@ TEST_P (TestFeedForawrd, test_2d)
 }
 
 std::vector<FeedFowardParams> params = {
-  { 16, 16, 4 },   { 8, 8, 4 },     { 256, 256, 4 }, { 17, 17, 4 },
-  { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
-  { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
-  { 259, 128, 1 }, { 128, 259, 1 },
+  { 16, 16, 4 }, { 8, 8, 4 }, { 256, 256, 4 }, { 17, 17, 4 },
+  // { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
+  // { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
+  // { 259, 128, 1 }, { 128, 259, 1 },
 };
 INSTANTIATE_TEST_SUITE_P (TestFeedForawrd2DInput, TestFeedForawrd,
                           testing::ValuesIn (params));

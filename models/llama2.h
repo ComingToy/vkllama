@@ -128,7 +128,7 @@ public:
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
-        feedforward_params_.w3, true, FP16));
+        feedforward_params_.w3, true, feedforward_params_.w1.dtype ()));
 
     norm_op_.reset (new RMSNorm (gpu_, command_, rmsnorm_params_.weight1,
                                  rmsnorm_params_.eps, FP16));
@@ -222,8 +222,8 @@ public:
   absl::Status
   init ()
   {
-    matmul_op_.reset (
-        new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true, FP16));
+    matmul_op_.reset (new MatMul (gpu_, command_, wo_, 1.0, .0, 0, 0, true,
+                                  FP16, wo_.dtype ()));
     auto ret = matmul_op_->init ();
     if (!ret.ok ())
       {

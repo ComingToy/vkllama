@@ -16,7 +16,7 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
       transposed_weight_ (transposed_weight)
 {
   gate_op_.reset (new MatMul (dev_, command_, w1_, 1.0, .0, 1, 0,
-                              transposed_weight_, FP16, dtype));
+                              transposed_weight_, FP16, dtype_));
   down_op_.reset (new MatMul (dev_, command_, w2_, 1.0, .0, 0, 0,
                               transposed_weight_, FP16, dtype_));
   up_op_.reset (new MatMul (dev_, command_, w3_, 1.0, .0, 0, 0,
