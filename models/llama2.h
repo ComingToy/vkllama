@@ -344,6 +344,23 @@ public:
         return ret;
       }
 
+    auto to_dtype = [] (const uint32_t type) {
+      if (type == 0)
+        {
+          return FP32;
+        }
+      if (type == 1)
+        {
+          return FP16;
+        }
+      if (type == 8)
+        {
+          return Q8_0;
+        }
+
+      return INT8;
+    };
+
     // input layer
     {
       auto embeddings = tensors["token_embd.weight"];
@@ -351,10 +368,11 @@ public:
       auto norm_weight = tensors["output_norm.weight"];
 
       Tensor vkembeddings (1, embeddings.dim[1], embeddings.dim[0], gpu_,
-                           FP16);
+                           to_dtype (embeddings.type));
       Tensor vkoutput_weight (1, output_weight.dim[1], output_weight.dim[0],
-                              gpu_, FP16);
-      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_, FP32);
+                              gpu_, to_dtype (output_weight.type));
+      Tensor vknorm_weight (1, 1, norm_weight.dim[0], gpu_,
+                            to_dtype (norm_weight.type));
 
       absl::Status ret;
 
@@ -365,24 +383,23 @@ public:
           return ret;
         }
 
-      ret = input_command_->upload (
-          (__vkllama_fp16_t *)embeddings.weights_data, embeddings.num_weights,
-          vkembeddings);
+      ret = input_command_->upload ((const uint8_t *)embeddings.weights_data,
+                                    embeddings.bsize, vkembeddings);
       if (!ret.ok ())
         {
           return ret;
         }
 
       ret = output_command_->upload (
-          (__vkllama_fp16_t *)output_weight.weights_data,
-          output_weight.num_weights, vkoutput_weight);
+          (const uint8_t *)output_weight.weights_data, output_weight.bsize,
+          vkoutput_weight);
       if (!ret.ok ())
         {
           return ret;
         }
 
-      ret = input_command_->upload ((const float *)norm_weight.weights_data,
-                                    norm_weight.num_weights, vknorm_weight);
+      ret = input_command_->upload ((const uint8_t *)norm_weight.weights_data,
+                                    norm_weight.bsize, vknorm_weight);
       if (!ret.ok ())
         {
           return ret;
@@ -469,9 +486,10 @@ public:
           block_commands_.push_back (command);
 
           Tensor vk_attn_norm_weight (1, 1, attn_norm_weight.dim[0], gpu_,
-                                      FP32);
+                                      to_dtype (attn_norm_weight.type));
 
-          Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_, FP32);
+          Tensor vk_ffn_norm_weight (1, 1, ffn_norm_weight.dim[0], gpu_,
+                                     to_dtype (ffn_norm_weight.type));
 
           absl::Status ret;
 
@@ -481,17 +499,16 @@ public:
               return ret;
             }
 
-          ret = command->upload ((const float *)attn_norm_weight.weights_data,
-                                 attn_norm_weight.num_weights,
-                                 vk_attn_norm_weight);
+          ret = command->upload (
+              (const uint8_t *)attn_norm_weight.weights_data,
+              attn_norm_weight.bsize, vk_attn_norm_weight);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload ((const float *)ffn_norm_weight.weights_data,
-                                 ffn_norm_weight.num_weights,
-                                 vk_ffn_norm_weight);
+          ret = command->upload ((const uint8_t *)ffn_norm_weight.weights_data,
+                                 ffn_norm_weight.bsize, vk_ffn_norm_weight);
           if (!ret.ok ())
             {
               return ret;
@@ -499,11 +516,13 @@ public:
 
           size_t head_dim = attn_k_weight.dim[1];
           size_t input_dim = attn_k_weight.dim[0];
-          size_t head_weight_size = head_dim * input_dim;
 
-          Tensor vkWk (1, head_dim, input_dim, gpu_, FP16);
-          Tensor vkWq (1, head_dim, input_dim, gpu_, FP16);
-          Tensor vkWv (1, head_dim, input_dim, gpu_, FP16);
+          Tensor vkWk (1, head_dim, input_dim, gpu_,
+                       to_dtype (attn_k_weight.type));
+          Tensor vkWq (1, head_dim, input_dim, gpu_,
+                       to_dtype (attn_q_weight.type));
+          Tensor vkWv (1, head_dim, input_dim, gpu_,
+                       to_dtype (attn_v_weight.type));
 
           if (!(ret = vkWk.create ()).ok () || !(ret = vkWq.create ()).ok ()
               || !(ret = vkWv.create ()).ok ())
@@ -511,42 +530,42 @@ public:
               return ret;
             }
 
-          const __vkllama_fp16_t *wk_weight_data
-              = (__vkllama_fp16_t *)attn_k_weight.weights_data;
+          const auto *wk_weight_data
+              = (const uint8_t *)attn_k_weight.weights_data;
 
-          const __vkllama_fp16_t *wq_weight_data
-              = (__vkllama_fp16_t *)attn_q_weight.weights_data;
+          const auto *wq_weight_data
+              = (const uint8_t *)attn_q_weight.weights_data;
 
-          const __vkllama_fp16_t *wv_weight_data
-              = (__vkllama_fp16_t *)attn_v_weight.weights_data;
+          const auto *wv_weight_data
+              = (const uint8_t *)attn_v_weight.weights_data;
 
-          ret = command->upload (wk_weight_data, head_weight_size, vkWk);
+          ret = command->upload (wk_weight_data, attn_k_weight.bsize, vkWk);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (wq_weight_data, head_weight_size, vkWq);
+          ret = command->upload (wq_weight_data, attn_q_weight.bsize, vkWq);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (wv_weight_data, head_weight_size, vkWv);
+          ret = command->upload (wv_weight_data, attn_v_weight.bsize, vkWv);
           if (!ret.ok ())
             {
               return ret;
             }
 
           Tensor Wo (1, attn_output_weight.dim[1], attn_output_weight.dim[0],
-                     gpu_, FP16);
+                     gpu_, to_dtype (attn_output_weight.type));
           if (!(ret = Wo.create ()).ok ())
             {
               return ret;
             }
           ret = command->upload (
-              (__vkllama_fp16_t *)attn_output_weight.weights_data,
-              attn_output_weight.num_weights, Wo);
+              (const uint8_t *)attn_output_weight.weights_data,
+              attn_output_weight.bsize, Wo);
 
           if (!ret.ok ())
             {
@@ -554,13 +573,13 @@ public:
             }
 
           Tensor vkw1 (1, ffn_gate_weight.dim[1], ffn_gate_weight.dim[0], gpu_,
-                       FP16);
+                       to_dtype (ffn_gate_weight.type));
 
           Tensor vkw2 (1, ffn_down_weight.dim[1], ffn_down_weight.dim[0], gpu_,
-                       FP16);
+                       to_dtype (ffn_down_weight.type));
 
           Tensor vkw3 (1, ffn_up_weight.dim[1], ffn_up_weight.dim[0], gpu_,
-                       FP16);
+                       to_dtype (ffn_up_weight.type));
 
           if (!(ret = vkw1.create ()).ok () || !(ret = vkw2.create ()).ok ()
               || !(ret = vkw3.create ()).ok ())
@@ -568,27 +587,24 @@ public:
               return ret;
             }
 
-          ret = command->upload (
-              (__vkllama_fp16_t *)ffn_gate_weight.weights_data,
-              ffn_gate_weight.num_weights, vkw1);
+          ret = command->upload ((const uint8_t *)ffn_gate_weight.weights_data,
+                                 ffn_gate_weight.bsize, vkw1);
 
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (
-              (__vkllama_fp16_t *)ffn_down_weight.weights_data,
-              ffn_down_weight.num_weights, vkw2);
+          ret = command->upload ((const uint8_t *)ffn_down_weight.weights_data,
+                                 ffn_down_weight.bsize, vkw2);
 
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (
-              (__vkllama_fp16_t *)ffn_up_weight.weights_data,
-              ffn_up_weight.num_weights, vkw3);
+          ret = command->upload ((const uint8_t *)ffn_up_weight.weights_data,
+                                 ffn_up_weight.bsize, vkw3);
 
           if (!ret.ok ())
             {

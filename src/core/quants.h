@@ -2,6 +2,7 @@
 #define __VKLLAMA_QUANTS_H__
 
 #include "absl/status/status.h"
+#include "src/core/common.h"
 #include "src/core/float.h"
 #include <algorithm>
 #include <math.h>
@@ -13,15 +14,6 @@
 
 namespace vkllama
 {
-
-typedef enum : int
-{
-  FP32 = 0,
-  FP16,
-  UINT32,
-  INT8,
-  Q8_0, // block-wise quantize
-} DType;
 
 struct DTypeProperty
 {
@@ -159,11 +151,7 @@ qint8_0_quantize (const T *src, int8_t *dst, const size_t h, const size_t w)
   for (size_t i = 0; i < h; ++i)
     {
       auto *p = dst + i * row_bytes;
-      auto s = qint8_0_quantize_row (src + i * w, p, w);
-      if (!s.ok ())
-        {
-          return s;
-        }
+      VKLLAMA_STATUS_OK (qint8_0_quantize_row (src + i * w, p, w));
     }
 
   return absl::OkStatus ();
@@ -181,11 +169,7 @@ qint8_0_dequantize (const int8_t *src, T *dst, const size_t h, const size_t w)
   for (size_t i = 0; i < h; ++i)
     {
       auto *p = src + i * row_bytes;
-      auto s = qint8_0_dequantize_row (p, dst + i * w, w);
-      if (!s.ok ())
-        {
-          return s;
-        }
+      VKLLAMA_STATUS_OK (qint8_0_dequantize_row (p, dst + i * w, w));
     }
 
   return absl::OkStatus ();
