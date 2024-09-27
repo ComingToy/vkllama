@@ -12,6 +12,7 @@ refresh_compile_commands(
         "//src:all": "",
         "//tests:all": "",
         "//app:all": "",
+        "//tools:all": "",
     },
 )
 

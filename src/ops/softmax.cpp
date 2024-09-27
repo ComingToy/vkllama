@@ -20,7 +20,7 @@ Softmax::Softmax (GPUDevice *dev, Command *command, bool seq_mask, float temp,
 absl::Status
 Softmax::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Softmax op: only fp16 dtype is supported");

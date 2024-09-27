@@ -138,3 +138,12 @@ cc_test(
 	],
 )
 
+cc_test(
+    name = "test_quants",
+    srcs = ["test_quants.cpp"],
+    copts = ["-std=c++17"],
+	deps = [
+		":test_common",
+	],
+)
+

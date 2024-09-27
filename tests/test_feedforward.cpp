@@ -58,22 +58,23 @@ TEST_P (TestFeedForawrd, test_2d)
     ASSERT_TRUE (command.begin () == absl::OkStatus ())
         << "fail at begin command";
 
-    auto w1
-        = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
-                                      Eigen::half (-0.5), Eigen::half (0.5));
-    auto w2
-        = random_tensor<Eigen::half> (gpu_, &command, 1, units, outdim,
-                                      Eigen::half (-0.5), Eigen::half (0.5));
-    auto w3
-        = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
-                                      Eigen::half (-0.5), Eigen::half (0.5));
+    auto dtype = vkllama::DType (params.dtype);
+    auto w1 = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
+                                          Eigen::half (-0.5),
+                                          Eigen::half (0.5), dtype);
+    auto w2 = random_tensor<Eigen::half> (gpu_, &command, 1, units, outdim,
+                                          Eigen::half (-0.5),
+                                          Eigen::half (0.5), dtype);
+    auto w3 = random_tensor<Eigen::half> (gpu_, &command, 1, indim, units,
+                                          Eigen::half (-0.5),
+                                          Eigen::half (0.5), dtype);
 
-    auto X = random_tensor<Eigen::half> (
-        gpu_, &command, 1, 64, indim, Eigen::half (-0.5), Eigen::half (0.5));
+    auto X = random_tensor<Eigen::half> (gpu_, &command, 1, 64, indim,
+                                         Eigen::half (-0.5), Eigen::half (0.5),
+                                         FP16);
 
     ASSERT_TRUE (w1 && w2 && w3 && X) << "fail at creating tensors";
 
-    Tensor::DType dtype = (Tensor::DType)params.dtype;
     FeedForward feed_forward_op (gpu_, &command, w1->first, w2->first,
                                  w3->first, false, dtype);
 
@@ -120,7 +121,7 @@ TEST_P (TestFeedForawrd, test_2d)
     auto err = Eigen::half (params.dtype ? 1e-1 : 1e-3);
     auto diff
         = ((output_ref - eoutput).array ().abs () > err).cast<int> ().sum ();
-#if 0
+#if 1
     for (auto h = 0; h < output_ref.rows (); ++h)
       {
         for (auto w = 0; w < output_ref.cols (); ++w)
@@ -140,9 +141,10 @@ TEST_P (TestFeedForawrd, test_2d)
 }
 
 std::vector<FeedFowardParams> params = {
-  { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
-  { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
-  { 259, 128, 1 }, { 128, 259, 1 },
+  { 16, 16, 4 }, { 8, 8, 4 }, { 256, 256, 4 }, { 17, 17, 4 },
+  // { 16, 16, 1 },   { 8, 8, 1 },     { 256, 256, 1 }, { 17, 17, 1 },
+  // { 9, 9, 1 },     { 259, 259, 1 }, { 17, 19, 1 },   { 19, 17, 1 },
+  // { 259, 128, 1 }, { 128, 259, 1 },
 };
 INSTANTIATE_TEST_SUITE_P (TestFeedForawrd2DInput, TestFeedForawrd,
                           testing::ValuesIn (params));

@@ -14,7 +14,8 @@ namespace vkllama
 GPUDevice::GPUDevice (int dev)
     : physicalDev_ (VK_NULL_HANDLE), device_ (VK_NULL_HANDLE), dev_ (dev),
       version_ (0), support_descriptor_templ_update_ (false),
-      support_16bit_storage_ (false), support_shader_fp16_arithmetic_ (false),
+      support_16bit_storage_ (false), support_8bit_storage_ (false),
+      support_shader_fp16_arithmetic_ (false),
       support_shader_int8_arithmetic_ (false)
 {
 }
@@ -272,6 +273,12 @@ GPUDevice::init_device_ ()
         support_16bit_storage_ = true;
       }
 
+    if (supported_exts.count (VK_KHR_8BIT_STORAGE_EXTENSION_NAME) > 0)
+      {
+        devExts.push_back (VK_KHR_8BIT_STORAGE_EXTENSION_NAME);
+        support_8bit_storage_ = true;
+      }
+
     if (supported_exts.count (VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME) > 0)
       {
         devExts.push_back (VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME);
@@ -280,24 +287,34 @@ GPUDevice::init_device_ ()
       }
   }
 
-  VkPhysicalDeviceShaderFloat16Int8Features feat_fp16_int8
+  static VkPhysicalDeviceShaderFloat16Int8Features feat_fp16_int8
       = { .sType
-          = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES };
+          = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES,
+          .pNext = nullptr };
 
-  VkPhysicalDevice16BitStorageFeatures feat_16bit
+  static VkPhysicalDevice16BitStorageFeatures feat_16bit
       = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
           &feat_fp16_int8 };
+
+  static VkPhysicalDevice8BitStorageFeatures feat_8bit_storage
+      = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES,
+          &feat_16bit };
+
+  static VkPhysicalDeviceFeatures2 feats
+      = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &feat_8bit_storage };
+  vkGetPhysicalDeviceFeatures2 (physicalDev_, &feats);
+
   {
-    // extention feats
     if (support_16bit_storage_)
       {
-
-        VkPhysicalDeviceFeatures2 feats
-            = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &feat_16bit };
-
-        vkGetPhysicalDeviceFeatures2 (physicalDev_, &feats);
         support_16bit_storage_ = feat_16bit.storageBuffer16BitAccess
                                  && feat_16bit.storagePushConstant16;
+      }
+
+    if (support_8bit_storage_)
+      {
+        support_8bit_storage_ = feat_8bit_storage.storageBuffer8BitAccess
+                                && feat_8bit_storage.storagePushConstant8;
       }
 
     if (support_shader_fp16_arithmetic_)
@@ -311,17 +328,16 @@ GPUDevice::init_device_ ()
       }
   }
 
-  VkDeviceCreateInfo devCreateInfo
-      = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-          support_16bit_storage_ ? &feat_16bit : nullptr,
-          0,
-          (uint32_t)queueCreateInfos.size (),
-          queueCreateInfos.data (),
-          0,
-          nullptr,
-          (uint32_t)devExts.size (),
-          devExts.data (),
-          &physicalFeats_ };
+  VkDeviceCreateInfo devCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                                       &feat_8bit_storage,
+                                       0,
+                                       (uint32_t)queueCreateInfos.size (),
+                                       queueCreateInfos.data (),
+                                       0,
+                                       nullptr,
+                                       (uint32_t)devExts.size (),
+                                       devExts.data (),
+                                       &physicalFeats_ };
 
   ret = vkCreateDevice (physicalDev_, &devCreateInfo, nullptr, &device_);
   if (ret != VK_SUCCESS)
@@ -361,6 +377,13 @@ GPUDevice::support_16bit_storage () const
 {
   return support_16bit_storage_;
 }
+
+bool
+GPUDevice::support_8bit_storage () const
+{
+  return support_8bit_storage_;
+}
+
 bool
 GPUDevice::support_fp16_arithmetic () const
 {

@@ -12,7 +12,7 @@ Slice::Slice (GPUDevice *gpu, Command *command, Tensor::DType dtype)
 absl::Status
 Slice::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Slice op: only fp16 dtype is supported");

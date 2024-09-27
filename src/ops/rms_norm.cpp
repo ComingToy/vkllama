@@ -23,13 +23,13 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
 absl::Status
 RMSNorm::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "RMSNorm op: only fp16 dtype is supported.");
     }
 
-  if (weight_.dtype () != dtype_)
+  if (weight_.dtype () != FP32)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
           "rms_norm op defined with %d dtype but the dtype of weight is %d",

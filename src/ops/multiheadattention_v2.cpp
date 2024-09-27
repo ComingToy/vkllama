@@ -2,6 +2,7 @@
 #include "src/core/command.h"
 #include "src/core/common.h"
 #include "src/core/gpu_device.h"
+#include "src/core/quants.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/mat_mul.h"
 #include "src/ops/rope.h"
@@ -9,6 +10,8 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <numeric>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -27,19 +30,10 @@ MultiHeadAttentionV2::MultiHeadAttentionV2 (
 absl::Status
 MultiHeadAttentionV2::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "MultiHeadAttentionV2: only fp16 dtype is supported.");
-    }
-
-  if (wk_.dtype () != dtype_ || wq_.dtype () != dtype_
-      || wv_.dtype () != dtype_ || wo_.dtype () != dtype_)
-    {
-      return absl::InvalidArgumentError (absl::StrFormat (
-          "dtype of weights error. wk.dtype = %d, wv.dtype = %d, wq.dtype = "
-          "%d, wo.dtype = %d",
-          wk_.dtype (), wq_.dtype (), wv_.dtype (), wo_.dtype ()));
     }
 
   if (wk_.channels () != wq_.channels () || wk_.height () != wq_.height ()
@@ -56,26 +50,30 @@ MultiHeadAttentionV2::init () noexcept
     }
 
   absl::Status ret;
-  matmul_k_ = std::make_unique<MatMul> (dev_, command_, wk_, 1.0, .0, 0, 0,
-                                        transposed_weight_, dtype_);
-  matmul_q_ = std::make_unique<MatMul> (dev_, command_, wq_, 1.0, .0, 0, 0,
-                                        transposed_weight_, dtype_);
-  matmul_v_ = std::make_unique<MatMul> (dev_, command_, wv_, 1.0, .0, 0, 0,
-                                        transposed_weight_, dtype_);
-  matmul_o_ = std::make_unique<MatMul> (dev_, command_, wo_, 1.0, 0, 0, 0,
-                                        transposed_weight_, dtype_);
+  matmul_k_
+      = std::make_unique<MatMul> (dev_, command_, wk_, 1.0, .0, 0, 0,
+                                  transposed_weight_, FP16, wk_.dtype ());
+  matmul_q_
+      = std::make_unique<MatMul> (dev_, command_, wq_, 1.0, .0, 0, 0,
+                                  transposed_weight_, FP16, wq_.dtype ());
+  matmul_v_
+      = std::make_unique<MatMul> (dev_, command_, wv_, 1.0, .0, 0, 0,
+                                  transposed_weight_, FP16, wv_.dtype ());
+  matmul_o_
+      = std::make_unique<MatMul> (dev_, command_, wo_, 1.0, 0, 0, 0,
+                                  transposed_weight_, FP16, wo_.dtype ());
 
   float attn_score_scale = 1.0f / std::sqrt (static_cast<float> (dim_));
   matmul_qk_ = std::make_unique<MatMul> (dev_, command_, attn_score_scale, 0,
-                                         0, 0, 1, dtype_);
+                                         0, 0, 1, FP16, FP16);
 
   rope_q_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
   rope_k_ = std::make_unique<Rope> (dev_, command_, maxlen_, dim_, dtype_);
   matmul_weighted_
-      = std::make_unique<MatMul> (dev_, command_, 1.0, 0, 0, 0, 0, dtype_);
+      = std::make_unique<MatMul> (dev_, command_, 1.0, 0, 0, 0, 0, FP16, FP16);
 
-  matmul_attn_score_
-      = std::make_unique<MatMul> (dev_, command_, 1.0, .0, 0, 0, true, dtype_);
+  matmul_attn_score_ = std::make_unique<MatMul> (dev_, command_, 1.0, .0, 0, 0,
+                                                 true, FP16, FP16);
 
   softmax_ = std::make_unique<Softmax> (dev_, command_, true, 1.0, dtype_);
   transpose_k_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);

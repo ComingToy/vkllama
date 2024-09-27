@@ -15,22 +15,34 @@ Embedding::Embedding (GPUDevice *dev, Command *command, Tensor vocab,
 absl::Status
 Embedding::init () noexcept
 {
-  if (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ())
+
+  if (dtype_ != FP16 && dtype_ != Q8_0)
+    {
+      return absl::InvalidArgumentError (
+          "Embedding op: only fp16 and q8_0 are supported.");
+    }
+
+  if (dtype_ == FP16 && !dev_->support_16bit_storage ())
     {
       return absl::InvalidArgumentError ("fp16 is unsupported on device.");
     }
 
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ == Q8_0 && !dev_->support_8bit_storage ())
     {
-      return absl::InvalidArgumentError (
-          "Embedding op: only fp16 is supported.");
+      return absl::InvalidArgumentError ("q8_0 is unsupported on device.");
     }
 
-  Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 2, 1 };
   ShaderConstants unk = { UNK_ };
 
   const auto *spv_code = __get_embedding_fp16_comp_spv_code ();
-  const auto spv_size = __get_embedding_fp16_comp_spv_size ();
+  auto spv_size = __get_embedding_fp16_comp_spv_size ();
+
+  if (dtype_ == Q8_0)
+    {
+      spv_code = __get_embedding_q8_0_comp_spv_code ();
+      spv_size = __get_embedding_q8_0_comp_spv_size ();
+    }
 
   pipeline_.reset (new Pipeline (dev_, spv_code, spv_size, unk, info));
   auto ret = pipeline_->init ();
@@ -49,12 +61,12 @@ Embedding::operator() (Tensor indices) noexcept
     {
     }
 
-  if (indices.dtype () != Tensor::UINT32 || vocab_.dtype () != dtype_)
+  if (indices.dtype () != UINT32 || vocab_.dtype () != dtype_)
     {
     }
 
   auto out = Tensor (indices.height (), indices.width (), vocab_.width (),
-                     dev_, vocab_.dtype ());
+                     dev_, FP16);
   auto ret = out.create ();
 
   if (!ret.ok ())
@@ -67,7 +79,7 @@ Embedding::operator() (Tensor indices) noexcept
           (uint32_t)vocab_.height (), (uint32_t)vocab_.width () };
 
   uint32_t group_x = (indices.width () + 15) / 16,
-           group_y = (indices.height () + 15) / 16;
+           group_y = (indices.height () + 1) / 2;
 
   if (!(ret = pipeline_->set_group (group_x, group_y, 1)).ok ())
     {

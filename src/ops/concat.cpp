@@ -21,7 +21,7 @@ Concat::Concat (GPUDevice *gpu, Command *command, const int num,
 absl::Status
 Concat::init () noexcept
 {
-  if (axis_ > 2 || (dtype_ == Tensor::FP16 && !dev_->support_16bit_storage ()))
+  if (axis_ > 2 || (dtype_ == FP16 && !dev_->support_16bit_storage ()))
     {
       return absl::InvalidArgumentError (
           "fp16 dtype is unsupported on device");
@@ -30,7 +30,7 @@ Concat::init () noexcept
   const uint8_t *spv_code = nullptr;
   size_t spv_size = 0;
 
-  if (dtype_ == Tensor::FP16)
+  if (dtype_ == FP16)
     {
       spv_code = __get_concat_fp16_comp_spv_code ();
       spv_size = __get_concat_fp16_comp_spv_size ();
@@ -45,7 +45,7 @@ Concat::init () noexcept
 
   for (int i = 0; i < num_; ++i)
     {
-      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
+      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 2, 1 };
       ShaderConstants specs;
 
       auto pipeline
@@ -169,8 +169,8 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
                                     (uint32_t)w,
                                     offsets[i] };
 
-      uint32_t group_x = (inp.width () + 15) / 16,
-               group_y = (inp.height () + 15) / 16, group_z = inp.channels ();
+      uint32_t group_x = (inp.width () + 1) / 2,
+               group_y = (inp.height () + 1) / 2, group_z = inp.channels ();
       auto ret = pipelines_[i]->set_group (group_x, group_y, group_z);
       if (!ret.ok ())
         {

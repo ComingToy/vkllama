@@ -1,6 +1,7 @@
 #include "tensor.h"
 #include "absl/strings/str_format.h"
 #include "gpu_device.h"
+#include "src/core/quants.h"
 #include "vk_mem_alloc.h"
 #include <atomic>
 #include <cstddef>
@@ -16,7 +17,7 @@ Tensor::Tensor ()
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 Tensor::Tensor (const int c, const int h, const int w, GPUDevice *dev,
-                    const DType dtype, const bool visable)
+                const DType dtype, const bool visable)
     : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
       data_ (VK_NULL_HANDLE), status_ (nullptr)
 {
@@ -83,6 +84,10 @@ Tensor::elem_bytes () const
     {
       return sizeof (uint16_t);
     }
+  else if (dtype_ == INT8 || dtype_ == Q8_0)
+    {
+      return sizeof (int8_t);
+    }
   else
     {
       return 0;
@@ -92,9 +97,7 @@ Tensor::elem_bytes () const
 absl::Status
 Tensor::create ()
 {
-  const size_t align = dev_->limits ().nonCoherentAtomSize;
-  auto bytes = elem_bytes () * w_ * h_ * c_;
-  bytes = (bytes + align - 1) / align * align;
+  auto bytes = this->bytes ();
   {
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                       nullptr,
@@ -139,8 +142,23 @@ Tensor::create ()
 size_t
 Tensor::bytes () const
 {
-  auto bytes = elem_bytes () * w_ * h_ * c_;
   const auto align = dev_->limits ().nonCoherentAtomSize;
+
+  const auto dtype_property = get_dtype_property (dtype_);
+  const auto w = (w_ + dtype_property.items_per_block - 1)
+                 / dtype_property.items_per_block
+                 * dtype_property.items_per_block;
+
+  auto elems = w * h_ * c_;
+  auto bytes = elem_bytes () * elems;
+
+  if (dtype_ == Q8_0)
+    {
+      bytes = (elems + dtype_property.items_per_block - 1)
+              / dtype_property.items_per_block
+              * dtype_property.bytes_per_block;
+    }
+
   bytes = (bytes + align - 1) / align * align;
   return bytes;
 }
@@ -302,7 +320,7 @@ Tensor
 Tensor::like (const Tensor &tensor)
 {
   Tensor tmp (tensor.channels (), tensor.height (), tensor.width (),
-                tensor.dev_, tensor.dtype (), tensor.visable ());
+              tensor.dev_, tensor.dtype (), tensor.visable ());
   return tmp;
 }
 }

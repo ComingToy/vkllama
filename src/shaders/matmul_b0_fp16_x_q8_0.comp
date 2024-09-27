@@ -1,0 +1,80 @@
+#version 450 core
+
+#include "common.h"
+
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : enable
+
+layout (constant_id = 0) const int act = 0;
+layout (constant_id = 1) const int transpose_b = 0; // must be 1
+layout (constant_id = 2) const float scale = 1.0;
+layout (constant_id = 3) const float offset = 0;
+
+layout (binding = 0) readonly buffer InputTensor0
+{
+  float16_t input_tensor0[];
+};
+
+layout (binding = 1) readonly buffer InputTensor1 { uint8_t input_tensor1[]; };
+layout (binding = 2) writeonly buffer OutputTensor0
+{
+  float16_t output_tensor0[];
+};
+
+layout (push_constant) uniform constants
+{
+  int C;
+  int M;
+  int N;
+  int K;
+};
+
+void
+main ()
+{
+  uint gid_x = gl_WorkGroupID.x;
+  uint gid_y = gl_GlobalInvocationID.y;
+  uint gid_z = gl_GlobalInvocationID.z;
+
+  if (gid_x >= N || gid_y >= M || gid_z >= C)
+    {
+      return;
+    }
+
+  float sum = .0;
+  uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
+  uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
+
+  uint offset_a = gid_z * M * K + gid_y * K;
+  uint offset_b = gid_z * N * QK + gid_x * QK;
+
+  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+    {
+      uint ai = offset_a + i;
+
+      uint block_id = i / Q8_0_ITEMS_PER_BLOCK;
+      uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
+      uint bi = block_offset + Q8_0_SCALE_BYTES + i % Q8_0_ITEMS_PER_BLOCK;
+
+      uint u32scale = u8BufToU32 (input_tensor1, block_offset);
+      float d = (uintBitsToFloat (u32scale));
+
+      float a = float (input_tensor0[ai]);
+      float b = float (int8_t (input_tensor1[bi]));
+
+      sum += (a * b * d);
+    }
+
+  float v = subgroupAdd (sum) * scale + offset;
+  v = act == 1 ? v / (1.0 + exp (-v)) : v;
+
+  if (subgroupElect ())
+    {
+      output_tensor0[gid_z * M * N + gid_y * N + gid_x] = float16_t (v);
+    }
+}

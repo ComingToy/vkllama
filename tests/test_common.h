@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/command.h"
+#include "core/quants.h"
 #include "core/tensor.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 #include "gtest/gtest.h"
@@ -78,15 +79,15 @@ template <typename T>
 inline absl::optional<std::pair<vkllama::Tensor, std::vector<T> > >
 random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
                const int h, const int w, const T min = T (-1),
-               const T max = T (1))
+               const T max = T (1),
+               const vkllama::DType dtype = ::vkllama::FP16)
 {
 
   using tensor_dtype_t =
       typename std::conditional<std::is_same<Eigen::half, T>::value,
                                 __vkllama_fp16_t, T>::type;
 
-  vkllama::Tensor tensor (c, h, w, dev,
-                          vkllama::Tensor::to_dtype<tensor_dtype_t> ());
+  vkllama::Tensor tensor (c, h, w, dev, dtype);
   if (tensor.create () != absl::OkStatus ())
     {
       return {};
@@ -97,10 +98,37 @@ random_tensor (vkllama::GPUDevice *dev, vkllama::Command *command, const int c,
 
   random_vec (buf.data (), n, min, max);
 
-  auto ret = command->upload ((tensor_dtype_t *)buf.data (), n, tensor);
-  if (ret != absl::OkStatus ())
+  if (dtype == vkllama::Q8_0)
     {
-      return {};
+      const auto q8_0_property = vkllama::get_dtype_property (vkllama::Q8_0);
+      const auto aligned_w = (w + q8_0_property.items_per_block - 1)
+                             / q8_0_property.items_per_block
+                             * q8_0_property.items_per_block;
+
+      const auto block_count
+          = c * h * aligned_w / q8_0_property.items_per_block;
+
+      std::vector<int8_t> q8_0_buf (block_count
+                                    * q8_0_property.bytes_per_block);
+
+      vkllama::qint8_0_quantize (buf.data (), q8_0_buf.data (), c * h, w);
+
+      // vkllama::qint8_0_dequantize (q8_0_buf.data (),
+      //                              (tensor_dtype_t *)buf.data (), c * h, w);
+
+      auto ret = command->upload (q8_0_buf.data (), q8_0_buf.size (), tensor);
+      if (ret != absl::OkStatus ())
+        {
+          return {};
+        }
+    }
+  else
+    {
+      auto ret = command->upload ((tensor_dtype_t *)buf.data (), n, tensor);
+      if (ret != absl::OkStatus ())
+        {
+          return {};
+        }
     }
 
   return std::pair<vkllama::Tensor, std::vector<T> > (tensor, buf);

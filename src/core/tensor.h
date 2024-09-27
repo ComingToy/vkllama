@@ -4,6 +4,7 @@
 #include "absl/status/status.h"
 #include "gpu_device.h"
 #include "src/core/float.h"
+#include "src/core/quants.h"
 #include <atomic>
 #include <set>
 #include <type_traits>
@@ -14,29 +15,7 @@ namespace vkllama
 class Tensor
 {
 public:
-  typedef enum : int
-  {
-    FP32 = 0,
-    FP16,
-    UINT32
-  } DType;
-
-  template <typename T> DType static to_dtype ()
-  {
-    if (std::is_same<T, float>::value)
-      {
-        return FP32;
-      }
-    else if (std::is_same<T, __vkllama_fp16_t>::value)
-      {
-        return FP16;
-      }
-    else
-      {
-        return UINT32;
-      }
-  }
-
+  using DType = ::vkllama::DType;
   static Tensor like (Tensor const &);
   Tensor ();
   Tensor (const int c, const int h, const int w, GPUDevice *dev,

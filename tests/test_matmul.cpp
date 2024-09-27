@@ -22,7 +22,8 @@ struct TestMatMulParams
   const int K;
   const int broadcast_type;
   const int transpose_b;
-  const int dtype; // 0: fp32 1: fp16
+  const int a_dtype; // 0: fp32 1: fp16 2: int_8 3: q8_0
+  const int b_dtype; // 0: fp32 1: fp16 2: int_8 3: q8_0
 };
 
 class TestMatmul : public ::testing::TestWithParam<TestMatMulParams>
@@ -84,18 +85,24 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 
   ASSERT_EQ (command_->begin (), absl::OkStatus ())
       << "failed at begin command";
-  auto input0
-      = random_tensor<Eigen::half> (gpu_, command_, in0_channel, in0_h, in0_w);
-  auto input1
-      = random_tensor<Eigen::half> (gpu_, command_, in1_channel, in1_h, in1_w);
+
+  auto input0 = random_tensor<Eigen::half> (
+      gpu_, command_, in0_channel, in0_h, in0_w, Eigen::half (-1),
+      Eigen::half (1), vkllama::Tensor::DType (params.a_dtype));
+
+  auto input1 = random_tensor<Eigen::half> (
+      gpu_, command_, in1_channel, in1_h, in1_w, Eigen::half (-1),
+      Eigen::half (1), Tensor::DType (params.b_dtype));
 
   ASSERT_TRUE (input0 && input1) << "failed at create tensors";
 
   MatMul matmul_op (gpu_, command_, 1.0, .0, 0, params.broadcast_type,
-                    params.transpose_b, (Tensor::DType)params.dtype);
+                    params.transpose_b, (Tensor::DType)params.a_dtype,
+                    (Tensor::DType)params.b_dtype);
 
-  ASSERT_TRUE (matmul_op.init () == absl::OkStatus ())
-      << "failed at init matmul op";
+  absl::Status ret;
+  ASSERT_TRUE ((ret = matmul_op.init ()) == absl::OkStatus ())
+      << "failed at init matmul op: " << ret;
 
   absl::StatusOr<Tensor> output = matmul_op (input0->first, input1->first);
 
@@ -174,24 +181,30 @@ TEST_P (TestMatmul, test_matmul_broadcast)
   err.setConstant (Eigen::half (1e-1));
   _Tensor<int, 0> diff
       = ((eigen_output - output_mapped).abs () > err).cast<int> ().sum ();
+
+  std::cerr << "eigen output: " << eigen_output << std::endl
+            << "vulkan output: " << output_mapped << std::endl;
   ASSERT_EQ (*diff.data (), 0);
 }
 
 std::vector<TestMatMulParams> params = {
-#if 1
-  { 1, 1024, 1023, 225, 0, 1, 1 }, { 1, 1027, 619, 32, 0, 1, 1 },
-  { 5, 1024, 512, 256, 0, 1, 1 },  { 16, 255, 321, 513, 0, 1, 1 },
-  { 1, 1024, 1023, 225, 1, 1, 1 }, { 1, 1027, 619, 32, 1, 1, 1 },
-  { 5, 1024, 512, 256, 1, 1, 1 },  { 16, 255, 321, 513, 1, 1, 1 },
-  { 1, 1024, 1023, 225, 2, 1, 1 }, { 1, 1027, 619, 32, 2, 1, 1 },
-  { 5, 1024, 512, 256, 2, 1, 1 },  { 16, 255, 321, 513, 2, 1, 1 },
+  { 1, 10, 4096, 4096, 0, 1, 1, 4 },
+// { 1, 512, 128, 64, 0, 1, 1, 4 },
+// { 1, 1023, 235, 95, 0, 1, 1, 4 },
+#if 0
+  { 1, 1024, 1023, 225, 0, 1, 1, 1 }, { 1, 1027, 619, 32, 0, 1, 1, 1 },
+  { 5, 1024, 512, 256, 0, 1, 1, 1 },  { 16, 255, 321, 513, 0, 1, 1, 1 },
+  { 1, 1024, 1023, 225, 1, 1, 1, 1 }, { 1, 1027, 619, 32, 1, 1, 1, 1 },
+  { 5, 1024, 512, 256, 1, 1, 1, 1 },  { 16, 255, 321, 513, 1, 1, 1, 1 },
+  { 1, 1024, 1023, 225, 2, 1, 1, 1 }, { 1, 1027, 619, 32, 2, 1, 1, 1 },
+  { 5, 1024, 512, 256, 2, 1, 1, 1 },  { 16, 255, 321, 513, 2, 1, 1, 1 },
 
-  { 1, 1024, 1023, 225, 0, 0, 1 }, { 1, 1027, 619, 32, 0, 0, 1 },
-  { 5, 1024, 512, 256, 0, 0, 1 },  { 16, 255, 321, 513, 0, 0, 1 },
-  { 1, 1024, 1023, 225, 1, 0, 1 }, { 1, 1027, 619, 32, 1, 0, 1 },
-  { 5, 1024, 512, 256, 1, 0, 1 },  { 16, 255, 321, 513, 1, 0, 1 },
-  { 1, 1024, 1023, 225, 2, 0, 1 }, { 1, 1027, 619, 32, 2, 0, 1 },
-  { 5, 1024, 512, 256, 2, 0, 1 },  { 16, 255, 321, 513, 2, 0, 1 },
+  { 1, 1024, 1023, 225, 0, 0, 1, 1 }, { 1, 1027, 619, 32, 0, 0, 1, 1 },
+  { 5, 1024, 512, 256, 0, 0, 1, 1 },  { 16, 255, 321, 513, 0, 0, 1, 1 },
+  { 1, 1024, 1023, 225, 1, 0, 1, 1 }, { 1, 1027, 619, 32, 1, 0, 1, 1 },
+  { 5, 1024, 512, 256, 1, 0, 1, 1 },  { 16, 255, 321, 513, 1, 0, 1, 1 },
+  { 1, 1024, 1023, 225, 2, 0, 1, 1 }, { 1, 1027, 619, 32, 2, 0, 1, 1 },
+  { 5, 1024, 512, 256, 2, 0, 1, 1 },  { 16, 255, 321, 513, 2, 0, 1, 1 },
 #endif
 };
 

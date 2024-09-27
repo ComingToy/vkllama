@@ -19,16 +19,16 @@ Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
 absl::Status
 Rope::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Rope op: only fp16 dtype is supported.");
     }
 
   Pipeline::ShaderInfo shader_info_k
-      = { 0, 2, 4 * sizeof (uint32_t), 16, 16, 1 };
+      = { 0, 2, 4 * sizeof (uint32_t), 16, 2, 1 };
   Pipeline::ShaderInfo shader_info_q
-      = { 0, 2, 4 * sizeof (uint32_t), 16, 16, 1 };
+      = { 0, 2, 4 * sizeof (uint32_t), 16, 2, 1 };
 
   const auto *spv_code = __get_rope_fp16_comp_spv_code ();
   const auto spv_size = __get_rope_fp16_comp_spv_size ();
@@ -81,7 +81,7 @@ Rope::operator() (Tensor query, const size_t offset) noexcept
     }
 
   uint32_t groupx = (query.width () / 2 + 15) / 16,
-           groupy = (query.height () + 15) / 16, groupz = query.channels ();
+           groupy = (query.height () + 1) / 2, groupz = query.channels ();
 
   ret = pipeline_q_->set_group (groupx, groupy, groupz);
   if (!ret.ok ())

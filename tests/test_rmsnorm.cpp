@@ -28,7 +28,8 @@ TEST_P (TestRMSNorm, test_rmsnorm)
   auto params = GetParam ();
   auto input0 = random_tensor<Eigen::half> (gpu_, command_, params.C, params.H,
                                             params.W);
-  auto input1 = random_tensor<Eigen::half> (gpu_, command_, 1, 1, params.W);
+  auto input1 = random_tensor<float> (gpu_, command_, 1, 1, params.W, -1.0f,
+                                      1.0f, ::vkllama::FP32);
 
   ASSERT_TRUE (input0);
   ASSERT_TRUE (input1);
@@ -60,7 +61,7 @@ TEST_P (TestRMSNorm, test_rmsnorm)
       (Eigen::Index)input0->first.height (),
       (Eigen::Index)input0->first.width ());
 
-  _Tensor<Eigen::half, 3> input_tensor1 = _TensorMap<Eigen::half, 3> (
+  _Tensor<float, 3> input_tensor1 = _TensorMap<float, 3> (
       input1->second.data (), (Eigen::Index)input1->first.channels (),
       (Eigen::Index)input1->first.height (),
       (Eigen::Index)input1->first.width ());
@@ -74,12 +75,15 @@ TEST_P (TestRMSNorm, test_rmsnorm)
       = { input_tensor0.dimension (0), input_tensor0.dimension (1), 1 };
 
   _Tensor<Eigen::half, 3> eigen_output_tensor
-      = (input_tensor0.pow (Eigen::half (2.0f)).mean (mean_dims)
-         + Eigen::half (1e-3f))
-            .rsqrt ()
-            .reshape (dims)
-            .broadcast (broadcasts)
-        * input_tensor1.broadcast (weight_broadcasts) * input_tensor0;
+      = ((input_tensor0.pow (Eigen::half (2.0f)).mean (mean_dims)
+          + Eigen::half (1e-3f))
+             .rsqrt ()
+             .reshape (dims)
+             .broadcast (broadcasts)
+             .cast<float> ()
+         * input_tensor1.broadcast (weight_broadcasts)
+         * input_tensor0.cast<float> ())
+            .cast<Eigen::half> ();
   // std::cerr << "input tensor: " << input_tensor0 << std::endl
   //           << "vk output tensor: " << vk_output_tensor << std::endl
   //           << "eigen output tensor: " << eigen_output_tensor << std::endl;

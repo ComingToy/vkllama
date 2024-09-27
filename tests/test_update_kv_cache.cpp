@@ -61,7 +61,7 @@ TEST_P (TestUpdateKVCache, test_update_kv_cache)
   auto cache = input0->first;
   auto input = input1->first;
 
-  UpdateKVCache update_op (gpu_, command_, Tensor::FP16);
+  UpdateKVCache update_op (gpu_, command_, ::vkllama::FP16);
   ReadKVCache read_op (gpu_, command_);
 
   ASSERT_EQ (update_op.init (), absl::OkStatus ());

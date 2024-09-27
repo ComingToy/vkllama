@@ -14,13 +14,13 @@ Transpose::Transpose (GPUDevice *gpu, Command *command, const int type,
 absl::Status
 Transpose::init () noexcept
 {
-  if (dtype_ != Tensor::FP16)
+  if (dtype_ != FP16)
     {
       return absl::InvalidArgumentError (
           "Transpose op: only fp16 is supported.");
     }
 
-  Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 4, 4 };
+  Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 2, 2 };
   const auto *spv_code = __get_transpose_type0_fp16_comp_spv_code ();
   auto spv_size = __get_transpose_type0_fp16_comp_spv_size ();
 
@@ -54,8 +54,8 @@ Transpose::operator() (Tensor in) noexcept
       return ret;
     }
 
-  uint32_t group_x = (out.width () + 7) / 8, group_y = (out.height () + 3) / 4,
-           group_z = (out.channels () + 3) / 4;
+  uint32_t group_x = (out.width () + 7) / 8, group_y = (out.height () + 1) / 2,
+           group_z = (out.channels () + 1) / 2;
 
   if (!(ret = pipeline_->set_group (group_x, group_y, group_z)).ok ())
     {
