@@ -159,7 +159,7 @@ main (const int argc, const char *argv[])
 
       auto t2 = std::chrono::high_resolution_clock::now ();
       std::string output_buf;
-      for (int i = 1; i < 8192; ++i)
+      for (int i = 1; i < 1024; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size ());
           if (!output.ok ())
