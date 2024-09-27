@@ -20,15 +20,13 @@ UpdateKVCache::init () noexcept
       return absl::InvalidArgumentError (
           "UpdateKVCache op: only fp16 is supported.");
     }
-  const auto *spv_code = dtype_ == FP32
-                             ? nullptr
-                             : __get_update_kvcache_fp16_comp_spv_code ();
+  const auto *spv_code
+      = dtype_ == FP32 ? nullptr : __get_update_kvcache_fp16_comp_spv_code ();
 
-  size_t spv_size = dtype_ == FP32
-                        ? 0
-                        : __get_update_kvcache_fp16_comp_spv_size ();
+  size_t spv_size
+      = dtype_ == FP32 ? 0 : __get_update_kvcache_fp16_comp_spv_size ();
 
-  Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 2, 1 };
   ShaderConstants specs;
   pipeline_
       = std::make_unique<Pipeline> (dev_, spv_code, spv_size, specs, info);
@@ -57,7 +55,7 @@ UpdateKVCache::operator() (Tensor cache, Tensor key_or_value,
           (uint32_t)cache.width (),           offset };
 
   const uint32_t group_x = (key_or_value.width () + 15) / 16,
-                 group_y = (key_or_value.height () + 15) / 16,
+                 group_y = (key_or_value.height () + 1) / 2,
                  group_z = key_or_value.channels ();
   auto ret = pipeline_->set_group (group_x, group_y, group_z);
   if (!ret.ok ())

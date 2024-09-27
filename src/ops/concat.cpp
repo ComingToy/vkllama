@@ -45,7 +45,7 @@ Concat::init () noexcept
 
   for (int i = 0; i < num_; ++i)
     {
-      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 16, 1 };
+      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 2, 1 };
       ShaderConstants specs;
 
       auto pipeline
@@ -169,8 +169,8 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
                                     (uint32_t)w,
                                     offsets[i] };
 
-      uint32_t group_x = (inp.width () + 15) / 16,
-               group_y = (inp.height () + 15) / 16, group_z = inp.channels ();
+      uint32_t group_x = (inp.width () + 1) / 2,
+               group_y = (inp.height () + 1) / 2, group_z = inp.channels ();
       auto ret = pipelines_[i]->set_group (group_x, group_y, group_z);
       if (!ret.ok ())
         {

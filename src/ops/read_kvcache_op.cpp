@@ -15,7 +15,7 @@ ReadKVCache::init () noexcept
 {
   auto spv = __get_read_kvcache_fp16_comp_spv_code ();
   auto spv_size = __get_read_kvcache_fp16_comp_spv_size ();
-  Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 5, 16, 16, 1 };
+  Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 5, 16, 2, 1 };
 
   pipeline_.reset (new Pipeline (dev_, spv, spv_size, {}, info));
   return pipeline_->init ();
@@ -45,7 +45,7 @@ ReadKVCache::operator() (Tensor cache, uint32_t offset, uint32_t len) noexcept
     }
 
   uint32_t groupx = (key_or_value.width () + 15) / 16;
-  uint32_t groupy = (key_or_value.height () + 15) / 16;
+  uint32_t groupy = (key_or_value.height () + 1) / 2;
   uint32_t groupz = key_or_value.channels ();
 
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())

@@ -14,11 +14,11 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
 absl::Status
 ElementWise::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 128, 1, 1 };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 32, 1, 1 };
 
   uint32_t bytes = sizeof (int) + sizeof (__vkllama_fp16_t) * 2;
 
-  Pipeline::ShaderInfo info1 = { 1, 2, bytes, 128, 1, 1 };
+  Pipeline::ShaderInfo info1 = { 1, 2, bytes, 32, 1, 1 };
   ShaderConstants constants = { type_ };
 
   const uint8_t *spv_code = nullptr;
@@ -91,7 +91,7 @@ ElementWise::operator() (Tensor x, Tensor y) noexcept
       return ret;
     }
 
-  ret = pipeline0_->set_group ((x.size () + 127) / 128, 1, 1);
+  ret = pipeline0_->set_group ((x.size () + 31) / 32, 1, 1);
   if (!ret.ok ())
     {
       return ret;
@@ -125,7 +125,7 @@ ElementWise::operator() (Tensor x, float y) noexcept
       return ret;
     }
 
-  ret = pipeline1_->set_group ((x.size () + 127) / 128, 1, 1);
+  ret = pipeline1_->set_group ((x.size () + 31) / 32, 1, 1);
   if (!ret.ok ())
     {
       return ret;
