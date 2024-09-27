@@ -2,6 +2,7 @@
 #include "src/core/command.h"
 #include "src/core/common.h"
 #include "src/core/gpu_device.h"
+#include "src/core/quants.h"
 #include "src/ops/elementwise.h"
 #include "src/ops/mat_mul.h"
 #include "src/ops/rope.h"
@@ -9,6 +10,8 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <numeric>
+#include <type_traits>
 #include <utility>
 #include <vector>
 

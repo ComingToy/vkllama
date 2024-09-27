@@ -45,7 +45,8 @@ public:
   absl::Status
   init ()
   {
-    embedding_op_.reset (new Embedding (gpu_, command_, vocab_, UNK_, FP16));
+    embedding_op_.reset (
+        new Embedding (gpu_, command_, vocab_, UNK_, vocab_.dtype ()));
     auto ret = embedding_op_->init ();
     if (!ret.ok ())
       {
@@ -152,6 +153,7 @@ public:
   absl::StatusOr<Tensor>
   operator() (Tensor in, const size_t offset)
   {
+
     auto ret = norm_op_->operator() (in);
 
     VKLLAMA_STATUS_OK (ret);
@@ -539,19 +541,19 @@ public:
           const auto *wv_weight_data
               = (const uint8_t *)attn_v_weight.weights_data;
 
-          ret = command->upload (wk_weight_data, attn_k_weight.bsize, vkWk);
+          ret = command->upload (wk_weight_data, vkWk.bytes (), vkWk);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (wq_weight_data, attn_q_weight.bsize, vkWq);
+          ret = command->upload (wq_weight_data, vkWq.bytes (), vkWq);
           if (!ret.ok ())
             {
               return ret;
             }
 
-          ret = command->upload (wv_weight_data, attn_v_weight.bsize, vkWv);
+          ret = command->upload (wv_weight_data, vkWq.bytes (), vkWv);
           if (!ret.ok ())
             {
               return ret;
@@ -671,6 +673,13 @@ public:
       {
         return X.status ();
       }
+
+    auto mean_of_buf = [] (std::vector<__vkllama_fp16_t> const &buf) {
+      auto acc = std::accumulate (
+          buf.cbegin (), buf.cend (), .0f,
+          [] (auto x, auto y) { return x + __fp16_to_fp32 (y.u16); });
+      return acc / buf.size ();
+    };
 
     if (auto ret = input_command_->end (); !ret.ok ())
       {

@@ -113,11 +113,13 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
   const auto q8_0_property = vkllama::get_dtype_property (vkllama::Q8_0);
 
   std::map<std::string, size_t> offsets;
+  std::map<std::string, size_t> sizes;
 
   for (auto &[name, tensor] : tensors)
     {
       tensor_offset
           += gguf_get_alignment_padding (gguf->alignment, tensor_offset);
+      offsets[name] = tensor_offset;
 
       auto type = tensor.type;
       auto tensor_size = tensor.bsize;
@@ -146,6 +148,8 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
           tensor_size = block_counts * q8_0_property.bytes_per_block;
         }
 
+      sizes[name] = tensor_size;
+
       auto ret = gguf_append_tensor_info (gguf, tensor.name, tensor.namelen,
                                           tensor.ndim, tensor.dim, type,
                                           tensor_offset);
@@ -165,12 +169,28 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
       tensor_offset += tensor_size;
     }
 
+  const auto ctx_size
+      = gguf->size + gguf_get_alignment_padding (gguf->alignment, gguf->size);
+
   for (auto &[name, tensor] : tensors)
     {
-      if (tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
+      auto skip = name.find ("_norm.weight") != std::string::npos;
+      if ((tensor.type != GGUF_TYPE_F16 && tensor.type != GGUF_TYPE_F32)
+          || skip)
         {
+          auto output_tensor_offset
+              = gguf->size
+                + gguf_get_alignment_padding (gguf->alignment, gguf->size)
+                - ctx_size;
+          fprintf (
+              stderr,
+              "append tensor %s offset = %zu, tensor size = %zu, which info "
+              "offset "
+              "= %zu, tensor_size = %zu\n",
+              name.c_str (), output_tensor_offset, tensor.bsize, offsets[name],
+              sizes[name]);
           auto ret = gguf_append_tensor_data (gguf, tensor.weights_data,
-                                              tensor.num_weights);
+                                              tensor.bsize);
           if (!ret)
             {
               return absl::InternalError (absl::StrFormat (
@@ -193,9 +213,9 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
                        * q8_0_property.items_per_block;
 
       auto block_counts = (c * h * aligned_w) / q8_0_property.items_per_block;
+      auto tensor_size = block_counts * q8_0_property.bytes_per_block;
 
-      std::vector<int8_t> quantized_weights (block_counts
-                                             * q8_0_property.bytes_per_block);
+      std::vector<int8_t> quantized_weights (tensor_size);
 
       auto status = absl::OkStatus ();
 
@@ -216,6 +236,10 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
       if (!status.ok ())
         return status;
 
+      auto output_tensor_offset
+          = gguf->size
+            + gguf_get_alignment_padding (gguf->alignment, gguf->size)
+            - ctx_size;
       auto ret = gguf_append_tensor_data (
           gguf, (void *)quantized_weights.data (), quantized_weights.size ());
       if (!ret)
@@ -223,6 +247,13 @@ qint8_0_quantize (gguf_ctx *gguf, std::map<std::string, gguf_key> &meta,
           return absl::InternalError (absl::StrFormat (
               "failed to append %s quantized tensor data", name));
         }
+
+      fprintf (stderr,
+               "append tensor %s offset = %zu, tensor size = %zu, which info "
+               "offset "
+               "= %zu, tensor_size = %zu\n",
+               name.c_str (), output_tensor_offset, quantized_weights.size (),
+               offsets[name], sizes[name]);
     }
 
   return absl::OkStatus ();

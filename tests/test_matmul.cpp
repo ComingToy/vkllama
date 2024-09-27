@@ -188,7 +188,7 @@ TEST_P (TestMatmul, test_matmul_broadcast)
 }
 
 std::vector<TestMatMulParams> params = {
-  { 1, 16, 128, 64, 0, 1, 1, 4 },
+  { 1, 10, 4096, 4096, 0, 1, 1, 4 },
 // { 1, 512, 128, 64, 0, 1, 1, 4 },
 // { 1, 1023, 235, 95, 0, 1, 1, 4 },
 #if 0
