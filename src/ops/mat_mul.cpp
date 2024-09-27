@@ -37,7 +37,7 @@ MatMul::init () noexcept
     }
 
   Pipeline::ShaderInfo info
-      = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 8, 1 };
+      = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
 
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
@@ -169,7 +169,7 @@ MatMul::operator() (Tensor a) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = out_w, groupy = (a.height () + 7) / 8, groupz = channels;
+  uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
       return ret;
@@ -221,7 +221,7 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
   ShaderConstants constants
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
-  uint32_t groupx = out_w, groupy = (a.height () + 7) / 8, groupz = channels;
+  uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
   auto s = pipeline_->set_group (groupx, groupy, groupz);
   if (!s.ok ())
     return s;

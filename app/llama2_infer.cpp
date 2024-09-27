@@ -5,6 +5,7 @@
 #include "sentencepiece.pb.h"
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <fcntl.h>
@@ -33,9 +34,11 @@ escape_byte (std::string const &b)
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 3)
+  if (argc != 4)
     {
-      fprintf (stderr, "usage: %s <path to checkpoitns> <prompt>\n", argv[0]);
+      fprintf (stderr,
+               "usage: %s <path to checkpoitns> <predict tokens> <prompt>\n",
+               argv[0]);
       return -1;
     }
 
@@ -95,8 +98,9 @@ main (const int argc, const char *argv[])
         }
     }
 
+  auto pred_tokens = ::atoi (argv[2]);
   std::vector<int> prompt_tmp;
-  std::string buffer = argv[2];
+  std::string buffer = argv[3];
 
   sp.Encode (buffer, &prompt_tmp);
 
@@ -159,7 +163,7 @@ main (const int argc, const char *argv[])
 
       auto t2 = std::chrono::high_resolution_clock::now ();
       std::string output_buf;
-      for (int i = 1; i < 1024; ++i)
+      for (int i = 1; i < pred_tokens; ++i)
         {
           auto output = model ({ (uint32_t)toks.back () }, toks.size ());
           if (!output.ok ())
