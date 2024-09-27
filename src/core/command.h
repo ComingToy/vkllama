@@ -203,10 +203,7 @@ public:
         return absl::OkStatus ();
       }
 
-    Tensor staging (1, 1,
-                    from.channels () * from.height () * from.width ()
-                        * from.elem_bytes (),
-                    dev_, INT8, true);
+    Tensor staging (1, 1, from.bytes (), dev_, INT8, true);
 
     auto ret = staging.create ();
     if (!ret.ok ())
