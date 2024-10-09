@@ -53,21 +53,32 @@ main ()
   uint offset_a = gid_z * M * K + gid_y * K;
   uint offset_b = gid_z * N * QK + gid_x * QK;
 
-  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+  // tile size of K = 8
+  // tile size of row = 8
+  for (uint ti = gl_SubgroupInvocationID.x * 8; ti < K;
+       ti += 8 * gl_SubgroupSize)
     {
-      uint ai = offset_a + i;
 
-      uint block_id = i / Q8_0_ITEMS_PER_BLOCK;
+      uint block_id = ti / Q8_0_ITEMS_PER_BLOCK;
       uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
-      uint bi = block_offset + Q8_0_SCALE_BYTES + i % Q8_0_ITEMS_PER_BLOCK;
 
       uint u32scale = u8BufToU32 (input_tensor1, block_offset);
       float d = (uintBitsToFloat (u32scale));
 
-      float a = float (input_tensor0[ai]);
-      float b = float (int8_t (input_tensor1[bi]));
+      float sum_b = .0;
+      for (uint i = 0; i < 8; ++i)
+        {
+          uint ai = offset_a + ti + i;
+          uint bi = block_offset + Q8_0_SCALE_BYTES
+                    + (ti + i) % Q8_0_ITEMS_PER_BLOCK;
+          if (ti + i >= K)
+            break;
 
-      sum += (a * b * d);
+          float a = float (input_tensor0[ai]);
+          float b = float (int8_t (input_tensor1[bi]));
+          sum_b += (a * b);
+        }
+      sum += sum_b * d;
     }
 
   float v = subgroupAdd (sum) * scale + offset;
