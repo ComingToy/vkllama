@@ -68,7 +68,8 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_size ();  \
         }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0)                             \
+      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && transpose_b_              \
+               && broadcast_type_ == 0)                                          \
         {                                                                        \
           pcode = __get_matmul_b0_fp16_x_q8_0_comp_spv_code ();                  \
           code_size = __get_matmul_b0_fp16_x_q8_0_comp_spv_size ();              \
@@ -170,6 +171,11 @@ MatMul::operator() (Tensor a) noexcept
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      groupx = (out_w + 7) / 8;
+    }
+
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
       return ret;
@@ -222,6 +228,12 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      groupx = (out_w + 7) / 8;
+    }
+
   auto s = pipeline_->set_group (groupx, groupy, groupz);
   if (!s.ok ())
     return s;

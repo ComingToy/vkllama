@@ -37,7 +37,7 @@ layout (push_constant) uniform constants
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x;
+  uint gid_x = gl_WorkGroupID.x * 8;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -46,12 +46,11 @@ main ()
       return;
     }
 
-  float sum = .0;
+  float sums[8] = { .0, .0, .0, .0, .0, .0, .0, .0 };
   uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
   uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
 
   uint offset_a = gid_z * M * K + gid_y * K;
-  uint offset_b = gid_z * N * QK + gid_x * QK;
 
   // tile size of K = 8
   // tile size of row = 8
@@ -60,32 +59,54 @@ main ()
     {
 
       uint block_id = ti / Q8_0_ITEMS_PER_BLOCK;
-      uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
 
-      uint u32scale = u8BufToU32 (input_tensor1, block_offset);
-      float d = (uintBitsToFloat (u32scale));
+      float tmp[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-      float sum_b = .0;
       for (uint i = 0; i < 8; ++i)
         {
           uint ai = offset_a + ti + i;
-          uint bi = block_offset + Q8_0_SCALE_BYTES
-                    + (ti + i) % Q8_0_ITEMS_PER_BLOCK;
-          if (ti + i >= K)
+          tmp[i] = float (input_tensor0[ai]);
+        }
+
+      for (uint r = 0; r < 8; ++r)
+        {
+          if (gid_x + r >= N)
             break;
 
-          float a = float (input_tensor0[ai]);
-          float b = float (int8_t (input_tensor1[bi]));
-          sum_b += (a * b);
+          uint offset_b = gid_z * N * QK + (gid_x + r) * QK;
+          uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
+
+          uint u32scale = u8BufToU32 (input_tensor1, block_offset);
+          float d = (uintBitsToFloat (u32scale));
+
+          float sum_b = .0;
+          for (uint i = 0; i < 8; ++i)
+            {
+              uint bi = block_offset + Q8_0_SCALE_BYTES
+                        + (ti + i) % Q8_0_ITEMS_PER_BLOCK;
+
+              if (ti + i >= K)
+                break;
+
+              float a = tmp[i];
+              float b = float (int8_t (input_tensor1[bi]));
+              sum_b += (a * b);
+            }
+          sums[r] += sum_b * d;
         }
-      sum += sum_b * d;
     }
 
-  float v = subgroupAdd (sum) * scale + offset;
-  v = act == 1 ? v / (1.0 + exp (-v)) : v;
-
-  if (subgroupElect ())
+  for (uint r = 0; r < 8; ++r)
     {
-      output_tensor0[gid_z * M * N + gid_y * N + gid_x] = float16_t (v);
+      if (gid_x + r >= N)
+        break;
+      float v = subgroupAdd (sums[r]) * scale + offset;
+      v = act == 1 ? v / (1.0 + exp (-v)) : v;
+
+      if (subgroupElect ())
+        {
+          output_tensor0[gid_z * M * N + gid_y * N + gid_x + r]
+              = float16_t (v);
+        }
     }
 }
