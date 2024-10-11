@@ -5,6 +5,7 @@
 #include "absl/strings/str_format.h"
 #include "gpu_device.h"
 #include "pipeline.h"
+#include "src/core/common.h"
 #include "tensor.h"
 #include <algorithm>
 #include <cstddef>
@@ -15,6 +16,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -96,6 +98,43 @@ public:
   {
     return upload_bytes (reinterpret_cast<const uint8_t *> (from),
                          n * sizeof (T), to);
+  }
+
+  absl::Status
+  print_tensor_mean (const std::string &msg, Tensor &t)
+  {
+    if (t.dtype () != FP16 && t.dtype () != FP32)
+      {
+        return absl::InvalidArgumentError (
+            "Command::print_tensor_mean: only fp16 and fp32 tensor is "
+            "supported.");
+      }
+
+    auto buf = std::make_shared<std::vector<uint8_t> > (t.bytes ());
+
+    VKLLAMA_STATUS_OK (this->download (t, buf->data (), buf->size ()));
+
+    this->defer ([msg, buf, dtype = t.dtype (), n = t.size ()] () {
+      float acc = .0f;
+      if (dtype == FP32)
+        {
+          auto const *p = reinterpret_cast<const float *> (buf->data ());
+          acc = std::accumulate (p, p + n, .0f);
+        }
+      else
+        {
+          auto const *p
+              = reinterpret_cast<const __vkllama_fp16_t *> (buf->data ());
+          acc = std::accumulate (
+              p, p + n, .0f, [] (const float lhs, const __vkllama_fp16_t rhs) {
+                return lhs + __fp16_to_fp32 (rhs.u16);
+              });
+        }
+
+      fprintf (stderr, "%s: %f\n", msg.c_str (), acc / n);
+      return absl::OkStatus ();
+    });
+    return absl::OkStatus ();
   }
 
   absl::Status
