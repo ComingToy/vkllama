@@ -712,6 +712,9 @@ public:
             return X.status ();
           }
 
+        // std::string msg = absl::StrFormat ("block %d output mean", i);
+        // VKLLAMA_STATUS_OK (command->print_tensor_mean (msg, *X));
+
         tmps.push_back (*X);
 
         if (auto ret = command->end (); !ret.ok ())
