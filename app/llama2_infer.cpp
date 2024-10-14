@@ -199,7 +199,6 @@ main (const int argc, const char *argv[])
               || toks.back () == eot_token_id)
             {
               std::cerr << "[end of text]" << std::endl;
-              break;
             }
 
           if (toks.size () == 4096)

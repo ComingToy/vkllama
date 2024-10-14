@@ -35,7 +35,7 @@ layout (push_constant) uniform constants
 };
 
 #define TILE_X_SIZE 1
-#define TILE_K_SIZE 16
+#define TILE_K_SIZE 1
 
 void
 main ()
