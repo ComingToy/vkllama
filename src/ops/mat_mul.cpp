@@ -5,6 +5,8 @@
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
+#define Q8_0_TILE_X_SIZE 1
+
 namespace vkllama
 {
 MatMul::MatMul (GPUDevice *dev, Command *command, Tensor weight,
@@ -173,7 +175,7 @@ MatMul::operator() (Tensor a) noexcept
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
     {
-      groupx = (out_w + 7) / 8;
+      groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
 
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
@@ -231,7 +233,7 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
 
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
     {
-      groupx = (out_w + 7) / 8;
+      groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
 
   auto s = pipeline_->set_group (groupx, groupy, groupz);

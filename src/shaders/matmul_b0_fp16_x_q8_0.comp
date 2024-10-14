@@ -34,7 +34,8 @@ layout (push_constant) uniform constants
   int K;
 };
 
-#define TILE_X_SIZE 8
+#define TILE_X_SIZE 1
+#define TILE_K_SIZE 16
 
 void
 main ()
@@ -62,15 +63,15 @@ main ()
 
   // tile size of K = 8
   // tile size of row = 8
-  [[unroll]] for (uint ti = gl_SubgroupInvocationID.x * 8; ti < K;
-                  ti += 8 * gl_SubgroupSize)
+  [[unroll]] for (uint ti = gl_SubgroupInvocationID.x * TILE_K_SIZE; ti < K;
+                  ti += TILE_K_SIZE * gl_SubgroupSize)
     {
 
       uint block_id = ti / Q8_0_ITEMS_PER_BLOCK;
 
-      float tmp[TILE_X_SIZE];
+      float tmp[TILE_K_SIZE];
 
-      for (uint i = 0; i < TILE_X_SIZE; ++i)
+      for (uint i = 0; i < TILE_K_SIZE; ++i)
         {
           uint ai = offset_a + ti + i;
           tmp[i] = float (input_tensor0[ai]);
@@ -88,7 +89,7 @@ main ()
           float d = (uintBitsToFloat (u32scale));
 
           float sum_b = .0;
-          for (uint i = 0; i < 8; ++i)
+          for (uint i = 0; i < TILE_K_SIZE; ++i)
             {
               uint bi = block_offset + Q8_0_SCALE_BYTES
                         + (ti + i) % Q8_0_ITEMS_PER_BLOCK;
