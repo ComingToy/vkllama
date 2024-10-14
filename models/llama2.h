@@ -31,9 +31,6 @@ extern "C"{
 #include <unordered_map>
 #include <vector>
 
-#ifndef __VKLLAMA_LOG_COST
-#define __VKLLAMA_LOG_COST 0
-#endif
 namespace vkllama
 {
 class InputLayer

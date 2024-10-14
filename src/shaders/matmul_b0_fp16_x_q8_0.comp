@@ -34,10 +34,12 @@ layout (push_constant) uniform constants
   int K;
 };
 
+#define TILE_X_SIZE 8
+
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x * 8;
+  uint gid_x = gl_WorkGroupID.x * TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -46,7 +48,13 @@ main ()
       return;
     }
 
-  float sums[8] = { .0, .0, .0, .0, .0, .0, .0, .0 };
+  float sums[TILE_X_SIZE];
+
+  [[unroll]] for (uint i = 0; i < TILE_X_SIZE; ++i)
+    {
+      sums[i] = 0;
+    }
+
   uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
   uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
 
@@ -54,21 +62,21 @@ main ()
 
   // tile size of K = 8
   // tile size of row = 8
-  for (uint ti = gl_SubgroupInvocationID.x * 8; ti < K;
-       ti += 8 * gl_SubgroupSize)
+  [[unroll]] for (uint ti = gl_SubgroupInvocationID.x * 8; ti < K;
+                  ti += 8 * gl_SubgroupSize)
     {
 
       uint block_id = ti / Q8_0_ITEMS_PER_BLOCK;
 
-      float tmp[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+      float tmp[TILE_X_SIZE];
 
-      for (uint i = 0; i < 8; ++i)
+      for (uint i = 0; i < TILE_X_SIZE; ++i)
         {
           uint ai = offset_a + ti + i;
           tmp[i] = float (input_tensor0[ai]);
         }
 
-      for (uint r = 0; r < 8; ++r)
+      [[unroll]] for (uint r = 0; r < TILE_X_SIZE; ++r)
         {
           if (gid_x + r >= N)
             break;
@@ -96,7 +104,7 @@ main ()
         }
     }
 
-  for (uint r = 0; r < 8; ++r)
+  [[unroll]] for (uint r = 0; r < TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
         break;

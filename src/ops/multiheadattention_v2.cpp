@@ -300,14 +300,16 @@ MultiHeadAttentionV2::time () noexcept
   auto transpose_head_cost = transpose_heads_->time ();
   auto output_cost = matmul_o_->time ();
 
-  // fprintf (
-  //     stderr,
-  //     "attn time: kqv_cost = %llu, transposed_cost = %llu, kvcache_cost = "
-  //     "%llu, rope_cost = %llu, attn_score_cost = %llu, softmax cost = %llu,
-  //     " "weighted_cost = %llu, transpose head cost = %llu, output cost =
-  //     %llu\n", kqv_cost, transposed_cost, kvcache_cost, rope_cost,
-  //     attn_score_cost, softmax_cost, weighted_cost, transpose_head_cost,
-  //     output_cost);
+#if __VKLLAMA_LOG_COST
+  fprintf (
+      stderr,
+      "attn time: kqv_cost = %llu, transposed_cost = %llu, kvcache_cost = "
+      "%llu, rope_cost = %llu, attn_score_cost = %llu, softmax cost = %llu, "
+      "weighted_cost = %llu, transpose head cost = %llu, output cost = %llu\n",
+      kqv_cost, transposed_cost, kvcache_cost, rope_cost, attn_score_cost,
+      softmax_cost, weighted_cost, transpose_head_cost, output_cost);
+#endif
+
   return kqv_cost + transposed_cost + kvcache_cost + rope_cost
          + attn_score_cost + softmax_cost + weighted_cost + transpose_head_cost
          + output_cost;

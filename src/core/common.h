@@ -8,6 +8,9 @@ namespace vkllama
       return __s;                                                             \
     }
 
+#ifndef __VKLLAMA_LOG_COST
+#define __VKLLAMA_LOG_COST 0
+#endif
 typedef enum : int
 {
   FP32 = 0,
