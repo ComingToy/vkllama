@@ -5,7 +5,9 @@ glsl_shader(
     name = "vkllama_comp_shaders",
     shaders = glob(["*.comp"]),
     hdrs = [
-        "common.h"
+        "common.h",
+        "header.h",
+        "matmul_conf.h",
     ],
     extra_args = [
         "--target-spv=spv1.3",

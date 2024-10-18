@@ -4,8 +4,7 @@
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
-
-#define Q8_0_TILE_X_SIZE 1
+#include "src/shaders/matmul_conf.h"
 
 namespace vkllama
 {

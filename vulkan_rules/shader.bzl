@@ -54,8 +54,9 @@ def _glsl_shader(ctx):
     outputs = [output_cpp, output_header]
     ctx.actions.run(inputs=output_spvs, outputs=outputs, arguments=args, executable=ctx.executable.tool)
 
+    output_headers = [output_header] + ctx.files.hdrs
     srcs = depset(direct = [output_cpp])
-    hdrs = depset(direct = [output_header])
+    hdrs = depset(direct = output_headers)
     return [GlslInfo(srcs=srcs, hdrs=hdrs)]
 
 def _cc_shader_library(ctx):

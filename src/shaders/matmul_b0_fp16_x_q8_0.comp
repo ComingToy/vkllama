@@ -1,6 +1,8 @@
 #version 450 core
 
 #include "common.h"
+#include "header.h"
+#include "matmul_conf.h"
 
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -34,13 +36,10 @@ layout (push_constant) uniform constants
   int K;
 };
 
-#define TILE_X_SIZE 1
-#define TILE_K_SIZE 16
-
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x * TILE_X_SIZE;
+  uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -49,9 +48,9 @@ main ()
       return;
     }
 
-  float sums[TILE_X_SIZE];
+  float sums[Q8_0_TILE_X_SIZE];
 
-  [[unroll]] for (uint i = 0; i < TILE_X_SIZE; ++i)
+  [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
     {
       sums[i] = 0;
     }
@@ -63,21 +62,21 @@ main ()
 
   // tile size of K = 8
   // tile size of row = 8
-  [[unroll]] for (uint ti = gl_SubgroupInvocationID.x * TILE_K_SIZE; ti < K;
-                  ti += TILE_K_SIZE * gl_SubgroupSize)
+  [[unroll]] for (uint ti = gl_SubgroupInvocationID.x * Q8_0_TILE_K_SIZE;
+                  ti < K; ti += Q8_0_TILE_K_SIZE * gl_SubgroupSize)
     {
 
       uint block_id = ti / Q8_0_ITEMS_PER_BLOCK;
 
-      float tmp[TILE_K_SIZE];
+      float tmp[Q8_0_TILE_K_SIZE];
 
-      for (uint i = 0; i < TILE_K_SIZE; ++i)
+      for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
         {
           uint ai = offset_a + ti + i;
           tmp[i] = float (input_tensor0[ai]);
         }
 
-      [[unroll]] for (uint r = 0; r < TILE_X_SIZE; ++r)
+      [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
         {
           if (gid_x + r >= N)
             break;
@@ -89,7 +88,7 @@ main ()
           float d = (uintBitsToFloat (u32scale));
 
           float sum_b = .0;
-          for (uint i = 0; i < TILE_K_SIZE; ++i)
+          for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
             {
               uint bi = block_offset + Q8_0_SCALE_BYTES
                         + (ti + i) % Q8_0_ITEMS_PER_BLOCK;
@@ -105,7 +104,7 @@ main ()
         }
     }
 
-  [[unroll]] for (uint r = 0; r < TILE_X_SIZE; ++r)
+  [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
         break;
