@@ -1,5 +1,5 @@
 #ifndef _VKLLAMA_SHADER_MATMUL_CONF_H_
 #define _VKLLAMA_SHADER_MATMUL_CONF_H_
-#define Q8_0_TILE_X_SIZE 1
-#define Q8_0_TILE_K_SIZE 16 
+#define Q8_0_TILE_X_SIZE 4
+#define Q8_0_TILE_K_SIZE 8
 #endif

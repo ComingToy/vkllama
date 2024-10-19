@@ -3,8 +3,8 @@
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
-#include "src/shaders/vkllama_comp_shaders.h"
 #include "src/shaders/matmul_conf.h"
+#include "src/shaders/vkllama_comp_shaders.h"
 
 namespace vkllama
 {
@@ -39,6 +39,11 @@ MatMul::init () noexcept
 
   Pipeline::ShaderInfo info
       = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
+
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      // info.local_x = 2 * dev_->subgroup_size ();
+    }
 
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
