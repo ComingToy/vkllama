@@ -83,9 +83,11 @@ main ()
           float d = (uintBitsToFloat (u32scale));
 
           float sum_b = .0;
+
+          uint d_offset = block_offset + Q8_0_SCALE_BYTES + il * 8;
           for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
             {
-              uint di = block_offset + Q8_0_SCALE_BYTES + il * 8 + i;
+              uint di = d_offset + i;
 
               // if (bi * Q8_0_ITEMS_PER_BLOCK + il * 8 + i >= K)
               //   break;
