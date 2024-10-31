@@ -16,6 +16,36 @@ Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
 {
 }
 
+static void
+compute_freq (size_t dim, size_t maxlen, std::vector<__vkllama_fp16_t> &freqc,
+              std::vector<__vkllama_fp16_t> &freqs)
+{
+  std::vector<float> freq;
+  std::generate_n (
+      std::back_inserter (freq), dim / 2, [dim, n = 0] () mutable {
+        float f = 1.0f / std::pow (10000.0f, static_cast<float> (n) / dim);
+        n += 2;
+        return f;
+      });
+
+  // [seqlen, headim]
+  freqs.resize (maxlen * dim / 2);
+  freqc.resize (maxlen * dim / 2);
+
+  for (int i = 0; i < maxlen; ++i)
+    {
+      for (int k = 0; k < dim / 2; ++k)
+        {
+          auto f = freq[k] * static_cast<float> (i);
+          auto c = std::cos (f);
+          auto s = std::sin (f);
+          auto pos = i * dim / 2 + k;
+          freqc[pos] = __fp32_to_fp16 (c);
+          freqs[pos] = __fp32_to_fp16 (s);
+        }
+    }
+}
+
 absl::Status
 Rope::init () noexcept
 {
@@ -25,34 +55,58 @@ Rope::init () noexcept
           "Rope op: only fp16 dtype is supported.");
     }
 
-  Pipeline::ShaderInfo shader_info_k
-      = { 0, 2, 4 * sizeof (uint32_t), 16, 2, 1 };
   Pipeline::ShaderInfo shader_info_q
-      = { 0, 2, 4 * sizeof (uint32_t), 16, 2, 1 };
+      = { 0, 4, 4 * sizeof (uint32_t), 16, 2, 1 };
 
   const auto *spv_code = __get_rope_fp16_comp_spv_code ();
   const auto spv_size = __get_rope_fp16_comp_spv_size ();
-
-  pipeline_k_.reset (
-      new Pipeline (dev_, spv_code, spv_size, {}, shader_info_k));
 
   pipeline_q_.reset (
       new Pipeline (dev_, spv_code, spv_size, {}, shader_info_q));
 
   absl::Status ret;
-  if (!(ret = pipeline_k_->init ()).ok ()
-      || !(ret = pipeline_q_->init ()).ok ())
+  if (!(ret = pipeline_q_->init ()).ok ())
     {
       return ret;
     }
 
+  freqc_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP16, false);
+  freqs_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP16, false);
+
+  if (!(ret = freqc_.create ()).ok () || !(ret = freqs_.create ()).ok ())
+    {
+      return ret;
+    }
+
+  std::vector<__vkllama_fp16_t> freqc, freqs;
+  compute_freq (dim_, 2 * maxlen_, freqc, freqs);
+
+  ret = command_->upload ((const uint8_t *)freqc.data (),
+                          freqc.size () * sizeof (__vkllama_fp16_t), freqc_);
+  if (!ret.ok ())
+    {
+      return ret;
+    }
+
+  ret = command_->upload ((const uint8_t *)freqs.data (),
+                          freqs.size () * sizeof (__vkllama_fp16_t), freqs_);
+  if (!ret.ok ())
+    {
+      return ret;
+    }
+
+  ret = pipeline_q_->update_bindings ({ freqc_, freqs_ }, { 2, 3 });
+  if (!ret.ok ())
+    {
+      return ret;
+    }
   return absl::OkStatus ();
 }
 
 uint64_t
 Rope::time () noexcept
 {
-  return std::max (pipeline_k_->time (), pipeline_q_->time ());
+  return pipeline_q_->time ();
 }
 
 absl::StatusOr<Tensor>
@@ -92,7 +146,8 @@ Rope::operator() (Tensor query, const size_t offset) noexcept
   ShaderConstants shape
       = { (uint32_t)query.channels (), (uint32_t)query.height (),
           (uint32_t)query.width (), (uint32_t)offset };
-  ret = command_->record_pipeline (*pipeline_q_, { query, out_query }, shape);
+  ret = command_->record_pipeline (*pipeline_q_, { query, out_query },
+                                   { 0, 1 }, shape);
   if (!ret.ok ())
     {
       return ret;
