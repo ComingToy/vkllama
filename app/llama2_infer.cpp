@@ -72,7 +72,8 @@ main (const int argc, const char *argv[])
     }
 
   sentencepiece::SentencePieceProcessor sp;
-  auto s = load_tokenizer (sp, gguf_kv);
+  auto s = sp.Load ("/home/conley/github/llama2-3b/tokenizer.model");
+  // auto s = load_tokenizer (sp, gguf_kv);
   if (s.code () != sentencepiece::util::StatusCode::kOk)
     {
       fprintf (stderr, "load tokenizer failed: %s\n", s.ToString ().c_str ());
@@ -104,7 +105,7 @@ main (const int argc, const char *argv[])
 
   sp.Encode (buffer, &prompt_tmp);
 
-  std::vector<int> prompt = { sp.bos_id () };
+  std::vector<int> prompt;
   std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
              std::back_inserter (prompt));
 
@@ -126,7 +127,7 @@ main (const int argc, const char *argv[])
 
   fprintf (stderr, "all weights are uploaded to device\n");
 
-  std::unique_ptr<TopkSampler> samplers (new TopkSampler (40));
+  std::unique_ptr<TopkSampler> samplers (new TopkSampler (1));
 
   for (int r = 0; r < 1; ++r)
     {

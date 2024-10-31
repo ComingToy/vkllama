@@ -127,10 +127,20 @@ MultiHeadAttentionV2::init () noexcept
   return absl::OkStatus ();
 }
 
+static bool __enable_debug_log = false;
+
 absl::StatusOr<Tensor>
 MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 {
   absl::Status ret;
+
+  auto print_fn = [this] (auto... args) {
+    if (!__enable_debug_log)
+      return absl::OkStatus ();
+    return command_->print_tensor_mean (args...);
+  };
+
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention input mean: ", X));
 
   if (X.dtype () != dtype_)
     {
@@ -155,6 +165,10 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   auto k = (*matmul_k_) (X);
   auto q = (*matmul_q_) (X);
   auto v = (*matmul_v_) (X);
+
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention k mean: ", *k));
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention q mean: ", *q));
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention v mean: ", *v));
 
   VKLLAMA_STATUS_OK (k);
   VKLLAMA_STATUS_OK (q);
@@ -196,6 +210,13 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   tmp_tensors_.push_back (*transposed_q);
   tmp_tensors_.push_back (*transposed_v);
 
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed k mean: ", *transposed_k));
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed q mean: ", *transposed_q));
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed v mean: ", *transposed_v));
+
   if (use_kvcache_)
     {
       auto &update_kcache_op = *update_kcache_op_;
@@ -226,6 +247,13 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       tmp_tensors_.push_back (*transposed_v);
     }
 
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed k mean: ", *transposed_k));
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed q mean: ", *transposed_q));
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention transposed v mean: ", *transposed_v));
+
   auto roped_q = (*rope_q_) (*transposed_q, offset);
 
   int key_offset
@@ -235,12 +263,17 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   VKLLAMA_STATUS_OK (roped_k);
   VKLLAMA_STATUS_OK (roped_q);
 
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention roped k mean: ", *roped_k));
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention roped q mean: ", *roped_q));
+
   tmp_tensors_.push_back (*roped_k);
   tmp_tensors_.push_back (*roped_q);
 
   // [heads, seqlen, seqlen]
   auto attn_scores = (*matmul_qk_) (*roped_q, *roped_k);
   VKLLAMA_STATUS_OK (attn_scores);
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention attn_scores mean: ", *attn_scores));
 
   tmp_tensors_.push_back (*attn_scores);
 
@@ -249,18 +282,23 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       *attn_scores, attn_scores->width () - attn_scores->height ());
 
   VKLLAMA_STATUS_OK (softmax_attn_scores);
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention softmax_attn_scores mean: ",
+                               *softmax_attn_scores));
 
   tmp_tensors_.push_back (*softmax_attn_scores);
 
   // [heads, seqlen, dim]
   auto heads = (*matmul_weighted_) (*softmax_attn_scores, *transposed_v);
   VKLLAMA_STATUS_OK (heads);
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention heads mean: ", *heads));
 
   tmp_tensors_.push_back (*heads);
 
   //[seqlen, heads, dim]
   auto concated = (*transpose_heads_) (*heads);
   VKLLAMA_STATUS_OK (concated);
+  VKLLAMA_STATUS_OK (
+      print_fn ("multiheadattention concated heads mean: ", *concated));
 
   //[1, seqlen, heads*dim]
   ret = concated->reshape (1, concated->channels (),
@@ -271,7 +309,9 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 
   auto out = (*matmul_o_) (*concated);
   VKLLAMA_STATUS_OK (out);
+  VKLLAMA_STATUS_OK (print_fn ("multiheadattention output mean: ", *out));
 
+  __enable_debug_log = false;
   return out;
 }
 
