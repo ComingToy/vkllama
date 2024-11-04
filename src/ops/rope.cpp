@@ -17,16 +17,16 @@ Rope::Rope (GPUDevice *dev, Command *command, const int maxlen, const int dim,
 }
 
 static void
-compute_freq (size_t dim, size_t maxlen, std::vector<__vkllama_fp16_t> &freqc,
-              std::vector<__vkllama_fp16_t> &freqs)
+compute_freq (size_t dim, size_t maxlen, std::vector<float> &freqc,
+              std::vector<float> &freqs)
 {
   std::vector<float> freq;
-  std::generate_n (
-      std::back_inserter (freq), dim / 2, [dim, n = 0] () mutable {
-        float f = 1.0f / std::pow (10000.0f, static_cast<float> (n) / dim);
-        n += 2;
-        return f;
-      });
+  std::generate_n (std::back_inserter (freq), dim / 2,
+                   [dim, n = .0f] () mutable {
+                     float f = 1.0f / std::pow (10000.0f, n / dim);
+                     n += 2.0;
+                     return f;
+                   });
 
   // [seqlen, headim]
   freqs.resize (maxlen * dim / 2);
@@ -40,8 +40,8 @@ compute_freq (size_t dim, size_t maxlen, std::vector<__vkllama_fp16_t> &freqc,
           auto c = std::cos (f);
           auto s = std::sin (f);
           auto pos = i * dim / 2 + k;
-          freqc[pos] = __fp32_to_fp16 (c);
-          freqs[pos] = __fp32_to_fp16 (s);
+          freqc[pos] = c;
+          freqs[pos] = s;
         }
     }
 }
@@ -70,15 +70,15 @@ Rope::init () noexcept
       return ret;
     }
 
-  freqc_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP16, false);
-  freqs_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP16, false);
+  freqc_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP32, false);
+  freqs_ = Tensor (1, 2 * maxlen_, dim_, dev_, FP32, false);
 
   if (!(ret = freqc_.create ()).ok () || !(ret = freqs_.create ()).ok ())
     {
       return ret;
     }
 
-  std::vector<__vkllama_fp16_t> freqc, freqs;
+  std::vector<float> freqc, freqs;
   compute_freq (dim_, 2 * maxlen_, freqc, freqs);
 
   ret = command_->upload ((const uint8_t *)freqc.data (),

@@ -6,8 +6,8 @@ layout (local_size_x_id = 253, local_size_y_id = 254,
 
 layout (binding = 0) readonly buffer InputTensor0 { float16_t input_query[]; };
 layout (binding = 1) writeonly buffer OutputTensor0 { float16_t output_kq[]; };
-layout (binding = 2) readonly buffer InputTensor1 { float16_t freqc_buf[]; };
-layout (binding = 3) readonly buffer InputTensor2 { float16_t freqs_buf[]; };
+layout (binding = 2) readonly buffer InputTensor1 { float freqc_buf[]; };
+layout (binding = 3) readonly buffer InputTensor2 { float freqs_buf[]; };
 
 layout (push_constant) uniform constants
 {
