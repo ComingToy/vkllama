@@ -1,5 +1,6 @@
 #include "src/ops/embedding.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <memory>
 #include <vector>
@@ -95,6 +96,14 @@ Embedding::operator() (Tensor indices) noexcept
 
   out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
+  static bool __enable_debug_log = false;
+  if (__enable_debug_log)
+    {
+      VKLLAMA_STATUS_OK (
+          command_->print_tensor_mean ("embedding outut mean: ", out));
+      __enable_debug_log = false;
+    }
 
   return out;
 }

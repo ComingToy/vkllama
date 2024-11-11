@@ -34,10 +34,11 @@ escape_byte (std::string const &b)
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 4)
+  if (argc != 5)
     {
       fprintf (stderr,
-               "usage: %s <path to checkpoitns> <predict tokens> <prompt>\n",
+               "usage: %s <path to checkpoitns> <path to tokenizer> <predict "
+               "tokens> <prompt>\n",
                argv[0]);
       return -1;
     }
@@ -72,7 +73,7 @@ main (const int argc, const char *argv[])
     }
 
   sentencepiece::SentencePieceProcessor sp;
-  auto s = sp.Load ("/home/conley/github/llama2-3b/tokenizer.model");
+  auto s = sp.Load (argv[2]);
   // auto s = load_tokenizer (sp, gguf_kv);
   if (s.code () != sentencepiece::util::StatusCode::kOk)
     {
@@ -99,13 +100,13 @@ main (const int argc, const char *argv[])
         }
     }
 
-  auto pred_tokens = ::atoi (argv[2]);
-  std::vector<int> prompt_tmp;
-  std::string buffer = argv[3];
+  auto pred_tokens = ::atoi (argv[3]);
+  std::vector<int> prompt_tmp = {};
+  std::string buffer = argv[4];
 
   sp.Encode (buffer, &prompt_tmp);
 
-  std::vector<int> prompt;
+  std::vector<int> prompt = { sp.bos_id () };
   std::copy (prompt_tmp.cbegin (), prompt_tmp.cend (),
              std::back_inserter (prompt));
 
