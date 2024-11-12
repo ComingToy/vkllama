@@ -146,7 +146,7 @@ main (const int argc, const char *argv[])
           return -1;
         }
       auto t1 = std::chrono::high_resolution_clock::now ();
-      size_t candidate_size = init_out->size () / prompt_inp.size ();
+      size_t candidate_size = init_out->size ();
 
       std::vector<int> toks (prompt);
 

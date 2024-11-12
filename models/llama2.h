@@ -91,6 +91,7 @@ public:
     Tensor Wo;
     int maxlen;
     int dim;
+    bool clip_output;
   };
 
   struct FeedForwardParams
@@ -99,6 +100,7 @@ public:
     Tensor w2;
     Tensor w3;
     float eps;
+    bool clip_output;
   };
 
   struct RmsNormParams
@@ -123,8 +125,8 @@ public:
     attn_op_.reset (new MultiHeadAttentionV2 (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
-        transformer_params_.maxlen, transformer_params_.dim, true, FP16,
-        true));
+        transformer_params_.maxlen, transformer_params_.dim, true, FP16, true,
+        transformer_params_.clip_output));
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
@@ -146,6 +148,12 @@ public:
         return ret;
       }
 
+    if (transformer_params_.clip_output)
+      {
+        slice_op_.reset (new Slice (gpu_, command_, FP16));
+        VKLLAMA_STATUS_OK (slice_op_->init ());
+      }
+
     return absl::OkStatus ();
   }
 
@@ -162,7 +170,20 @@ public:
     VKLLAMA_STATUS_OK (ret);
     transformed_ = *ret;
 
-    ret = add_op_->operator() (transformed_, in);
+    if (transformer_params_.clip_output)
+      {
+        std::array<uint32_t, 3> starts
+            = { uint32_t (0), uint32_t (in.height () - 1), uint32_t (0) };
+        std::array<uint32_t, 3> extents
+            = { uint32_t (in.channels ()), uint32_t (1),
+                uint32_t (in.width ()) };
+        ret = (*slice_op_) (in, starts, extents);
+        VKLLAMA_STATUS_OK (ret);
+        cliped_in_ = *ret;
+      }
+
+    ret = add_op_->operator() (
+        transformed_, transformer_params_.clip_output ? cliped_in_ : in);
     VKLLAMA_STATUS_OK (ret);
     added_ = *ret;
 
@@ -200,6 +221,7 @@ private:
   std::unique_ptr<RMSNorm> norm_op2_;
   std::unique_ptr<ElementWise> add_op_;
   std::unique_ptr<ElementWise> add_op2_;
+  std::unique_ptr<Slice> slice_op_;
 
   TransformerParams transformer_params_;
   FeedForwardParams feedforward_params_;
@@ -210,6 +232,7 @@ private:
   Tensor transformed_;
   Tensor added_;
   Tensor feed_;
+  Tensor cliped_in_;
 };
 
 class OutputLayer
@@ -615,8 +638,9 @@ public:
           const auto dim = head_dim / head_count;
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight, norm_eps };
-          Llama2Block::TransformerParams transformer_params
-              = { vkWk, vkWq, vkWv, Wo, (int)maxlen, (int)dim };
+          Llama2Block::TransformerParams transformer_params = {
+            vkWk, vkWq, vkWv, Wo, (int)maxlen, (int)dim, b == (block_count - 1)
+          };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3, norm_eps };
 
@@ -706,6 +730,8 @@ public:
         X = (*block) (*X, offset);
         if (!X.ok ())
           {
+            fprintf (stderr, "infer block %d failed: %s\n", i,
+                     X.status ().message ().data ());
             return X.status ();
           }
 

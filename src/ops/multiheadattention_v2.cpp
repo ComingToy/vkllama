@@ -8,6 +8,7 @@
 #include "src/ops/rope.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <memory>
 #include <numeric>
@@ -20,10 +21,10 @@ namespace vkllama
 MultiHeadAttentionV2::MultiHeadAttentionV2 (
     GPUDevice *dev, Command *command, Tensor wk, Tensor wq, Tensor wv,
     Tensor wo, const int maxlen, const int dim, const bool transposed_weight,
-    Tensor::DType dtype, const bool use_kvcache)
+    Tensor::DType dtype, const bool use_kvcache, const bool clip_output)
     : Op (dev, command), wk_ (wk), wq_ (wq), wv_ (wv), wo_ (wo),
       maxlen_ (maxlen), dim_ (dim), transposed_weight_ (transposed_weight),
-      dtype_ (dtype), use_kvcache_ (use_kvcache)
+      dtype_ (dtype), use_kvcache_ (use_kvcache), clip_output_ (clip_output)
 {
 }
 
@@ -119,6 +120,15 @@ MultiHeadAttentionV2::init () noexcept
           || !(ret = update_vcache_op_->init ()).ok ()
           || !(ret = kcache_read_op_->init ()).ok ()
           || !(ret = vcache_read_op_->init ()).ok ())
+        {
+          return ret;
+        }
+    }
+
+  if (clip_output_)
+    {
+      clip_output_op_.reset (new Slice (dev_, command_, dtype_));
+      if (!(ret = clip_output_op_->init ()).ok ())
         {
           return ret;
         }
@@ -294,8 +304,23 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 
   tmp_tensors_.push_back (*heads);
 
+  Tensor cliped_heads;
+  if (clip_output_)
+    {
+      std::array<uint32_t, 3> starts
+          = { uint32_t (0), uint32_t (heads->height () - 1), uint32_t (0) };
+      std::array<uint32_t, 3> sizes
+          = { uint32_t (heads->channels ()), uint32_t (1),
+              uint32_t (heads->width ()) };
+
+      auto ret = (*clip_output_op_) (*heads, starts, sizes);
+      VKLLAMA_STATUS_OK (ret);
+      tmp_tensors_.push_back (*ret);
+      cliped_heads = *ret;
+    }
+
   //[seqlen, heads, dim]
-  auto concated = (*transpose_heads_) (*heads);
+  auto concated = (*transpose_heads_) (clip_output_ ? cliped_heads : *heads);
   VKLLAMA_STATUS_OK (concated);
   VKLLAMA_STATUS_OK (
       print_fn ("multiheadattention concated heads mean: ", *concated));
