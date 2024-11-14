@@ -2,6 +2,7 @@
 #define __VKLLAMA_ROPE_H__
 
 #include "src/core/float.h"
+#include "src/core/tensor.h"
 #include "src/ops/op.h"
 #include <memory>
 #include <vector>
@@ -24,8 +25,9 @@ private:
   const int dim_;
   const Tensor::DType dtype_;
 
-  std::unique_ptr<Pipeline> pipeline_k_;
   std::unique_ptr<Pipeline> pipeline_q_;
+  Tensor freqc_;
+  Tensor freqs_;
 };
 
 }

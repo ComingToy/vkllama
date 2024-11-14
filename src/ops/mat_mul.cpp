@@ -3,6 +3,7 @@
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
+#include "src/shaders/matmul_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
 namespace vkllama
@@ -39,6 +40,11 @@ MatMul::init () noexcept
   Pipeline::ShaderInfo info
       = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
 
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      // info.local_x = 2 * dev_->subgroup_size ();
+    }
+
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
@@ -68,7 +74,8 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16_v2_comp_spv_size ();  \
         }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0)                             \
+      else if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && transpose_b_              \
+               && broadcast_type_ == 0)                                          \
         {                                                                        \
           pcode = __get_matmul_b0_fp16_x_q8_0_comp_spv_code ();                  \
           code_size = __get_matmul_b0_fp16_x_q8_0_comp_spv_size ();              \
@@ -170,6 +177,11 @@ MatMul::operator() (Tensor a) noexcept
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
+    }
+
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
       return ret;
@@ -222,6 +234,12 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
       = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
+
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+    {
+      groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
+    }
+
   auto s = pipeline_->set_group (groupx, groupy, groupz);
   if (!s.ok ())
     return s;

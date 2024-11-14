@@ -17,6 +17,7 @@
 struct Params
 {
   std::string model_file;
+  std::string tokenizer_file;
   std::string system_message;
   std::vector<std::string> anti_prompt;
   std::string sampler;
@@ -37,11 +38,12 @@ show_usage (int argc, char *const argv[])
 _H (NAME)"\n"
 "    chat - chat with llama2 interactive \n\n"
 _H (SYNOPSIS)"\n"
-"    chat " _H(-m) " path " _H(-t) " path [" _H(-s) " {top_k|top_p}] [" _H(-k) " value] " "[" _H(-p) " value]" "\n"
+"    chat " _H(-m) " path " _H(-e) " path " _H(-t) " path [" _H(-s) " {top_k|top_p}] [" _H(-k) " value] " "[" _H(-p) " value]" "\n"
 "\n"
 _H(DESCRIPTION)"\n"
 "    the options are follow:\n"
 "    " _H(-m) "\tpath to the gguf model file\n"
+"    " _H(-e) "\tpath to the tokenizer model file\n"
 "    " _H(-t) "\tsystem message filled into prompt template\n"
 "    " _H(-s) "\tsampler. top_k or top_p are supported. (default: top_k)\n"
 "    " _H(-k) "\tthe k option of top_k sampler. (default: 40)\n"
@@ -55,12 +57,15 @@ static int
 parse_params_from_cmdline (int argc, char *const argv[], Params *params)
 {
   int ch = -1;
-  while ((ch = ::getopt (argc, argv, "m:t:a:s:k:p:")) != -1)
+  while ((ch = ::getopt (argc, argv, "m:t:a:s:k:p:e:")) != -1)
     {
       switch (ch)
         {
         case 'm':
           params->model_file = optarg;
+          break;
+        case 'e':
+          params->tokenizer_file = optarg;
           break;
         case 't':
           params->system_message = optarg;
@@ -230,12 +235,8 @@ wait_for_input (std::string &line)
 }
 
 // session stage ref: https://gpus.llm-utils.org/llama-2-prompt-template/
-static std::string prompt_template = 
-R"([INST] <<SYS>>
-{system_message}
-<</SYS>>
-
-{user_message} [/INST])";
+static std::string prompt_template
+    = R"([INST]<<SYS>>{system_message}<</SYS>>{user_message}[/INST])";
 
 int
 start_sess (const Params &params, vkllama::Model &model,
@@ -289,7 +290,7 @@ start_sess (const Params &params, vkllama::Model &model,
                         std::back_inserter (inp),
                         [] (auto v) { return (uint32_t)v; });
 
-        auto logits = model (inp, sess.offset);
+        auto logits = model (inp, std::max (sess.offset - 1, 0));
         if (!logits.ok ())
           {
             std::cerr << "model infer failed: " << logits.status ()
@@ -297,9 +298,8 @@ start_sess (const Params &params, vkllama::Model &model,
             return -1;
           }
 
-        auto dim = logits->size () / inp.size ();
-        next_token_id
-            = sampler.sample (logits->data () + logits->size () - dim, dim);
+        auto dim = logits->size ();
+        next_token_id = sampler.sample (logits->data (), dim);
         sess.offset += inp.size ();
       }
 
@@ -348,7 +348,8 @@ start_sess (const Params &params, vkllama::Model &model,
             }
 #endif
 
-          auto logits = model ({ (uint32_t)next_token_id }, sess.offset);
+          auto logits = model ({ (uint32_t)next_token_id },
+                               std::max (sess.offset - 1, 0));
           next_token_id = sampler.sample (logits->data (), logits->size ());
           sess.offset += 1;
           sess.toks.push_back (next_token_id);
@@ -364,6 +365,7 @@ main (int argc, char *const argv[])
   int ret = 0;
 
   Params params = { .model_file = "",
+                    .tokenizer_file = "",
                     .system_message = "",
                     .anti_prompt = {},
                     .sampler = "top_k",
@@ -399,7 +401,8 @@ main (int argc, char *const argv[])
   read_gguf (gguf, meta, tensors);
 
   sentencepiece::SentencePieceProcessor sp;
-  auto s = load_tokenizer (sp, meta);
+  // auto s = load_tokenizer (sp, meta);
+  auto s = sp.Load (params.tokenizer_file.c_str ());
   if (!s.ok ())
     {
       fprintf (stderr, "load tokenizer failed: %s\n", s.ToString ().c_str ());

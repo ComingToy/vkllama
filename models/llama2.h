@@ -31,9 +31,6 @@ extern "C"{
 #include <unordered_map>
 #include <vector>
 
-#ifndef __VKLLAMA_LOG_COST
-#define __VKLLAMA_LOG_COST 0
-#endif
 namespace vkllama
 {
 class InputLayer
@@ -94,6 +91,7 @@ public:
     Tensor Wo;
     int maxlen;
     int dim;
+    bool clip_output;
   };
 
   struct FeedForwardParams
@@ -102,6 +100,7 @@ public:
     Tensor w2;
     Tensor w3;
     float eps;
+    bool clip_output;
   };
 
   struct RmsNormParams
@@ -126,8 +125,8 @@ public:
     attn_op_.reset (new MultiHeadAttentionV2 (
         gpu_, command_, transformer_params_.Wk, transformer_params_.Wq,
         transformer_params_.Wv, transformer_params_.Wo,
-        transformer_params_.maxlen, transformer_params_.dim, true, FP16,
-        true));
+        transformer_params_.maxlen, transformer_params_.dim, true, FP16, true,
+        transformer_params_.clip_output));
 
     feedforward_op_.reset (new FeedForward (
         gpu_, command_, feedforward_params_.w1, feedforward_params_.w2,
@@ -149,6 +148,12 @@ public:
         return ret;
       }
 
+    if (transformer_params_.clip_output)
+      {
+        slice_op_.reset (new Slice (gpu_, command_, FP16));
+        VKLLAMA_STATUS_OK (slice_op_->init ());
+      }
+
     return absl::OkStatus ();
   }
 
@@ -161,21 +166,45 @@ public:
     VKLLAMA_STATUS_OK (ret);
     normed_ = *ret;
 
+    auto print_fn = [this] (Tensor &tensor, const std::string &name) {
+      std::string msg = absl::StrFormat ("%s output mean", name);
+      // (void)command_->print_tensor_mean (msg, tensor);
+    };
+
+    print_fn (normed_, "block input normed mean");
+
     ret = attn_op_->operator() (normed_, offset);
     VKLLAMA_STATUS_OK (ret);
     transformed_ = *ret;
+    print_fn (transformed_, "block attn output mean");
 
-    ret = add_op_->operator() (transformed_, in);
+    if (transformer_params_.clip_output)
+      {
+        std::array<uint32_t, 3> starts
+            = { uint32_t (0), uint32_t (in.height () - 1), uint32_t (0) };
+        std::array<uint32_t, 3> extents
+            = { uint32_t (in.channels ()), uint32_t (1),
+                uint32_t (in.width ()) };
+        ret = (*slice_op_) (in, starts, extents);
+        VKLLAMA_STATUS_OK (ret);
+        cliped_in_ = *ret;
+      }
+
+    ret = add_op_->operator() (
+        transformed_, transformer_params_.clip_output ? cliped_in_ : in);
     VKLLAMA_STATUS_OK (ret);
     added_ = *ret;
+    print_fn (added_, "block attn added mean");
 
     ret = norm_op2_->operator() (added_);
     VKLLAMA_STATUS_OK (ret);
     normed2_ = *ret;
+    print_fn (normed2_, "block output normed added mean");
 
     ret = feedforward_op_->operator() (normed2_);
     VKLLAMA_STATUS_OK (ret);
     feed_ = *ret;
+    print_fn (feed_, "block feeded forward mean");
 
     auto out = add_op2_->operator() (feed_, added_);
     VKLLAMA_STATUS_OK (out);
@@ -189,9 +218,9 @@ public:
     fprintf (stderr,
              "block cost -- attn norm cost: %llu, attn cost: %lld, attn add "
              "cost: %lld, "
-             "fffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
-             norm_op_->time (), attn_op_->time (), 0llu,
-             feedforward_op_->time (), 0llu, 0llu);
+             "ffn norm cost: %lld, ffn cost: %lld, ffn add cost: %lld\n",
+             norm_op_->time (), attn_op_->time (), add_op_->time (),
+             norm_op2_->time (), feedforward_op_->time (), add_op2_->time ());
   }
 
 private:
@@ -203,6 +232,7 @@ private:
   std::unique_ptr<RMSNorm> norm_op2_;
   std::unique_ptr<ElementWise> add_op_;
   std::unique_ptr<ElementWise> add_op2_;
+  std::unique_ptr<Slice> slice_op_;
 
   TransformerParams transformer_params_;
   FeedForwardParams feedforward_params_;
@@ -213,6 +243,7 @@ private:
   Tensor transformed_;
   Tensor added_;
   Tensor feed_;
+  Tensor cliped_in_;
 };
 
 class OutputLayer
@@ -618,8 +649,9 @@ public:
           const auto dim = head_dim / head_count;
           Llama2Block::RmsNormParams rmsnorm_params
               = { vk_attn_norm_weight, vk_ffn_norm_weight, norm_eps };
-          Llama2Block::TransformerParams transformer_params
-              = { vkWk, vkWq, vkWv, Wo, (int)maxlen, (int)dim };
+          Llama2Block::TransformerParams transformer_params = {
+            vkWk, vkWq, vkWv, Wo, (int)maxlen, (int)dim, b == (block_count - 1)
+          };
           Llama2Block::FeedForwardParams feedfward_params
               = { vkw1, vkw2, vkw3, norm_eps };
 
@@ -709,8 +741,13 @@ public:
         X = (*block) (*X, offset);
         if (!X.ok ())
           {
+            fprintf (stderr, "infer block %d failed: %s\n", i,
+                     X.status ().message ().data ());
             return X.status ();
           }
+
+        // std::string msg = absl::StrFormat ("block %d output mean", i);
+        // VKLLAMA_STATUS_OK (command->print_tensor_mean (msg, *X));
 
         tmps.push_back (*X);
 

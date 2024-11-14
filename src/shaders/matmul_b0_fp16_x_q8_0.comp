@@ -1,6 +1,8 @@
 #version 450 core
 
 #include "common.h"
+#include "header.h"
+#include "matmul_conf.h"
 
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -37,7 +39,7 @@ layout (push_constant) uniform constants
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x;
+  uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -46,35 +48,73 @@ main ()
       return;
     }
 
-  float sum = .0;
-  uint group_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
-  uint QK = group_counts * Q8_0_BYTES_PER_BLOCK;
+  float sums[Q8_0_TILE_X_SIZE];
 
-  uint offset_a = gid_z * M * K + gid_y * K;
-  uint offset_b = gid_z * N * QK + gid_x * QK;
-
-  for (uint i = gl_SubgroupInvocationID.x; i < K; i += gl_SubgroupSize)
+  [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
     {
-      uint ai = offset_a + i;
-
-      uint block_id = i / Q8_0_ITEMS_PER_BLOCK;
-      uint block_offset = offset_b + block_id * Q8_0_BYTES_PER_BLOCK;
-      uint bi = block_offset + Q8_0_SCALE_BYTES + i % Q8_0_ITEMS_PER_BLOCK;
-
-      uint u32scale = u8BufToU32 (input_tensor1, block_offset);
-      float d = (uintBitsToFloat (u32scale));
-
-      float a = float (input_tensor0[ai]);
-      float b = float (int8_t (input_tensor1[bi]));
-
-      sum += (a * b * d);
+      sums[i] = 0;
     }
 
-  float v = subgroupAdd (sum) * scale + offset;
-  v = act == 1 ? v / (1.0 + exp (-v)) : v;
+  uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
+  uint QK = block_counts * Q8_0_BYTES_PER_BLOCK;
 
-  if (subgroupElect ())
+  uint offset_a = gid_z * M * K + gid_y * K;
+
+  // subgroup shape = [8, 4]
+  uint ix = gl_SubgroupInvocationID.x / 4;
+  uint il = gl_SubgroupInvocationID.x % 4;
+
+  uint ba = offset_a + ix * Q8_0_ITEMS_PER_BLOCK + il * 8;
+  // parallel for 8 blocks
+  [[unroll]] for (uint bi = ix; bi < block_counts; bi += gl_SubgroupSize / 4)
     {
-      output_tensor0[gid_z * M * N + gid_y * N + gid_x] = float16_t (v);
+
+      float tmp[Q8_0_TILE_K_SIZE];
+      for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+        {
+          tmp[i] = float (input_tensor0[ba + i]);
+        }
+
+      for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+        {
+          uint offset_b = gid_z * N * QK + (gid_x + r) * QK;
+          uint block_offset = offset_b + bi * Q8_0_BYTES_PER_BLOCK;
+          uint u32scale = u8BufToU32 (input_tensor1, block_offset);
+          float d = (uintBitsToFloat (u32scale));
+
+          float sum_b = .0;
+
+          uint d_offset = block_offset + Q8_0_SCALE_BYTES + il * 8;
+          for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+            {
+              uint di = d_offset + i;
+
+              // if (bi * Q8_0_ITEMS_PER_BLOCK + il * 8 + i >= K)
+              //   break;
+
+              float a = tmp[i];
+              float b = float (int8_t (input_tensor1[di]));
+              sum_b += (a * b);
+            }
+          sums[r] += sum_b * d;
+        }
+
+      // next 8 blocks
+      ba += 8 * Q8_0_ITEMS_PER_BLOCK;
+    }
+
+  [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+    {
+      if (gid_x + r >= N)
+        break;
+
+      float v = subgroupAdd (sums[r]) * scale + offset;
+      v = act == 1 ? v / (1.0 + exp (-v)) : v;
+
+      if (subgroupElect ())
+        {
+          output_tensor0[gid_z * M * N + gid_y * N + gid_x + r]
+              = float16_t (v);
+        }
     }
 }

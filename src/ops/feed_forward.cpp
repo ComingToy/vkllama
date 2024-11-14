@@ -6,6 +6,7 @@
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
 
 namespace vkllama
 {
@@ -58,8 +59,19 @@ FeedForward::init () noexcept
 uint64_t
 FeedForward::time () noexcept
 {
-  return std::max (up_op_->time (), gate_op_->time ()) + down_op_->time ()
-         + elemwise_op_->time ();
+  auto up_time = up_op_->time ();
+  auto gate_time = gate_op_->time ();
+  auto down_time = down_op_->time ();
+  auto elem_time = elemwise_op_->time ();
+
+#if __VKLLAMA_LOG_COST
+  fprintf (stderr,
+           "FeedForward: up time cost: %llu, gate time cost: %llu, down time "
+           "cost: %llu, elemwise time cost: %llu\n",
+           up_time, gate_time, down_time, elem_time);
+#endif
+
+  return std::max (up_time, gate_time) + down_time + elem_time;
 }
 
 absl::StatusOr<Tensor>

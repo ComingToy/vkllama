@@ -199,7 +199,7 @@ TEST_P (TestRope, test_rope)
 #endif
 
   _Tensor<Eigen::half, 3> err (rope_output_query.dimensions ());
-  err.setConstant (Eigen::half (params.dtype ? 1e-2 : 1e-3));
+  err.setConstant (Eigen::half (params.dtype ? 1e-3 : 1e-3));
 
   _Tensor<int, 0> diff_q
       = ((rope_output_query - rope_vulkan_output_query).abs () > err)
@@ -211,6 +211,7 @@ TEST_P (TestRope, test_rope)
 std::vector<TestRopeParams> params = {
   // { 3, 25, 100, 1024, 1, 0 },
   // { 3, 13, 100, 1024, 1, 0 },
+  { 32, 8, 100, 2048, 1, 0 },
   { 32, 25, 100, 1024, 1, 100 },
   { 32, 13, 100, 1024, 1, 1020 },
 };

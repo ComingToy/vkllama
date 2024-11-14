@@ -26,7 +26,8 @@ public:
                         Tensor wv, Tensor wo, const int maxlen, const int dim,
                         const bool transposed_weight = false,
                         Tensor::DType dtype = FP16,
-                        const bool use_kvcache = false);
+                        const bool use_kvcache = false,
+                        const bool clip_output = false);
 
   absl::StatusOr<Tensor> operator() (Tensor X,
                                      const size_t offset = 0) noexcept;
@@ -46,6 +47,7 @@ private:
   const bool transposed_weight_;
   Tensor::DType dtype_;
   const bool use_kvcache_;
+  const bool clip_output_;
 
   std::unique_ptr<MatMul> matmul_k_;
   std::unique_ptr<MatMul> matmul_q_;
@@ -66,6 +68,7 @@ private:
   std::unique_ptr<UpdateKVCache> update_vcache_op_;
   std::unique_ptr<ReadKVCache> kcache_read_op_;
   std::unique_ptr<ReadKVCache> vcache_read_op_;
+  std::unique_ptr<Slice> clip_output_op_;
 
   std::vector<Tensor> tmp_tensors_;
 };

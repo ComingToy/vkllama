@@ -34,10 +34,11 @@ escape_byte (std::string const &b)
 int
 main (const int argc, const char *argv[])
 {
-  if (argc != 4)
+  if (argc != 5)
     {
       fprintf (stderr,
-               "usage: %s <path to checkpoitns> <predict tokens> <prompt>\n",
+               "usage: %s <path to checkpoitns> <path to tokenizer> <predict "
+               "tokens> <prompt>\n",
                argv[0]);
       return -1;
     }
@@ -72,7 +73,8 @@ main (const int argc, const char *argv[])
     }
 
   sentencepiece::SentencePieceProcessor sp;
-  auto s = load_tokenizer (sp, gguf_kv);
+  auto s = sp.Load (argv[2]);
+  // auto s = load_tokenizer (sp, gguf_kv);
   if (s.code () != sentencepiece::util::StatusCode::kOk)
     {
       fprintf (stderr, "load tokenizer failed: %s\n", s.ToString ().c_str ());
@@ -98,9 +100,9 @@ main (const int argc, const char *argv[])
         }
     }
 
-  auto pred_tokens = ::atoi (argv[2]);
-  std::vector<int> prompt_tmp;
-  std::string buffer = argv[3];
+  auto pred_tokens = ::atoi (argv[3]);
+  std::vector<int> prompt_tmp = {};
+  std::string buffer = argv[4];
 
   sp.Encode (buffer, &prompt_tmp);
 
@@ -144,7 +146,7 @@ main (const int argc, const char *argv[])
           return -1;
         }
       auto t1 = std::chrono::high_resolution_clock::now ();
-      size_t candidate_size = init_out->size () / prompt_inp.size ();
+      size_t candidate_size = init_out->size ();
 
       std::vector<int> toks (prompt);
 
@@ -165,7 +167,7 @@ main (const int argc, const char *argv[])
       std::string output_buf;
       for (int i = 1; i < pred_tokens; ++i)
         {
-          auto output = model ({ (uint32_t)toks.back () }, toks.size ());
+          auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
           if (!output.ok ())
             {
               std::cerr << "model infer failed: " << output.status ()
@@ -199,7 +201,6 @@ main (const int argc, const char *argv[])
               || toks.back () == eot_token_id)
             {
               std::cerr << "[end of text]" << std::endl;
-              break;
             }
 
           if (toks.size () == 4096)
