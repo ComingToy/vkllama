@@ -166,9 +166,17 @@ public:
     VKLLAMA_STATUS_OK (ret);
     normed_ = *ret;
 
+    auto print_fn = [this] (Tensor &tensor, const std::string &name) {
+      std::string msg = absl::StrFormat ("%s output mean", name);
+      // (void)command_->print_tensor_mean (msg, tensor);
+    };
+
+    print_fn (normed_, "block input normed mean");
+
     ret = attn_op_->operator() (normed_, offset);
     VKLLAMA_STATUS_OK (ret);
     transformed_ = *ret;
+    print_fn (transformed_, "block attn output mean");
 
     if (transformer_params_.clip_output)
       {
@@ -186,14 +194,17 @@ public:
         transformed_, transformer_params_.clip_output ? cliped_in_ : in);
     VKLLAMA_STATUS_OK (ret);
     added_ = *ret;
+    print_fn (added_, "block attn added mean");
 
     ret = norm_op2_->operator() (added_);
     VKLLAMA_STATUS_OK (ret);
     normed2_ = *ret;
+    print_fn (normed2_, "block output normed added mean");
 
     ret = feedforward_op_->operator() (normed2_);
     VKLLAMA_STATUS_OK (ret);
     feed_ = *ret;
+    print_fn (feed_, "block feeded forward mean");
 
     auto out = add_op2_->operator() (feed_, added_);
     VKLLAMA_STATUS_OK (out);

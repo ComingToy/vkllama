@@ -167,7 +167,7 @@ main (const int argc, const char *argv[])
       std::string output_buf;
       for (int i = 1; i < pred_tokens; ++i)
         {
-          auto output = model ({ (uint32_t)toks.back () }, toks.size ());
+          auto output = model ({ (uint32_t)toks.back () }, toks.size () - 1);
           if (!output.ok ())
             {
               std::cerr << "model infer failed: " << output.status ()
