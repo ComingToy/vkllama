@@ -235,12 +235,8 @@ wait_for_input (std::string &line)
 }
 
 // session stage ref: https://gpus.llm-utils.org/llama-2-prompt-template/
-static std::string prompt_template = 
-R"([INST] <<SYS>>
-{system_message}
-<</SYS>>
-
-{user_message} [/INST])";
+static std::string prompt_template
+    = R"([INST]<<SYS>>{system_message}<</SYS>>{user_message}[/INST])";
 
 int
 start_sess (const Params &params, vkllama::Model &model,
@@ -294,7 +290,7 @@ start_sess (const Params &params, vkllama::Model &model,
                         std::back_inserter (inp),
                         [] (auto v) { return (uint32_t)v; });
 
-        auto logits = model (inp, sess.offset);
+        auto logits = model (inp, std::max (sess.offset - 1, 0));
         if (!logits.ok ())
           {
             std::cerr << "model infer failed: " << logits.status ()
@@ -302,9 +298,8 @@ start_sess (const Params &params, vkllama::Model &model,
             return -1;
           }
 
-        auto dim = logits->size () / inp.size ();
-        next_token_id
-            = sampler.sample (logits->data () + logits->size () - dim, dim);
+        auto dim = logits->size ();
+        next_token_id = sampler.sample (logits->data (), dim);
         sess.offset += inp.size ();
       }
 
@@ -353,7 +348,8 @@ start_sess (const Params &params, vkllama::Model &model,
             }
 #endif
 
-          auto logits = model ({ (uint32_t)next_token_id }, sess.offset);
+          auto logits = model ({ (uint32_t)next_token_id },
+                               std::max (sess.offset - 1, 0));
           next_token_id = sampler.sample (logits->data (), logits->size ());
           sess.offset += 1;
           sess.toks.push_back (next_token_id);
