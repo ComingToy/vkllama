@@ -17,12 +17,21 @@ layout (constant_id = 1) const int transpose_b = 0; // must be 1
 layout (constant_id = 2) const float scale = 1.0;
 layout (constant_id = 3) const float offset = 0;
 
+struct Q8_0_Block
+{
+  float16_t d;
+  uint8_t items[Q8_0_ITEMS_PER_BLOCK];
+};
+
 layout (binding = 0) readonly buffer InputTensor0
 {
   float16_t input_tensor0[];
 };
 
-layout (binding = 1) readonly buffer InputTensor1 { uint8_t input_tensor1[]; };
+layout (binding = 1) readonly buffer InputTensor1
+{
+  Q8_0_Block input_tensor1[];
+};
 layout (binding = 2) writeonly buffer OutputTensor0
 {
   float16_t output_tensor0[];
@@ -56,13 +65,12 @@ main ()
     }
 
   uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
-  uint QK = block_counts * Q8_0_BYTES_PER_BLOCK;
 
   uint offset_a = gid_z * M * K + gid_y * K;
 
   // subgroup shape = [8, 4]
-  uint ix = gl_SubgroupInvocationID.x / 4;
-  uint il = gl_SubgroupInvocationID.x % 4;
+  uint ix = gl_SubgroupInvocationID.x / 4; // ix: block
+  uint il = gl_SubgroupInvocationID.x % 4; // il: items in block
 
   uint ba = offset_a + ix * Q8_0_ITEMS_PER_BLOCK + il * 8;
   // parallel for 8 blocks
@@ -77,23 +85,20 @@ main ()
 
       for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
         {
-          uint offset_b = gid_z * N * QK + (gid_x + r) * QK;
-          uint block_offset = offset_b + bi * Q8_0_BYTES_PER_BLOCK;
-          uint u32scale = u8BufToU32 (input_tensor1, block_offset);
-          float d = (uintBitsToFloat (u32scale));
+          uint block_offset
+              = (gid_z * N * block_counts + (gid_x + r) * block_counts);
 
+          float d = float(input_tensor1[block_offset + bi].d);
           float sum_b = .0;
 
-          uint d_offset = block_offset + Q8_0_SCALE_BYTES + il * 8;
+          uint d_offset = il * 8;
           for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
             {
               uint di = d_offset + i;
 
-              // if (bi * Q8_0_ITEMS_PER_BLOCK + il * 8 + i >= K)
-              //   break;
-
               float a = tmp[i];
-              float b = float (int8_t (input_tensor1[di]));
+              float b = float (
+                  int8_t (input_tensor1[block_offset + bi].items[di]));
               sum_b += (a * b);
             }
           sums[r] += sum_b * d;

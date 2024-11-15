@@ -7,10 +7,19 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_control_flow_attributes : enable
 
+struct Q8_0_Block
+{
+  float16_t d;
+  uint8_t items[Q8_0_ITEMS_PER_BLOCK];
+};
+
 layout (constant_id = 0) const uint UNK_TOK = 0;
 
 // shape = [1, VH, VW]
-layout (binding = 0) readonly buffer InputTensor0 { uint8_t input_tensor0[]; };
+layout (binding = 0) readonly buffer InputTensor0
+{
+  Q8_0_Block input_tensor0[];
+};
 // shape = [1, H, W]
 layout (binding = 1) readonly buffer InputTensor1 { uint input_tensor1[]; };
 // shape = [H, W, VW]
@@ -48,27 +57,21 @@ main (void)
   const uint block_counts
       = (VW + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
 
-  const uint QW = block_counts * Q8_0_BYTES_PER_BLOCK;
-
   const uint out_base = tid_y * W * VW + tid_x * VW;
-  const uint in_base = tok * QW;
+  const uint in_base = tok * block_counts;
 
   for (uint b = 0; b < block_counts; ++b)
     {
-      uint block_offset = b * Q8_0_BYTES_PER_BLOCK;
 
-      uint u32scale = u8BufToU32 (input_tensor0, in_base + block_offset);
-      float d = (uintBitsToFloat (u32scale));
-
-      block_offset += Q8_0_SCALE_BYTES;
+      float d = float(input_tensor0[in_base + b].d);
+      uint di = b * Q8_0_ITEMS_PER_BLOCK;
 
       for (uint i = 0; i < Q8_0_ITEMS_PER_BLOCK; ++i)
         {
-          if (block_offset + i >= QW)
+          if (di + i > VW)
             break;
 
-          float v
-              = float (int8_t (input_tensor0[in_base + block_offset + i])) * d;
+          float v = float (int8_t (input_tensor0[in_base + b].items[i])) * d;
 
           output_tensor0[out_base + b * Q8_0_ITEMS_PER_BLOCK + i]
               = float16_t (v);

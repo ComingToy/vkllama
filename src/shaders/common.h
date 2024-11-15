@@ -6,6 +6,7 @@
    | (uint (buf[idx + 1]) << 8) | (uint (buf[idx])))
 
 #define Q8_0_ITEMS_PER_BLOCK 32
-#define Q8_0_BYTES_PER_BLOCK 36
-#define Q8_0_SCALE_BYTES 4
+#define Q8_0_BYTES_PER_BLOCK 34
+#define Q8_0_SCALE_BYTES 2
+
 #endif
