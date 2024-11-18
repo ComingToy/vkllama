@@ -4,10 +4,9 @@
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
 
-layout (binding = 0) readonly buffer InputTensor0 { float16_t input_query[]; };
-layout (binding = 1) writeonly buffer OutputTensor0 { float16_t output_kq[]; };
-layout (binding = 2) readonly buffer InputTensor1 { float freqc_buf[]; };
-layout (binding = 3) readonly buffer InputTensor2 { float freqs_buf[]; };
+layout (binding = 0) buffer InputTensor0 { float16_t input_query[]; };
+layout (binding = 1) readonly buffer InputTensor1 { float freqc_buf[]; };
+layout (binding = 2) readonly buffer InputTensor2 { float freqs_buf[]; };
 
 layout (push_constant) uniform constants
 {
@@ -42,6 +41,6 @@ main (void)
   float qr0 = q0 * freqc - q1 * freqs;
   float qr1 = q0 * freqs + q1 * freqc;
 
-  output_kq[i0] = float16_t (qr0);
-  output_kq[i1] = float16_t (qr1);
+  input_query[i0] = float16_t (qr0);
+  input_query[i1] = float16_t (qr1);
 }

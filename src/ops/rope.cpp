@@ -56,7 +56,7 @@ Rope::init () noexcept
     }
 
   Pipeline::ShaderInfo shader_info_q
-      = { 0, 4, 4 * sizeof (uint32_t), 16, 2, 1 };
+      = { 0, 3, 4 * sizeof (uint32_t), 16, 2, 1 };
 
   const auto *spv_code = __get_rope_fp16_comp_spv_code ();
   const auto spv_size = __get_rope_fp16_comp_spv_size ();
@@ -95,7 +95,7 @@ Rope::init () noexcept
       return ret;
     }
 
-  ret = pipeline_q_->update_bindings ({ freqc_, freqs_ }, { 2, 3 });
+  ret = pipeline_q_->update_bindings ({ freqc_, freqs_ }, { 1, 2 });
   if (!ret.ok ())
     {
       return ret;
@@ -127,17 +127,10 @@ Rope::operator() (Tensor query, const size_t offset) noexcept
                            int (dtype_), int (query.dtype ())));
     }
 
-  auto out_query = Tensor::like (query);
-  auto ret = out_query.create ();
-  if (!ret.ok ())
-    {
-      return ret;
-    }
-
   uint32_t groupx = (query.width () / 2 + 15) / 16,
            groupy = (query.height () + 1) / 2, groupz = query.channels ();
 
-  ret = pipeline_q_->set_group (groupx, groupy, groupz);
+  auto ret = pipeline_q_->set_group (groupx, groupy, groupz);
   if (!ret.ok ())
     {
       return ret;
@@ -146,16 +139,15 @@ Rope::operator() (Tensor query, const size_t offset) noexcept
   ShaderConstants shape
       = { (uint32_t)query.channels (), (uint32_t)query.height (),
           (uint32_t)query.width (), (uint32_t)offset };
-  ret = command_->record_pipeline (*pipeline_q_, { query, out_query },
-                                   { 0, 1 }, shape);
+  ret = command_->record_pipeline (*pipeline_q_, { query }, { 0 }, shape);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  out_query.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out_query.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return out_query;
+  query.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  query.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return query;
 }
 
 }
