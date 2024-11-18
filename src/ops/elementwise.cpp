@@ -14,11 +14,11 @@ ElementWise::ElementWise (GPUDevice *dev, Command *command, const int type,
 absl::Status
 ElementWise::init () noexcept
 {
-  Pipeline::ShaderInfo info = { 1, 3, sizeof (int), 32, 1, 1 };
+  Pipeline::ShaderInfo info = { 1, 2, sizeof (int), 32, 1, 1 };
 
   uint32_t bytes = sizeof (int) + sizeof (__vkllama_fp16_t) * 2;
 
-  Pipeline::ShaderInfo info1 = { 1, 2, bytes, 32, 1, 1 };
+  Pipeline::ShaderInfo info1 = { 1, 1, bytes, 32, 1, 1 };
   ShaderConstants constants = { type_ };
 
   const uint8_t *spv_code = nullptr;
@@ -83,31 +83,22 @@ ElementWise::operator() (Tensor x, Tensor y) noexcept
                            y.channels (), y.height (), y.width ()));
     }
 
-  auto out = Tensor::like (x);
-
-  auto ret = absl::OkStatus ();
-  if (!(ret = out.create ()).ok ())
-    {
-      return ret;
-    }
-
-  ret = pipeline0_->set_group ((x.size () + 31) / 32, 1, 1);
+  auto ret = pipeline0_->set_group ((x.size () + 31) / 32, 1, 1);
   if (!ret.ok ())
     {
       return ret;
     }
 
   ShaderConstants constants = { static_cast<int> (x.size ()) };
-  if (!(ret
-        = command_->record_pipeline (*pipeline0_, { x, y, out }, constants))
+  if (!(ret = command_->record_pipeline (*pipeline0_, { x, y }, constants))
            .ok ())
     {
       return ret;
     }
 
-  out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return out;
+  y.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  y.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return y;
 }
 
 absl::StatusOr<Tensor>
@@ -116,19 +107,6 @@ ElementWise::operator() (Tensor x, float y) noexcept
   if (x.dtype () != dtype_)
     {
       return absl::OkStatus ();
-    }
-
-  auto out = Tensor::like (x);
-  absl::Status ret;
-  if (!(ret = out.create ()).ok ())
-    {
-      return ret;
-    }
-
-  ret = pipeline1_->set_group ((x.size () + 31) / 32, 1, 1);
-  if (!ret.ok ())
-    {
-      return ret;
     }
 
   ShaderConstants constants = { (int)x.size () };
@@ -142,15 +120,16 @@ ElementWise::operator() (Tensor x, float y) noexcept
       constants.push_back (__fp32_to_fp16 (y));
       constants.push_back (__fp32_to_fp16 (0)); // padding
     }
-  ret = command_->record_pipeline (*pipeline1_, { x, out }, constants);
+
+  auto ret = command_->record_pipeline (*pipeline1_, { x }, constants);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return out;
+  x.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  x.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return x;
 }
 }
 

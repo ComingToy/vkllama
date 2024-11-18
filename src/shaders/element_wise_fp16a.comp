@@ -12,8 +12,7 @@ layout(push_constant) uniform constants
 };
 
 layout(binding = 0) readonly buffer InputTensor0{ float16_t input0[]; };
-layout(binding = 1) readonly buffer InputTensor1{ float16_t input1[]; };
-layout(binding = 2) writeonly buffer OutputTensor0{ float16_t output0[]; };
+layout(binding = 1) buffer InputTensor1{ float16_t input1[]; };
 
 void
 main(void)
@@ -28,22 +27,22 @@ main(void)
     float16_t v1 = (input1[tid]);
 
     if (op_type == 0) {
-        output0[tid] = (v0 + v1);
+        input1[tid] = (v0 + v1);
         return;
     }
 
     if (op_type == 1) {
-        output0[tid] = (v0 - v1);
+        input1[tid] = (v0 - v1);
         return;
     }
 
     if (op_type == 2) {
-        output0[tid] = (v0 * v1);
+        input1[tid] = (v0 * v1);
         return;
     }
 
     if (op_type == 3) {
-        output0[tid] = (v0 / v1);
+        input1[tid] = (v0 / v1);
         return;
     }
 }
