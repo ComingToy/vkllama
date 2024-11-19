@@ -27,7 +27,7 @@ Softmax::init () noexcept
     }
 
   Pipeline::ShaderInfo info0 = {
-    1, 2, 4 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 1, 1
+    1, 2, 4 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 2, 1
   };
 
   auto spv_code = __get_softmax_fp16_comp_spv_code ();
@@ -61,9 +61,8 @@ Softmax::operator() (Tensor a, size_t offset) noexcept
       return ret;
     }
 
-  uint32_t group_x
-      = (a.width () + dev_->subgroup_size () - 1) / dev_->subgroup_size (),
-      group_y = a.height (), group_z = a.channels ();
+  uint32_t group_x = 1, group_y = (a.height () + 1) / 2,
+           group_z = a.channels ();
 
   auto ret = softmax0_->set_group (group_x, group_y, group_z);
   if (!ret.ok ())

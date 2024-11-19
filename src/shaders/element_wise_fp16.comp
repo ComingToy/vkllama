@@ -1,48 +1,50 @@
 #version 450 core
-#extension GL_EXT_shader_16bit_storage: require
+#extension GL_EXT_shader_16bit_storage : require
 
-layout(local_size_x_id = 253, local_size_y_id = 254, local_size_z_id = 255) in;
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
 
-layout(constant_id = 0) const int op_type = 0;
+layout (constant_id = 0) const int op_type = 0;
 
-layout(push_constant) uniform constants
-{
-    uint N;
-};
+layout (push_constant) uniform constants { uint N; };
 
-layout(binding = 0) readonly buffer InputTensor0{ float16_t input0[]; };
-layout(binding = 1) readonly buffer InputTensor1{ float16_t input1[]; };
-layout(binding = 2) writeonly buffer OutputTensor0{ float16_t output0[]; };
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+layout (binding = 1) buffer InputTensor1 { float16_t input1[]; };
 
 void
-main(void)
+main (void)
 {
-    uint tid = gl_GlobalInvocationID.x;
+  uint tid = gl_GlobalInvocationID.x;
 
-    if (tid >= N) {
-        return;
+  if (tid >= N)
+    {
+      return;
     }
 
-    float v0 = float(input0[tid]);
-    float v1 = float(input1[tid]);
+  float v0 = float (input0[tid]);
+  float v1 = float (input1[tid]);
 
-    if (op_type == 0) {
-        output0[tid] = float16_t(v0 + v1);
-        return;
+  if (op_type == 0)
+    {
+      input1[tid] = float16_t (v0 + v1);
+      return;
     }
 
-    if (op_type == 1) {
-        output0[tid] = float16_t(v0 - v1);
-        return;
+  if (op_type == 1)
+    {
+      input1[tid] = float16_t (v0 - v1);
+      return;
     }
 
-    if (op_type == 2) {
-        output0[tid] = float16_t(v0 * v1);
-        return;
+  if (op_type == 2)
+    {
+      input1[tid] = float16_t (v0 * v1);
+      return;
     }
 
-    if (op_type == 3) {
-        output0[tid] = float16_t(v0 / v1);
-        return;
+  if (op_type == 3)
+    {
+      input1[tid] = float16_t (v0 / v1);
+      return;
     }
 }

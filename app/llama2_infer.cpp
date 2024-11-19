@@ -117,7 +117,7 @@ main (const int argc, const char *argv[])
     }
   std::cerr << std::endl;
 
-  vkllama::Model model;
+  vkllama::Model model (0);
   auto ret = model.init (gguf_kv, tensors);
 
   if (!ret.ok ())

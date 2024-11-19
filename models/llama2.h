@@ -322,8 +322,8 @@ private:
 class Model
 {
 public:
-  Model ()
-      : gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr)
+  Model (int dev=0)
+      : dev_(dev), gpu_ (nullptr), input_command_ (nullptr), output_command_ (nullptr)
   {
   }
 
@@ -349,7 +349,7 @@ public:
   init (std::map<std::string, gguf_key> &kv,
         std::map<std::string, gguf_tensor> &tensors)
   {
-    gpu_ = new GPUDevice ();
+    gpu_ = new GPUDevice (dev_);
     auto ret = gpu_->init ();
     if (!ret.ok ())
       {
@@ -843,6 +843,7 @@ public:
   }
 
 private:
+  int dev_;
   GPUDevice *gpu_;
   Command *input_command_;
   std::vector<Command *> block_commands_;
