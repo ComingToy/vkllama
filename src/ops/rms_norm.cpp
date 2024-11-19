@@ -10,7 +10,7 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
   Pipeline::ShaderInfo info = {
-    2, 3, 3 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 1, 1
+    2, 3, 3 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 4, 1
   };
 
   const auto *spv_code = __get_rms_norm_fp16_comp_spv_code ();
@@ -74,7 +74,7 @@ RMSNorm::operator() (Tensor x) noexcept
       return ret;
     }
 
-  ret = pipeline_->set_group (1, x.height (), x.channels ());
+  ret = pipeline_->set_group (1, (x.height () + 3) / 4, x.channels ());
   if (!ret.ok ())
     {
       return ret;
