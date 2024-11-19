@@ -74,9 +74,7 @@ RMSNorm::operator() (Tensor x) noexcept
       return ret;
     }
 
-  ret = pipeline_->set_group ((x.width () + dev_->subgroup_size () - 1)
-                                  / dev_->subgroup_size (),
-                              x.height (), x.channels ());
+  ret = pipeline_->set_group (1, x.height (), x.channels ());
   if (!ret.ok ())
     {
       return ret;

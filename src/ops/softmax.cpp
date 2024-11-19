@@ -61,9 +61,7 @@ Softmax::operator() (Tensor a, size_t offset) noexcept
       return ret;
     }
 
-  uint32_t group_x
-      = (a.width () + dev_->subgroup_size () - 1) / dev_->subgroup_size (),
-      group_y = a.height (), group_z = a.channels ();
+  uint32_t group_x = 1, group_y = a.height (), group_z = a.channels ();
 
   auto ret = softmax0_->set_group (group_x, group_y, group_z);
   if (!ret.ok ())
