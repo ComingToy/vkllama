@@ -18,9 +18,8 @@ Slice::init () noexcept
           "Slice op: only fp16 dtype is supported");
     }
 
-  constexpr int binding_count = 9;
   Pipeline::ShaderInfo info
-      = { 0, binding_count, sizeof (uint32_t) * binding_count, 8, 8, 4 };
+      = { 0, 2, sizeof (uint32_t) * 6 + sizeof (ShapeConstant), 8, 8, 4 };
 
   const auto spv_code = __get_slice_fp16_comp_spv_code ();
   const auto spv_size = __get_slice_fp16_comp_spv_size ();
@@ -44,15 +43,9 @@ Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
           in.channels (), in.height (), in.width ()));
     }
 
-  ShaderConstants constants = { (uint32_t)in.channels (),
-                                (uint32_t)in.height (),
-                                (uint32_t)in.width (),
-                                starts[0],
-                                starts[1],
-                                starts[2],
-                                extents[0],
-                                extents[1],
-                                extents[2] };
+  ShaderConstants constants = in.shape_constant ();
+  constants += { starts[0],  starts[1],  starts[2],
+                 extents[0], extents[1], extents[2] };
 
   auto out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
   auto ret = out.create ();

@@ -3,8 +3,8 @@
 
 #include "absl/status/status.h"
 #include "gpu_device.h"
-#include "src/core/float.h"
-#include "src/core/quants.h"
+#include "src/core/common.h"
+#include "src/core/shader_constants.h"
 #include <atomic>
 #include <set>
 #include <type_traits>
@@ -20,6 +20,9 @@ public:
   Tensor ();
   Tensor (const int c, const int h, const int w, GPUDevice *dev,
           DType const dtype = FP32, const bool visable = false);
+  Tensor (const int c, const int h, const int w, const int cs, const int hs,
+          const int ws, GPUDevice *dev, DType const dtype = FP32,
+          const bool visable = false);
 
   Tensor &operator= (Tensor const &);
   Tensor (const Tensor &rhs);
@@ -30,6 +33,11 @@ public:
   size_t channels () const;
   size_t height () const;
   size_t width () const;
+  size_t cs () const;
+  size_t hs () const;
+  size_t ws () const;
+  ShaderConstants shape_constant () const;
+
   size_t size () const;
 
   absl::Status reshape (size_t const c, size_t const h, size_t const w);
@@ -51,9 +59,14 @@ public:
   void *host ();
 
 private:
+  void update_strides_ ();
+
   int c_;
   int h_;
   int w_;
+  int cs_;
+  int hs_;
+  int ws_;
 
   GPUDevice *dev_;
   bool visable_;

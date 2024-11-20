@@ -20,7 +20,7 @@ Transpose::init () noexcept
           "Transpose op: only fp16 is supported.");
     }
 
-  Pipeline::ShaderInfo info = { 0, 2, 6 * sizeof (uint32_t), 8, 2, 2 };
+  Pipeline::ShaderInfo info = { 0, 2, 2 * sizeof (ShapeConstant), 8, 2, 2 };
   const auto *spv_code = __get_transpose_type0_fp16_comp_spv_code ();
   auto spv_size = __get_transpose_type0_fp16_comp_spv_size ();
 
@@ -62,10 +62,8 @@ Transpose::operator() (Tensor in) noexcept
       return ret;
     }
 
-  ShaderConstants shape
-      = { (uint32_t)in.channels (), (uint32_t)in.height (),
-          (uint32_t)in.width (),    (uint32_t)out.channels (),
-          (uint32_t)out.height (),  (uint32_t)out.width () };
+  auto shape = in.shape_constant ();
+  shape += out.shape_constant ();
 
   ret = command_->record_pipeline (*pipeline_, { in, out }, shape);
   if (!ret.ok ())

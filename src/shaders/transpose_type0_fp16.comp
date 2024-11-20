@@ -1,16 +1,12 @@
 #version 450 core
 #extension GL_EXT_shader_16bit_storage : require
+#include "common.h"
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
-
 layout (push_constant) uniform constants
 {
-  uint CI;
-  uint HI;
-  uint WI;
-  uint CO;
-  uint HO;
-  uint WO;
+  ShapeConstant shape0;
+  ShapeConstant shape1;
 };
 
 layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
@@ -22,6 +18,13 @@ main (void)
   uint tid_x = gl_GlobalInvocationID.x;
   uint tid_y = gl_GlobalInvocationID.y;
   uint tid_z = gl_GlobalInvocationID.z;
+
+  uint CI = shape0.c;
+  uint HI = shape0.h;
+  uint WI = shape0.w;
+  uint CO = shape1.c;
+  uint HO = shape1.h;
+  uint WO = shape1.w;
 
   if (tid_x >= WO || tid_y >= HO || tid_z >= CO)
     {

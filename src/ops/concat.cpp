@@ -45,7 +45,8 @@ Concat::init () noexcept
 
   for (int i = 0; i < num_; ++i)
     {
-      Pipeline::ShaderInfo info = { 0, 2, sizeof (uint32_t) * 6, 16, 2, 1 };
+      Pipeline::ShaderInfo info
+          = { 0, 2, sizeof (ShapeConstant) * 2 + sizeof (uint32_t), 16, 2, 1 };
       ShaderConstants specs;
 
       auto pipeline
@@ -162,12 +163,8 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
   for (int i = 0; i < num_; ++i)
     {
       const auto &inp = inputs[i];
-      ShaderConstants constants = { (uint32_t)inp.channels (),
-                                    (uint32_t)inp.height (),
-                                    (uint32_t)inp.width (),
-                                    (uint32_t)h,
-                                    (uint32_t)w,
-                                    offsets[i] };
+      ShaderConstants shape = inp.shape_constant () + output.shape_constant ();
+      shape.push_back (offsets[i]);
 
       uint32_t group_x = (inp.width () + 1) / 2,
                group_y = (inp.height () + 1) / 2, group_z = inp.channels ();
@@ -176,8 +173,7 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
         {
           return ret;
         }
-      ret = command_->record_pipeline (*pipelines_[i], { inp, output },
-                                       constants);
+      ret = command_->record_pipeline (*pipelines_[i], { inp, output }, shape);
       if (!ret.ok ())
         {
           return ret;

@@ -11,24 +11,34 @@
 namespace vkllama
 {
 Tensor::Tensor ()
-    : c_ (0), h_ (0), w_ (0), dev_ (nullptr), visable_ (false), dtype_ (FP32),
-      data_ (VK_NULL_HANDLE), status_ (nullptr)
+    : c_ (0), h_ (0), w_ (0), cs_ (0), hs_ (0), ws_ (0), dev_ (nullptr),
+      visable_ (false), dtype_ (FP32), data_ (VK_NULL_HANDLE),
+      status_ (nullptr)
 {
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
+
 Tensor::Tensor (const int c, const int h, const int w, GPUDevice *dev,
                 const DType dtype, const bool visable)
-    : c_ (c), h_ (h), w_ (w), dev_ (dev), visable_ (visable), dtype_ (dtype),
-      data_ (VK_NULL_HANDLE), status_ (nullptr)
+    : Tensor (c, h, w, 0, 0, 0, dev, dtype, visable)
+{
+}
+
+Tensor::Tensor (const int c, const int h, const int w, const int cs,
+                const int hs, const int ws, GPUDevice *dev, const DType dtype,
+                const bool visable)
+    : c_ (c), h_ (h), w_ (w), cs_ (cs), hs_ (hs), ws_ (ws), dev_ (dev),
+      visable_ (visable), dtype_ (dtype), data_ (VK_NULL_HANDLE),
+      status_ (nullptr)
 {
   mem_ = { 0, 0, 0, 0, 0, 0, 0 };
 }
 
 Tensor::Tensor (const Tensor &rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
-      dev_ (rhs.dev_), visable_ (rhs.visable ()), dtype_ (rhs.dtype_),
-      data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
-      status_ (rhs.status_)
+      cs_ (rhs.cs ()), hs_ (rhs.hs ()), ws_ (rhs.ws ()), dev_ (rhs.dev_),
+      visable_ (rhs.visable ()), dtype_ (rhs.dtype_), data_ (rhs.data_),
+      mem_ (rhs.mem_), allocation_ (rhs.allocation_), status_ (rhs.status_)
 {
   if (status_)
     {
@@ -38,9 +48,9 @@ Tensor::Tensor (const Tensor &rhs)
 
 Tensor::Tensor (Tensor &&rhs)
     : c_ (rhs.channels ()), h_ (rhs.height ()), w_ (rhs.width ()),
-      dev_ (rhs.dev_), visable_ (rhs.visable_), dtype_ (rhs.dtype_),
-      data_ (rhs.data_), mem_ (rhs.mem_), allocation_ (rhs.allocation_),
-      status_ (rhs.status_)
+      cs_ (rhs.cs ()), hs_ (rhs.hs ()), ws_ (rhs.ws ()), dev_ (rhs.dev_),
+      visable_ (rhs.visable_), dtype_ (rhs.dtype_), data_ (rhs.data_),
+      mem_ (rhs.mem_), allocation_ (rhs.allocation_), status_ (rhs.status_)
 {
   rhs.status_ = nullptr;
 }
@@ -48,7 +58,6 @@ Tensor::Tensor (Tensor &&rhs)
 Tensor &
 Tensor::operator= (Tensor const &rhs)
 {
-
   if (rhs.status_)
     {
       rhs.status_->ref_.fetch_add (1);
@@ -58,6 +67,10 @@ Tensor::operator= (Tensor const &rhs)
   c_ = rhs.channels ();
   h_ = rhs.height ();
   w_ = rhs.width ();
+  cs_ = rhs.cs ();
+  hs_ = rhs.hs ();
+  ws_ = rhs.ws ();
+
   dev_ = rhs.dev_;
   visable_ = rhs.visable_;
   dtype_ = rhs.dtype_;
@@ -97,7 +110,9 @@ Tensor::elem_bytes () const
 absl::Status
 Tensor::create ()
 {
+  update_strides_ ();
   auto bytes = this->bytes ();
+
   {
     VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                       nullptr,
@@ -143,27 +158,7 @@ size_t
 Tensor::bytes () const
 {
   const auto align = dev_->limits ().nonCoherentAtomSize;
-
-  const auto dtype_property = get_dtype_property (dtype_);
-  auto w = w_;
-  if (dtype_ == Q8_0)
-    {
-      w = (w_ + dtype_property.items_per_block - 1)
-          / dtype_property.items_per_block * dtype_property.items_per_block;
-    }
-
-  auto elems = w * h_ * c_;
-  auto bytes = elem_bytes () * elems;
-
-  if (dtype_ == Q8_0)
-    {
-      bytes = (elems + dtype_property.items_per_block - 1)
-              / dtype_property.items_per_block
-              * dtype_property.bytes_per_block;
-    }
-
-  bytes = (bytes + align - 1) / align * align;
-  return bytes;
+  return (c_ * cs_ + align - 1) / align * align;
 }
 
 void *
@@ -225,6 +220,46 @@ Tensor::width () const
 }
 
 size_t
+Tensor::cs () const
+{
+  return cs_;
+}
+
+size_t
+Tensor::hs () const
+{
+  return hs_;
+}
+
+size_t
+Tensor::ws () const
+{
+  return ws_;
+}
+
+void
+Tensor::update_strides_ ()
+{
+  const auto dtype_property = get_dtype_property (dtype_);
+
+  auto blocks = (w_ + dtype_property.items_per_block - 1)
+                / dtype_property.items_per_block;
+
+  ws_ = elem_bytes ();
+  hs_ = blocks * dtype_property.bytes_per_block;
+  cs_ = h_ * hs_;
+}
+
+ShaderConstants
+Tensor::shape_constant () const
+{
+  ShapeConstant shape = { (uint32_t)c_,  (uint32_t)h_,  (uint32_t)w_,
+                          (uint32_t)cs_, (uint32_t)hs_, (uint32_t)ws_ };
+
+  return shape;
+}
+
+size_t
 Tensor::size () const
 {
   return c_ * h_ * w_;
@@ -244,6 +279,7 @@ Tensor::reshape (size_t const c, size_t const h, size_t const w)
   h_ = h;
   w_ = w;
 
+  update_strides_ ();
   return absl::OkStatus ();
 }
 

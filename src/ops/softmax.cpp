@@ -26,9 +26,12 @@ Softmax::init () noexcept
           "Softmax op: only fp16 dtype is supported");
     }
 
-  Pipeline::ShaderInfo info0 = {
-    1, 2, 4 * sizeof (uint32_t), (uint32_t)dev_->subgroup_size (), 2, 1
-  };
+  Pipeline::ShaderInfo info0 = { 1,
+                                 2,
+                                 sizeof (ShapeConstant) + sizeof (uint32_t),
+                                 (uint32_t)dev_->subgroup_size (),
+                                 2,
+                                 1 };
 
   auto spv_code = __get_softmax_fp16_comp_spv_code ();
   auto spv_size = __get_softmax_fp16_comp_spv_size ();
@@ -70,8 +73,8 @@ Softmax::operator() (Tensor a, size_t offset) noexcept
       return ret;
     }
 
-  ShaderConstants constants = { (uint32_t)a.channels (), (uint32_t)a.height (),
-                                (uint32_t)a.width (), (uint32_t)offset };
+  auto constants = a.shape_constant ();
+  constants.push_back ((uint32_t)offset);
 
   ret = command_->record_pipeline (*softmax0_, { a, b }, constants);
 

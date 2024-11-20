@@ -33,7 +33,7 @@ Embedding::init () noexcept
       return absl::InvalidArgumentError ("q8_0 is unsupported on device.");
     }
 
-  Pipeline::ShaderInfo info = { 1, 3, sizeof (uint32_t) * 4, 16, 2, 1 };
+  Pipeline::ShaderInfo info = { 1, 3, sizeof (ShapeConstant) * 2, 16, 2, 1 };
   ShaderConstants unk = { UNK_ };
 
   const auto *spv_code = __get_embedding_fp16_comp_spv_code ();
@@ -75,9 +75,7 @@ Embedding::operator() (Tensor indices) noexcept
       return ret;
     }
 
-  ShaderConstants constants
-      = { (uint32_t)indices.height (), (uint32_t)indices.width (),
-          (uint32_t)vocab_.height (), (uint32_t)vocab_.width () };
+  auto constants = vocab_.shape_constant () + indices.shape_constant ();
 
   uint32_t group_x = (indices.width () + 15) / 16,
            group_y = (indices.height () + 1) / 2;

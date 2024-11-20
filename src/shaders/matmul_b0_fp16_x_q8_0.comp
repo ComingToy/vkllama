@@ -37,12 +37,13 @@ layout (binding = 2) writeonly buffer OutputTensor0
   float16_t output_tensor0[];
 };
 
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
 layout (push_constant) uniform constants
 {
-  int C;
-  int M;
-  int N;
-  int K;
+  ShapeConstant shape0;
+  ShapeConstant shape1;
+  ShapeConstant shape2;
 };
 
 void
@@ -51,6 +52,11 @@ main ()
   uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
+
+  uint C = shape0.c;
+  uint M = shape0.h;
+  uint N = shape1.h;
+  uint K = shape0.w;
 
   if (gid_x >= N || gid_y >= M || gid_z >= C)
     {

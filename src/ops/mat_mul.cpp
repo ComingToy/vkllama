@@ -38,7 +38,8 @@ MatMul::init () noexcept
     }
 
   Pipeline::ShaderInfo info
-      = { 4, 3, 4 * sizeof (int), (uint32_t)dev_->subgroup_size (), 1, 1 };
+      = { 4, 3, 3 * sizeof (ShapeConstant), (uint32_t)dev_->subgroup_size (),
+          1, 1 };
 
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
     {
@@ -173,8 +174,6 @@ MatMul::operator() (Tensor a) noexcept
     }
 
   int channels = std::max (a.channels (), weight_.channels ());
-  ShaderConstants constants
-      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
@@ -186,6 +185,10 @@ MatMul::operator() (Tensor a) noexcept
     {
       return ret;
     }
+
+  ShaderConstants constants = a.shape_constant ();
+  constants += weight_.shape_constant ();
+  constants += c.shape_constant ();
 
   ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
   if (!ret.ok ())
@@ -230,9 +233,6 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
 
   int channels = std::max (a.channels (), b.channels ());
 
-  ShaderConstants constants
-      = { channels, (int)a.height (), (int)out_w, (int)a.width () };
-
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
 
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
@@ -243,6 +243,10 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
   auto s = pipeline_->set_group (groupx, groupy, groupz);
   if (!s.ok ())
     return s;
+
+  auto constants = a.shape_constant ();
+  constants += b.shape_constant ();
+  constants += c.shape_constant ();
 
   ret = command_->record_pipeline (*pipeline_, { a, b, c }, constants);
   if (!ret.ok ())
