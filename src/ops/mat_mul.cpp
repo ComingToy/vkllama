@@ -185,6 +185,10 @@ MatMul::operator() (Tensor a) noexcept
     {
       groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
+  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)
+    {
+      groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
+    }
 
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
