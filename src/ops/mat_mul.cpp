@@ -186,9 +186,8 @@ MatMul::operator() (Tensor a) noexcept
       return ret;
     }
 
-  ShaderConstants constants = a.shape_constant ();
-  constants += weight_.shape_constant ();
-  constants += c.shape_constant ();
+  ShaderConstants constants
+      = a.shape_constant () + weight_.shape_constant () + c.shape_constant ();
 
   ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
   if (!ret.ok ())
