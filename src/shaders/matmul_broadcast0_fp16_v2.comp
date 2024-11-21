@@ -55,15 +55,22 @@ main ()
   uint a_stride = gl_SubgroupSize;
   uint b_stride = transpose_b > 0 ? gl_SubgroupSize : gl_SubgroupSize * N;
 
+  uint cs0 = shape0.cs / 2;
+  uint hs0 = shape0.hs / 2;
+  uint cs1 = shape1.cs / 2;
+  uint hs1 = shape1.hs / 2;
+  uint cs2 = shape2.cs / 2;
+  uint hs2 = shape2.hs / 2;
+
   [[unroll]] for (; i + 3 * gl_SubgroupSize < K; i += 4 * gl_SubgroupSize)
     {
-      uint a0 = gid_z * M * K + gid_y * K + i;
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
       uint a1 = a0 + a_stride;
       uint a2 = a0 + 2 * a_stride;
       uint a3 = a0 + 3 * a_stride;
 
-      uint b0 = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
-                                : gid_z * N * K + i * N + gid_x;
+      uint b0 = transpose_b > 0 ? gid_z * cs1 + gid_x * hs1 + i
+                                : gid_z * cs1 + i * hs1 + gid_x;
       uint b1 = b0 + b_stride;
       uint b2 = b0 + 2 * b_stride;
       uint b3 = b0 + 3 * b_stride;
@@ -78,10 +85,10 @@ main ()
 
   [[unroll]] for (; i < K; i += gl_SubgroupSize)
     {
-      uint a0 = gid_z * M * K + gid_y * K + i;
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
 
-      uint b0 = transpose_b > 0 ? gid_z * N * K + gid_x * K + i
-                                : gid_z * N * K + i * N + gid_x;
+      uint b0 = transpose_b > 0 ? gid_z * cs1 + gid_x * hs1 + i
+                                : gid_z * cs1 + i * hs1 + gid_x;
 
       float a = float (input_tensor0[a0]);
       float b = float (input_tensor1[b0]);
@@ -93,6 +100,6 @@ main ()
 
   if (subgroupElect ())
     {
-      output_tensor0[gid_z * M * N + gid_y * N + gid_x] = float16_t (v);
+      output_tensor0[gid_z * cs2 + gid_y * hs2 + gid_x] = float16_t (v);
     }
 }

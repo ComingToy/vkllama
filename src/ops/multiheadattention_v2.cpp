@@ -114,12 +114,8 @@ MultiHeadAttentionV2::init () noexcept
       update_vcache_op_
           = std::make_unique<UpdateKVCache> (dev_, command_, dtype_);
 
-      kcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
-      vcache_read_op_ = std::make_unique<ReadKVCache> (dev_, command_);
       if (!(ret = update_kcache_op_->init ()).ok ()
-          || !(ret = update_vcache_op_->init ()).ok ()
-          || !(ret = kcache_read_op_->init ()).ok ()
-          || !(ret = vcache_read_op_->init ()).ok ())
+          || !(ret = update_vcache_op_->init ()).ok ())
         {
           return ret;
         }
@@ -244,8 +240,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
     {
       auto &update_kcache_op = *update_kcache_op_;
       auto &update_vcache_op = *update_vcache_op_;
-      auto &kcache_read_op = *kcache_read_op_;
-      auto &vcache_read_op = *vcache_read_op_;
 
       auto ret = update_kcache_op (kcache_, *roped_k, (uint32_t)offset);
       VKLLAMA_STATUS_OK (ret);
@@ -253,18 +247,15 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       ret = update_vcache_op (vcache_, *transposed_v, (uint32_t)offset);
       VKLLAMA_STATUS_OK (ret);
 
-      uint32_t read_offset = offset >= (size_t)maxlen_
-                                 ? (uint32_t)offset % (uint32_t)maxlen_
-                                 : 0;
-
       uint32_t read_len = std::min (
           (uint32_t)(offset + transposed_k->height ()), (uint32_t)maxlen_);
 
-      roped_k = kcache_read_op (kcache_, read_offset, read_len);
+      roped_k = kcache_.view (kcache_.channels (), read_len, kcache_.width ());
 
       VKLLAMA_STATUS_OK (roped_k);
 
-      transposed_v = vcache_read_op (vcache_, read_offset, read_len);
+      transposed_v
+          = vcache_.view (vcache_.channels (), read_len, vcache_.width ());
       VKLLAMA_STATUS_OK (transposed_v);
 
       tmp_tensors_.push_back (*roped_k);
@@ -350,9 +341,7 @@ MultiHeadAttentionV2::time () noexcept
     {
       auto update_cost
           = std::max (update_kcache_op_->time (), update_vcache_op_->time ());
-      auto slice_cost
-          = std::max (kcache_read_op_->time (), vcache_read_op_->time ());
-      kvcache_cost = update_cost + slice_cost;
+      kvcache_cost = update_cost;
     }
 
   auto rope_cost = rope_k_->time ();

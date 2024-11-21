@@ -28,6 +28,8 @@ public:
   Tensor (const Tensor &rhs);
   Tensor (Tensor &&rhs);
 
+  Tensor view (size_t c, size_t h, size_t w);
+
   ~Tensor ();
 
   size_t channels () const;

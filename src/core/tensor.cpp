@@ -283,6 +283,17 @@ Tensor::reshape (size_t const c, size_t const h, size_t const w)
   return absl::OkStatus ();
 }
 
+Tensor
+Tensor::view (size_t c, size_t h, size_t w)
+{
+  Tensor v = *this;
+  v.c_ = c;
+  v.h_ = h;
+  v.w_ = w;
+
+  return v;
+}
+
 VkBuffer &
 Tensor::data ()
 {
