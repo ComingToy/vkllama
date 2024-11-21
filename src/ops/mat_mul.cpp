@@ -68,6 +68,11 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
+      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)             \
+        {                                                                        \
+          pcode = __get_matmul_b0_tb_fp16_v2_comp_spv_code ();                   \
+          code_size = __get_matmul_b0_tb_fp16_v2_comp_spv_size ();               \
+        }                                                                        \
       else if (a_dtype_ == FP16 && b_dtype_ == FP16)                             \
         {                                                                        \
           pcode                                                                  \
