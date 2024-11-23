@@ -56,7 +56,7 @@ Rope::init () noexcept
     }
 
   Pipeline::ShaderInfo shader_info_q
-      = { 0, 3, 4 * sizeof (uint32_t), 16, 2, 1 };
+      = { 0, 3, sizeof (ShapeConstant) + sizeof (uint32_t), 16, 2, 1 };
 
   const auto *spv_code = __get_rope_fp16_comp_spv_code ();
   const auto spv_size = __get_rope_fp16_comp_spv_size ();
@@ -136,9 +136,8 @@ Rope::operator() (Tensor query, const size_t offset) noexcept
       return ret;
     }
 
-  ShaderConstants shape
-      = { (uint32_t)query.channels (), (uint32_t)query.height (),
-          (uint32_t)query.width (), (uint32_t)offset };
+  auto shape = query.shape_constant ();
+  shape.push_back ((uint32_t)offset);
   ret = command_->record_pipeline (*pipeline_q_, { query }, { 0 }, shape);
   if (!ret.ok ())
     {

@@ -1,5 +1,6 @@
 #ifndef __VKLLAMA_COMMON_H__
 #define __VKLLAMA_COMMON_H__
+#include <stdint.h>
 namespace vkllama
 {
 #define VKLLAMA_STATUS_OK(__expr)                                             \
@@ -20,6 +21,10 @@ typedef enum : int
   Q8_0, // block-wise quantize
 } DType;
 
+struct ShapeConstant
+{
+  uint32_t c, h, w, cs, hs, ws;
+} __attribute__ ((packed));
 }
 
 #endif

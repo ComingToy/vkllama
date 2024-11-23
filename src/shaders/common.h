@@ -9,4 +9,14 @@
 #define Q8_0_BYTES_PER_BLOCK 34
 #define Q8_0_SCALE_BYTES 2
 
+struct ShapeConstant
+{
+	uint c;
+	uint h;
+	uint w;
+	uint cs;
+	uint hs;
+	uint ws;
+};
+
 #endif

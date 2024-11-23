@@ -37,12 +37,13 @@ layout (binding = 2) writeonly buffer OutputTensor0
   float16_t output_tensor0[];
 };
 
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
 layout (push_constant) uniform constants
 {
-  int C;
-  int M;
-  int N;
-  int K;
+  ShapeConstant shape0;
+  ShapeConstant shape1;
+  ShapeConstant shape2;
 };
 
 void
@@ -51,6 +52,11 @@ main ()
   uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
+
+  uint C = shape0.c;
+  uint M = shape0.h;
+  uint N = shape1.h;
+  uint K = shape0.w;
 
   if (gid_x >= N || gid_y >= M || gid_z >= C)
     {
@@ -66,7 +72,7 @@ main ()
 
   uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
 
-  uint offset_a = gid_z * M * K + gid_y * K;
+  uint offset_a = gid_z * shape0.cs / 2 + gid_y * shape0.hs / 2;
 
   // subgroup shape = [8, 4]
   uint ix = gl_SubgroupInvocationID.x / 4; // ix: block
@@ -86,9 +92,9 @@ main ()
       for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
         {
           uint block_offset
-              = (gid_z * N * block_counts + (gid_x + r) * block_counts);
+              = (gid_z * shape1.cs / 2 + (gid_x + r) * block_counts);
 
-          float d = float(input_tensor1[block_offset + bi].d);
+          float d = float (input_tensor1[block_offset + bi].d);
           float sum_b = .0;
 
           uint d_offset = il * 8;
@@ -118,7 +124,8 @@ main ()
 
       if (subgroupElect ())
         {
-          output_tensor0[gid_z * M * N + gid_y * N + gid_x + r]
+          output_tensor0[gid_z * shape2.cs / 2 + gid_y * shape2.hs / 2 + gid_x
+                         + r]
               = float16_t (v);
         }
     }

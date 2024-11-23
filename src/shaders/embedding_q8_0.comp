@@ -7,6 +7,8 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_control_flow_attributes : enable
 
+#include "common.h"
+
 struct Q8_0_Block
 {
   float16_t d;
@@ -30,10 +32,8 @@ layout (binding = 2) writeonly buffer OutputTensor0
 
 layout (push_constant) uniform constants
 {
-  uint H;
-  uint W;
-  uint VH;
-  uint VW;
+  ShapeConstant shape0;
+  ShapeConstant shape1;
 };
 
 void
@@ -42,6 +42,11 @@ main (void)
   uint tid_x = gl_GlobalInvocationID.x;
   uint tid_y = gl_GlobalInvocationID.y;
   uint tid_z = gl_GlobalInvocationID.z;
+
+  uint H = shape1.h;
+  uint W = shape1.w;
+  uint VH = shape0.h;
+  uint VW = shape0.w;
 
   if (tid_z >= 1 || tid_y >= H || tid_x >= W)
     {
@@ -63,7 +68,7 @@ main (void)
   for (uint b = 0; b < block_counts; ++b)
     {
 
-      float d = float(input_tensor0[in_base + b].d);
+      float d = float (input_tensor0[in_base + b].d);
       uint di = b * Q8_0_ITEMS_PER_BLOCK;
 
       for (uint i = 0; i < Q8_0_ITEMS_PER_BLOCK; ++i)

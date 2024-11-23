@@ -6,6 +6,7 @@
 #include "gpu_device.h"
 #include "pipeline.h"
 #include "src/core/common.h"
+#include "src/core/float.h"
 #include "tensor.h"
 #include <algorithm>
 #include <cstddef>

@@ -1,16 +1,15 @@
 #version 450 core
 #extension GL_EXT_shader_16bit_storage : require
 
+#include "common.h"
+
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
 
 layout (push_constant) uniform constants
 {
-  uint C;
-  uint H;
-  uint W;
-  uint HO;
-  uint WO;
+  ShapeConstant shape0;
+  ShapeConstant shape1;
   uint OFFSET;
 };
 
@@ -24,12 +23,21 @@ main (void)
   uint glb_tid_x = gl_GlobalInvocationID.x;
   uint glb_tid_y = gl_GlobalInvocationID.y;
   uint glb_tid_z = gl_GlobalInvocationID.z;
+
+  uint W = shape0.w;
+  uint H = shape0.h;
+  uint C = shape0.c;
+
+  uint WO = shape1.w;
+  uint HO = shape1.h;
+
   if (glb_tid_x >= W || glb_tid_y >= H || glb_tid_z >= C)
     {
       return;
     }
 
-  uint i = glb_tid_z * H * W + glb_tid_y * W + glb_tid_x;
-  uint o = glb_tid_z * HO * WO + glb_tid_y * WO + glb_tid_x + OFFSET;
+  uint i = glb_tid_z * shape0.cs / 2 + glb_tid_y * shape0.hs / 2 + glb_tid_x;
+  uint o = glb_tid_z * shape1.cs / 2 + glb_tid_y * shape1.hs / 2 + glb_tid_x
+           + OFFSET;
   output0[o] = input0[i];
 }

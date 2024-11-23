@@ -5,7 +5,6 @@
 #include "src/ops/feed_forward.h"
 #include "src/ops/mat_mul.h"
 #include "src/ops/op.h"
-#include "src/ops/read_kvcache_op.h"
 #include "src/ops/rope.h"
 #include "src/ops/slice.h"
 #include "src/ops/softmax.h"
@@ -66,8 +65,6 @@ private:
   std::unique_ptr<MatMul> matmul_attn_score_;
   std::unique_ptr<UpdateKVCache> update_kcache_op_;
   std::unique_ptr<UpdateKVCache> update_vcache_op_;
-  std::unique_ptr<ReadKVCache> kcache_read_op_;
-  std::unique_ptr<ReadKVCache> vcache_read_op_;
   std::unique_ptr<Slice> clip_output_op_;
 
   std::vector<Tensor> tmp_tensors_;

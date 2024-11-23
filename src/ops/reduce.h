@@ -39,12 +39,13 @@ public:
             "fp16 is unsupported on the device");
       }
 
-    Pipeline::ShaderInfo stage0Info = { 1,
-                                        2,
-                                        3 * sizeof (int) + sizeof (float),
-                                        (uint32_t)dev_->subgroup_size (),
-                                        1,
-                                        1 };
+    Pipeline::ShaderInfo stage0Info
+        = { 1,
+            2,
+            sizeof (ShapeConstant) + sizeof (float),
+            (uint32_t)dev_->subgroup_size (),
+            1,
+            1 };
 
     const auto *spv_code = __get_reduce_fp16_comp_spv_code ();
     auto spv_size = __get_reduce_fp16_comp_spv_size ();
@@ -91,9 +92,9 @@ public:
     float mean_scale
         = op_type_ != 3 ? 1.0f : 1.0f / static_cast<float> (a.width ());
 
-    ret = command_->record_pipeline (
-        *stage0_, { a, b },
-        { (int)a.channels (), (int)a.height (), (int)a.width (), mean_scale });
+    auto constants = a.shape_constant ();
+    constants.push_back (mean_scale);
+    ret = command_->record_pipeline (*stage0_, { a, b }, constants);
     if (!ret.ok ())
       {
         return ret;
