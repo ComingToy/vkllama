@@ -79,17 +79,17 @@ main ()
     {
       float tmp[FP16_SIMD_SIZE];
       uint ba = offset_a + bi * FP16_BLOCK_SIZE + il * FP16_SIMD_SIZE;
-      uint offset_b = gid_z * cs1 + bi * FP16_BLOCK_SIZE + il * FP16_SIMD_SIZE;
 
       [[unroll]] for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
         {
           tmp[i] = float (input_tensor0[ba + i]);
         }
 
+      uint offset_b = gid_z * cs1 + bi * FP16_BLOCK_SIZE + il * FP16_SIMD_SIZE
+                      + gid_x * hs1;
+      uint bb = offset_b;
       for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
         {
-          uint bb = offset_b + (gid_x + r) * hs1;
-
           float sum_b = .0;
           for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
             {
@@ -97,10 +97,12 @@ main ()
               float b = float (input_tensor1[bb + i]);
               sum_b += (a * b);
             }
+          bb += hs1;
           sum[r] += sum_b;
         }
     }
 
+  uint output_offset = gid_z * cs2 + gid_y * hs2 + gid_x;
   [[unroll]] for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
@@ -110,8 +112,7 @@ main ()
       v = act == 1 ? v / (1.0 + exp (-v)) : v;
       if (subgroupElect ())
         {
-          output_tensor0[gid_z * cs2 + gid_y * hs2 + gid_x + r]
-              = float16_t (v);
+          output_tensor0[output_offset + r] = float16_t (v);
         }
     }
 }
