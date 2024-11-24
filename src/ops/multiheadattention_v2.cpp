@@ -257,9 +257,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       transposed_v
           = vcache_.view (vcache_.channels (), read_len, vcache_.width ());
       VKLLAMA_STATUS_OK (transposed_v);
-
-      tmp_tensors_.push_back (*roped_k);
-      tmp_tensors_.push_back (*transposed_v);
     }
 
   VKLLAMA_STATUS_OK (
