@@ -23,16 +23,12 @@ public:
 
 private:
   Tensor t0_;
-  Tensor t1_;
-  Tensor t2_;
 
   Tensor w1_;
   Tensor w2_;
   Tensor w3_;
-  std::unique_ptr<MatMul> up_op_;
   std::unique_ptr<MatMul> down_op_;
-  std::unique_ptr<MatMul> gate_op_;
-  std::unique_ptr<ElementWise> elemwise_op_;
+  std::unique_ptr<Pipeline> up_gate_pipeline_;
   Tensor::DType dtype_;
 
   bool transposed_weight_;

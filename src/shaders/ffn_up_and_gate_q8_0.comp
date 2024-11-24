@@ -1,0 +1,137 @@
+#version 450 core
+
+#include "common.h"
+#include "header.h"
+#include "matmul_conf.h"
+
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : enable
+
+struct Q8_0_Block
+{
+  float16_t d;
+  uint8_t items[Q8_0_ITEMS_PER_BLOCK];
+};
+
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+
+layout (binding = 1) readonly buffer InputTensor1 { Q8_0_Block up_weight[]; };
+
+layout (binding = 2) readonly buffer InputTensor2
+{
+  Q8_0_Block gate_weight[];
+};
+
+layout (binding = 3) writeonly buffer OutputTensor0 { float16_t output0[]; };
+
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
+layout (push_constant) uniform constants
+{
+  ShapeConstant shape0;
+  ShapeConstant shape1;
+  ShapeConstant shape2;
+  ShapeConstant shape3;
+};
+
+void
+main ()
+{
+  uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
+  uint gid_y = gl_GlobalInvocationID.y;
+  uint gid_z = gl_GlobalInvocationID.z;
+
+  uint C = shape0.c;
+  uint M = shape0.h;
+  uint N = shape1.h;
+  uint K = shape0.w;
+
+  uint cs0 = shape0.cs / 2;
+  uint hs0 = shape0.hs / 2;
+  uint cs1 = shape1.cs / 2;
+  uint hs1 = shape1.hs / 2;
+  uint cs3 = shape3.cs / 2;
+  uint hs3 = shape3.hs / 2;
+
+  if (gid_x >= N || gid_y >= M || gid_z >= C)
+    {
+      return;
+    }
+
+  float sums[2][Q8_0_TILE_X_SIZE];
+
+  [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
+    {
+      sums[0][i] = 0;
+      sums[1][i] = 0;
+    }
+
+  uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
+
+  uint offset_a = gid_z * cs0 + gid_y * hs0;
+
+  // subgroup shape = [8, 4]
+  uint ix = gl_SubgroupInvocationID.x / 4; // ix: block
+  uint il = gl_SubgroupInvocationID.x % 4; // il: items in block
+
+  uint ba = offset_a + ix * Q8_0_ITEMS_PER_BLOCK + il * 8;
+  // parallel for 8 blocks
+  [[unroll]] for (uint bi = ix; bi < block_counts; bi += gl_SubgroupSize / 4)
+    {
+
+      float tmp[Q8_0_TILE_K_SIZE];
+      for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+        {
+          tmp[i] = float (input0[ba + i]);
+        }
+
+      uint offset_b = gid_z * cs1 + gid_x * block_counts + bi;
+      uint block_offset = offset_b;
+      for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+        {
+          float d0 = float (up_weight[block_offset].d);
+          float d1 = float (gate_weight[block_offset].d);
+          float sum_b0 = .0;
+          float sum_b1 = .0;
+
+          uint d_offset = il * 8;
+          for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+            {
+              uint di = d_offset + i;
+
+              float a = tmp[i];
+              float b0 = float (int8_t (up_weight[block_offset].items[di]));
+              float b1 = float (int8_t (gate_weight[block_offset].items[di]));
+              sum_b0 += (a * b0);
+              sum_b1 += (a * b1);
+            }
+          sums[0][r] += sum_b0 * d0;
+          sums[1][r] += sum_b1 * d1;
+          block_offset += block_counts;
+        }
+
+      // next 8 blocks
+      ba += 8 * Q8_0_ITEMS_PER_BLOCK;
+    }
+
+  uint output_offset = gid_z * cs3 + gid_y * hs3 + gid_x;
+  [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+    {
+      if (gid_x + r >= N)
+        break;
+
+      float v0 = subgroupAdd (sums[0][r]);
+      float v1 = subgroupAdd (sums[1][r]);
+      float v = v1 / (1.0 + exp (-v1)) * v0;
+
+      if (subgroupElect ())
+        {
+          output0[output_offset + r] = float16_t (v);
+        }
+    }
+}

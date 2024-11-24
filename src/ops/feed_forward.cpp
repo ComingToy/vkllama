@@ -5,6 +5,7 @@
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
+#include "src/shaders/matmul_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <cstdio>
 
@@ -16,14 +17,8 @@ FeedForward::FeedForward (GPUDevice *dev, Command *command, Tensor w1,
     : Op (dev, command), w1_ (w1), w2_ (w2), w3_ (w3), dtype_ (dtype),
       transposed_weight_ (transposed_weight)
 {
-  gate_op_.reset (new MatMul (dev_, command_, w1_, 1.0, .0, 1, 0,
-                              transposed_weight_, FP16, dtype_));
   down_op_.reset (new MatMul (dev_, command_, w2_, 1.0, .0, 0, 0,
                               transposed_weight_, FP16, dtype_));
-  up_op_.reset (new MatMul (dev_, command_, w3_, 1.0, .0, 0, 0,
-                            transposed_weight_, FP16, dtype_));
-
-  elemwise_op_.reset (new ElementWise (dev_, command_, 2, FP16));
 }
 
 absl::Status
@@ -46,9 +41,21 @@ FeedForward::init () noexcept
     }
 
   absl::Status ret;
-  if (!(ret = up_op_->init ()).ok () || !(ret = down_op_->init ()).ok ()
-      || !(ret = gate_op_->init ()).ok ()
-      || !(ret = elemwise_op_->init ()).ok ())
+  if (!(ret = down_op_->init ()).ok ())
+    {
+      return ret;
+    }
+
+  const auto *code = __get_ffn_up_and_gate_q8_0_comp_spv_code ();
+  const auto size = __get_ffn_up_and_gate_q8_0_comp_spv_size ();
+
+  Pipeline::ShaderInfo info
+      = { 0, 4, sizeof (ShapeConstant) * 4, (uint32_t)dev_->subgroup_size (),
+          1, 1 };
+
+  up_gate_pipeline_.reset (new Pipeline (dev_, code, size, {}, info));
+
+  if (!(ret = up_gate_pipeline_->init ()).ok ())
     {
       return ret;
     }
@@ -59,10 +66,8 @@ FeedForward::init () noexcept
 uint64_t
 FeedForward::time () noexcept
 {
-  auto up_time = up_op_->time ();
-  auto gate_time = gate_op_->time ();
   auto down_time = down_op_->time ();
-  auto elem_time = elemwise_op_->time ();
+  auto elem_time = up_gate_pipeline_->time ();
 
 #if __VKLLAMA_LOG_COST
   fprintf (stderr,
@@ -71,7 +76,7 @@ FeedForward::time () noexcept
            up_time, gate_time, down_time, elem_time);
 #endif
 
-  return std::max (up_time, gate_time) + down_time + elem_time;
+  return down_time + elem_time;
 }
 
 absl::StatusOr<Tensor>
@@ -85,45 +90,33 @@ FeedForward::operator() (Tensor X) noexcept
     }
 
   absl::StatusOr<Tensor> ret;
+  t0_ = Tensor (X.channels (), X.height (), w1_.height (), dev_, FP16, false);
 
-  if (!(ret = up_op_->operator() (X)).ok ())
-    {
-      return ret;
-    }
+  VKLLAMA_STATUS_OK (t0_.create ());
 
-  t0_ = *ret;
+  uint32_t groupx = (uint32_t)t0_.width (), groupy = (uint32_t)t0_.height (),
+           groupz = (uint32_t)t0_.channels ();
 
-  if (!(ret = gate_op_->operator() (X)).ok ())
-    {
-      return ret;
-    }
+  groupx = (groupx + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
 
-  t1_ = *ret;
+  VKLLAMA_STATUS_OK (up_gate_pipeline_->set_group (groupx, groupy, groupz));
+
+  auto constants = X.shape_constant () + w3_.shape_constant ()
+                   + w1_.shape_constant () + t0_.shape_constant ();
+
+  VKLLAMA_STATUS_OK (command_->record_pipeline (
+      *up_gate_pipeline_, { X, w3_, w1_, t0_ }, constants));
 
   t0_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   t0_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  t1_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  t1_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  t2_ = Tensor::like (t0_);
-  VKLLAMA_STATUS_OK (t2_.create ());
-
-  ret = elemwise_op_->operator() (t0_, t1_);
-  if (!ret.ok ())
-    {
-      return ret;
-    }
-
-  t2_ = *ret;
-
-  if (!(ret = down_op_->operator() (t2_)).ok ())
+  if (!(ret = (*down_op_) (t0_)).ok ())
     {
       return ret;
     }
 
   ret->set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   ret->set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-
   return ret;
 }
 }
