@@ -37,7 +37,7 @@ layout (push_constant) uniform constants
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x;
+  uint gid_x = gl_WorkGroupID.x * FP16_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -88,6 +88,9 @@ main ()
 
       for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
         {
+          if (gid_x + r >= N)
+            break;
+
           uint bb = offset_b + (gid_x + r) * hs1;
 
           float sum_b = .0;
@@ -101,7 +104,7 @@ main ()
         }
     }
 
-  [[unroll]] for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
+  for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
         break;

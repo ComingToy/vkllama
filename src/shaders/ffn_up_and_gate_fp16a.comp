@@ -10,29 +10,22 @@
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
 
-layout (constant_id = 0) const int act = 0;
-layout (constant_id = 1) const int transpose_b = 0;
-layout (constant_id = 2) const float scale = 1.0;
-layout (constant_id = 3) const float offset = 0;
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
 
-layout (binding = 0) readonly buffer InputTensor0
-{
-  float16_t input_tensor0[];
-};
-layout (binding = 1) readonly buffer InputTensor1
-{
-  float16_t input_tensor1[];
-};
-layout (binding = 2) writeonly buffer OutputTensor0
-{
-  float16_t output_tensor0[];
-};
+layout (binding = 1) readonly buffer InputTensor1 { float16_t up_weight[]; };
 
+layout (binding = 2) readonly buffer InputTensor2 { float16_t gate_weight[]; };
+
+layout (binding = 3) writeonly buffer OutputTensor0 { float16_t output0[]; };
+
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
 layout (push_constant) uniform constants
 {
   ShapeConstant shape0;
   ShapeConstant shape1;
   ShapeConstant shape2;
+  ShapeConstant shape3;
 };
 
 void
@@ -42,22 +35,26 @@ main ()
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
-  uint C = shape2.c;
+  uint C = shape0.c;
   uint M = shape0.h;
+  uint N = shape1.h;
   uint K = shape0.w;
-  uint N = shape2.w;
 
   if (gid_z >= C || gid_y >= M || gid_x >= N)
     {
       return;
     }
 
+  uint i = gl_SubgroupInvocationID.x;
+  uint a_stride = gl_SubgroupSize;
+  uint b_stride = gl_SubgroupSize;
+
   uint cs0 = shape0.cs / 2;
   uint hs0 = shape0.hs / 2;
   uint cs1 = shape1.cs / 2;
   uint hs1 = shape1.hs / 2;
-  uint cs2 = shape2.cs / 2;
-  uint hs2 = shape2.hs / 2;
+  uint cs3 = shape3.cs / 2;
+  uint hs3 = shape3.hs / 2;
 
 #define FP16_BLOCK_SIZE 64
 #define FP16_SIMD_SIZE (FP16_BLOCK_SIZE / 4)
@@ -70,10 +67,11 @@ main ()
 
   uint step_blocks = gl_SubgroupSize / 4;
 
-  float sum[FP16_TILE_X_SIZE];
+  float sum[2][FP16_TILE_X_SIZE];
   [[unroll]] for (uint i = 0; i < FP16_TILE_X_SIZE; ++i)
     {
-      sum[i] = .0;
+      sum[0][i] = .0;
+      sum[1][i] = .0;
     }
 
   for (uint bi = ix; bi < block_counts; bi += step_blocks)
@@ -84,37 +82,43 @@ main ()
 
       [[unroll]] for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
         {
-          tmp[i] = (input_tensor0[ba + i]);
+          tmp[i] = (input0[ba + i]);
         }
 
       for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
         {
           if (gid_x + r >= N)
             break;
+
           uint bb = offset_b + (gid_x + r) * hs1;
 
-          float sum_b = .0;
+          float sum_b0 = .0;
+          float sum_b1 = .0;
           for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
             {
               float16_t a = tmp[i];
-              float16_t b = (input_tensor1[bb + i]);
-              sum_b += (a * b);
+              float16_t b0 = (up_weight[bb + i]);
+              float16_t b1 = (gate_weight[bb + i]);
+              sum_b0 += float (a * b0);
+              sum_b1 += float (a * b1);
             }
-          sum[r] += sum_b;
+          sum[0][r] += sum_b0;
+          sum[1][r] += sum_b1;
         }
     }
 
-  [[unroll]] for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
+  for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
         break;
 
-      float v = subgroupAdd (sum[r]) * scale + offset;
-      v = act == 1 ? v / (1.0 + exp (-v)) : v;
+      float v0 = subgroupAdd (sum[0][r]);
+      float v1 = subgroupAdd (sum[1][r]);
+      float v = v1 / (1.0 + exp (-v1)) * v0;
+
       if (subgroupElect ())
         {
-          output_tensor0[gid_z * cs2 + gid_y * hs2 + gid_x + r]
-              = float16_t (v);
+          output0[gid_z * cs3 + gid_y * hs3 + gid_x + r] = float16_t (v);
         }
     }
 }

@@ -3,5 +3,5 @@
 #define Q8_0_TILE_X_SIZE 4
 #define Q8_0_TILE_K_SIZE 8
 
-#define FP16_TILE_X_SIZE 2
+#define FP16_TILE_X_SIZE 4
 #endif

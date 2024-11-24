@@ -5,6 +5,7 @@
 #include "src/core/tensor.h"
 #include "src/shaders/matmul_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
 
 namespace vkllama
 {
@@ -41,11 +42,6 @@ MatMul::init () noexcept
       = { 4, 3, 3 * sizeof (ShapeConstant), (uint32_t)dev_->subgroup_size (),
           1, 1 };
 
-  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
-    {
-      // info.local_x = 2 * dev_->subgroup_size ();
-    }
-
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
@@ -54,30 +50,42 @@ MatMul::init () noexcept
           int (b_dtype_), int (weight_.dtype ())));
     }
 
+  // if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && broadcast_type_ == 0
+  //     && transpose_b_)
+  //   {
+  //     info.local_y = Q8_0_TILE_X_SIZE;
+  //   }
+  // else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_
+  //          && broadcast_type_ == 0)
+  //   {
+  //     info.local_y = FP16_TILE_X_SIZE;
+  //   }
+
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
 
 #define __SPV_SELECTOR(__boradcast)                                              \
   do                                                                             \
     {                                                                            \
-      if (a_dtype_ == b_dtype_ && a_dtype_ == FP16                               \
-          && dev_->support_fp16_arithmetic ())                                   \
+      if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_                   \
+          && dev_->support_fp16_arithmetic () && broadcast_type_ == 0)           \
+        {                                                                        \
+          pcode = __get_matmul_b0_tb_fp16a_v2_comp_spv_code ();                  \
+          code_size = __get_matmul_b0_tb_fp16a_v2_comp_spv_size ();              \
+        }                                                                        \
+      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_              \
+               && broadcast_type_ == 0)                                          \
+        {                                                                        \
+          pcode = __get_matmul_b0_tb_fp16_v2_comp_spv_code ();                   \
+          code_size = __get_matmul_b0_tb_fp16_v2_comp_spv_size ();               \
+        }                                                                        \
+      else if (a_dtype_ == b_dtype_ && a_dtype_ == FP16                          \
+               && dev_->support_fp16_arithmetic ())                              \
         {                                                                        \
           pcode                                                                  \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_code (); \
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
-        }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_              \
-               && dev_->support_fp16_arithmetic ())                              \
-        {                                                                        \
-          pcode = __get_matmul_b0_tb_fp16a_v2_comp_spv_code ();                  \
-          code_size = __get_matmul_b0_tb_fp16a_v2_comp_spv_size ();              \
-        }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)             \
-        {                                                                        \
-          pcode = __get_matmul_b0_tb_fp16_v2_comp_spv_code ();                   \
-          code_size = __get_matmul_b0_tb_fp16_v2_comp_spv_size ();               \
         }                                                                        \
       else if (a_dtype_ == FP16 && b_dtype_ == FP16)                             \
         {                                                                        \
@@ -187,11 +195,13 @@ MatMul::operator() (Tensor a) noexcept
   int channels = std::max (a.channels (), weight_.channels ());
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
-  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && broadcast_type_ == 0
+      && transpose_b_)
     {
       groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
-  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)
+  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_
+           && broadcast_type_ == 0)
     {
       groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
     }
@@ -249,9 +259,15 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
 
   uint32_t groupx = out_w, groupy = a.height (), groupz = channels;
 
-  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && transpose_b_
+      && broadcast_type_ == 0)
     {
       groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
+    }
+  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_
+           && broadcast_type_ == 0)
+    {
+      groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
     }
 
   auto s = pipeline_->set_group (groupx, groupy, groupz);

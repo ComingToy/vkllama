@@ -228,6 +228,8 @@ GPUDevice::init_device_ ()
     vkGetPhysicalDeviceProperties2 (physicalDev_, &physicalDevProperties2_);
   }
 
+  fprintf (stderr, "device subgroupSize = %u\n",
+           subgroupProperties_.subgroupSize);
   std::vector<std::vector<float> > priorities;
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 
