@@ -106,10 +106,6 @@ FeedForward::operator() (Tensor X) noexcept
     {
       groupx = (groupx + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
-  else if (dtype_ == FP16)
-    {
-      groupx = (groupx + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
-    }
 
   VKLLAMA_STATUS_OK (up_gate_pipeline_->set_group (groupx, groupy, groupz));
 

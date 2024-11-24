@@ -68,17 +68,6 @@ MatMul::init () noexcept
           code_size                                                              \
               = __get_matmul_broadcast##__boradcast##_fp16a_v2_comp_spv_size (); \
         }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_              \
-               && dev_->support_fp16_arithmetic ())                              \
-        {                                                                        \
-          pcode = __get_matmul_b0_tb_fp16a_v2_comp_spv_code ();                  \
-          code_size = __get_matmul_b0_tb_fp16a_v2_comp_spv_size ();              \
-        }                                                                        \
-      else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)             \
-        {                                                                        \
-          pcode = __get_matmul_b0_tb_fp16_v2_comp_spv_code ();                   \
-          code_size = __get_matmul_b0_tb_fp16_v2_comp_spv_size ();               \
-        }                                                                        \
       else if (a_dtype_ == FP16 && b_dtype_ == FP16)                             \
         {                                                                        \
           pcode                                                                  \
@@ -191,10 +180,6 @@ MatMul::operator() (Tensor a) noexcept
     {
       groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
     }
-  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)
-    {
-      groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
-    }
 
   if (auto ret = pipeline_->set_group (groupx, groupy, groupz); !ret.ok ())
     {
@@ -252,10 +237,6 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
   if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
     {
       groupx = (out_w + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
-    }
-  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_)
-    {
-      groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
     }
 
   auto s = pipeline_->set_group (groupx, groupy, groupz);

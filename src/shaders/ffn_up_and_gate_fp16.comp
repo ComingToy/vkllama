@@ -4,7 +4,6 @@
 #extension GL_EXT_control_flow_attributes : enable
 
 #include "common.h"
-#include "matmul_conf.h"
 
 layout (local_size_x_id = 253, local_size_y_id = 254,
         local_size_z_id = 255) in;
@@ -34,15 +33,19 @@ main ()
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
-  uint C = shape2.c;
+  uint C = shape0.c;
   uint M = shape0.h;
+  uint N = shape1.h;
   uint K = shape0.w;
-  uint N = shape2.w;
 
   if (gid_z >= C || gid_y >= M || gid_x >= N)
     {
       return;
     }
+
+  uint i = gl_SubgroupInvocationID.x;
+  uint a_stride = gl_SubgroupSize;
+  uint b_stride = gl_SubgroupSize;
 
   uint cs0 = shape0.cs / 2;
   uint hs0 = shape0.hs / 2;
@@ -51,68 +54,49 @@ main ()
   uint cs3 = shape3.cs / 2;
   uint hs3 = shape3.hs / 2;
 
-#define FP16_BLOCK_SIZE 64
-#define FP16_SIMD_SIZE (FP16_BLOCK_SIZE / 4)
-
-  uint block_counts = (K + FP16_BLOCK_SIZE - 1) / FP16_BLOCK_SIZE;
-  uint ix = gl_SubgroupInvocationID.x / 4;
-  uint il = gl_SubgroupInvocationID.x % 4;
-
-  uint offset_a = gid_z * cs0 + gid_y * hs0;
-
-  uint step_blocks = gl_SubgroupSize / 4;
-
-  float sum[2][FP16_TILE_X_SIZE];
-  [[unroll]] for (uint i = 0; i < FP16_TILE_X_SIZE; ++i)
+  float sum0 = .0;
+  float sum1 = .0;
+  [[unroll]] for (; i + 3 * gl_SubgroupSize < K; i += 4 * gl_SubgroupSize)
     {
-      sum[0][i] = .0;
-      sum[1][i] = .0;
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
+      uint a1 = a0 + a_stride;
+      uint a2 = a0 + 2 * a_stride;
+      uint a3 = a0 + 3 * a_stride;
+
+      uint b0 = gid_z * cs1 + gid_x * hs1 + i;
+      uint b1 = b0 + b_stride;
+      uint b2 = b0 + 2 * b_stride;
+      uint b3 = b0 + 3 * b_stride;
+
+      vec4 a = vec4 (float (input0[a0]), float (input0[a1]),
+                     float (input0[a2]), float (input0[a3]));
+      vec4 b00 = vec4 (float (up_weight[b0]), float (up_weight[b1]),
+                       float (up_weight[b2]), float (up_weight[b3]));
+      vec4 b01 = vec4 (float (gate_weight[b0]), float (gate_weight[b1]),
+                       float (gate_weight[b2]), float (gate_weight[b3]));
+
+      sum0 += dot (a, b00);
+      sum1 += dot (a, b01);
     }
 
-  for (uint bi = ix; bi < block_counts; bi += step_blocks)
+  [[unroll]] for (; i < K; i += gl_SubgroupSize)
     {
-      float tmp[FP16_SIMD_SIZE];
-      uint ba = offset_a + bi * FP16_BLOCK_SIZE + il * FP16_SIMD_SIZE;
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
+      uint b0 = gid_z * cs1 + gid_x * hs1 + i;
 
-      [[unroll]] for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
-        {
-          tmp[i] = float (input0[ba + i]);
-        }
-
-      uint offset_b = gid_z * cs1 + bi * FP16_BLOCK_SIZE + il * FP16_SIMD_SIZE
-                      + gid_x * hs1;
-      uint bb = offset_b;
-      for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
-        {
-          float sum_b0 = .0;
-          float sum_b1 = .0;
-          for (uint i = 0; i < FP16_SIMD_SIZE; ++i)
-            {
-              float a = tmp[i];
-              float b0 = float (up_weight[bb + i]);
-              float b1 = float (gate_weight[bb + i]);
-              sum_b0 += (a * b0);
-              sum_b1 += (a * b1);
-            }
-          bb += hs1;
-          sum[0][r] += sum_b0;
-          sum[1][r] += sum_b1;
-        }
+      float a = float (input0[a0]);
+      float b00 = float (up_weight[b0]);
+      float b01 = float (gate_weight[b0]);
+      sum0 += (a * b00);
+      sum1 += (a * b01);
     }
 
-  uint output_offset = gid_z * cs3 + gid_y * hs3 + gid_x;
-  [[unroll]] for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
+  float v0 = subgroupAdd (sum0);
+  float v1 = subgroupAdd (sum1);
+  float v = v1 / (1.0 + exp (-v1)) * v0;
+
+  if (subgroupElect ())
     {
-      if (gid_x + r >= N)
-        break;
-
-      float v0 = subgroupAdd (sum[0][r]);
-      float v1 = subgroupAdd (sum[1][r]);
-      float v = v1 / (1.0 + exp (-v1)) * v0;
-
-      if (subgroupElect ())
-        {
-          output0[output_offset + r] = float16_t (v);
-        }
+      output0[gid_z * cs3 + gid_y * hs3 + gid_x] = float16_t (v);
     }
 }
