@@ -94,8 +94,8 @@ FeedForward::operator() (Tensor X) noexcept
 
   VKLLAMA_STATUS_OK (t0_.create ());
 
-  uint32_t groupx = (uint32_t)t0_.width (), groupy = (uint32_t)t0_.height (),
-           groupz = (uint32_t)t0_.channels ();
+  size_t groupx = t0_.width (), groupy = t0_.height (),
+         groupz = t0_.channels ();
 
   groupx = (groupx + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
 
