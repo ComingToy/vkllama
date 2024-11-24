@@ -50,6 +50,17 @@ MatMul::init () noexcept
           int (b_dtype_), int (weight_.dtype ())));
     }
 
+  if (a_dtype_ == FP16 && b_dtype_ == Q8_0 && broadcast_type_ == 0
+      && transpose_b_)
+    {
+      info.local_y = Q8_0_TILE_X_SIZE;
+    }
+  else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_
+           && broadcast_type_ == 0)
+    {
+      info.local_y = FP16_TILE_X_SIZE;
+    }
+
   const uint8_t *pcode = nullptr;
   size_t code_size = 0;
 
