@@ -1,0 +1,103 @@
+#version 450 core
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : enable
+
+#include "common.h"
+
+layout (local_size_x_id = 253, local_size_y_id = 254,
+        local_size_z_id = 255) in;
+
+layout (binding = 0) readonly buffer InputTensor0 { float16_t input0[]; };
+
+layout (binding = 1) readonly buffer InputTensor1 { float16_t up_weight[]; };
+
+layout (binding = 2) readonly buffer InputTensor2 { float16_t gate_weight[]; };
+
+layout (binding = 3) writeonly buffer OutputTensor0 { float16_t output0[]; };
+
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
+layout (push_constant) uniform constants
+{
+  ShapeConstant shape0;
+  ShapeConstant shape1;
+  ShapeConstant shape2;
+  ShapeConstant shape3;
+};
+
+void
+main ()
+{
+  uint gid_x = gl_WorkGroupID.x;
+  uint gid_y = gl_GlobalInvocationID.y;
+  uint gid_z = gl_GlobalInvocationID.z;
+
+  uint C = shape0.c;
+  uint M = shape0.h;
+  uint N = shape1.h;
+  uint K = shape0.w;
+
+  if (gid_z >= C || gid_y >= M || gid_x >= N)
+    {
+      return;
+    }
+
+  uint i = gl_SubgroupInvocationID.x;
+  uint a_stride = gl_SubgroupSize;
+  uint b_stride = gl_SubgroupSize;
+
+  uint cs0 = shape0.cs / 2;
+  uint hs0 = shape0.hs / 2;
+  uint cs1 = shape1.cs / 2;
+  uint hs1 = shape1.hs / 2;
+  uint cs3 = shape3.cs / 2;
+  uint hs3 = shape3.hs / 2;
+
+  float sum0 = .0;
+  float sum1 = .0;
+  [[unroll]] for (; i + 3 * gl_SubgroupSize < K; i += 4 * gl_SubgroupSize)
+    {
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
+      uint a1 = a0 + a_stride;
+      uint a2 = a0 + 2 * a_stride;
+      uint a3 = a0 + 3 * a_stride;
+
+      uint b0 = gid_z * cs1 + gid_x * hs1 + i;
+      uint b1 = b0 + b_stride;
+      uint b2 = b0 + 2 * b_stride;
+      uint b3 = b0 + 3 * b_stride;
+
+      vec4 a
+          = f16vec4 ((input0[a0]), (input0[a1]), (input0[a2]), (input0[a3]));
+      vec4 b00 = f16vec4 ((up_weight[b0]), (up_weight[b1]), (up_weight[b2]),
+                          (up_weight[b3]));
+      vec4 b01 = f16vec4 ((gate_weight[b0]), (gate_weight[b1]),
+                          (gate_weight[b2]), (gate_weight[b3]));
+
+      sum0 += float (dot (a, b00));
+      sum1 += float (dot (a, b01));
+    }
+
+  [[unroll]] for (; i < K; i += gl_SubgroupSize)
+    {
+      uint a0 = gid_z * cs0 + gid_y * hs0 + i;
+      uint b0 = gid_z * cs1 + gid_x * hs1 + i;
+
+      float16_t a = (input0[a0]);
+      float16_t b00 = (up_weight[b0]);
+      float16_t b01 = (gate_weight[b0]);
+      sum0 += float (a * b00);
+      sum1 += float (a * b01);
+    }
+
+  float v0 = subgroupAdd (sum0);
+  float v1 = subgroupAdd (sum1);
+  float v = v1 / (1.0 + exp (-v1)) * v0;
+
+  if (subgroupElect ())
+    {
+      output0[gid_z * cs3 + gid_y * hs3 + gid_x] = float16_t (v);
+    }
+}
