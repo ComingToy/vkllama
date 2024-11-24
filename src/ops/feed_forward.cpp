@@ -102,7 +102,14 @@ FeedForward::operator() (Tensor X) noexcept
   size_t groupx = t0_.width (), groupy = t0_.height (),
          groupz = t0_.channels ();
 
-  groupx = (groupx + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
+  if (dtype_ == Q8_0)
+    {
+      groupx = (groupx + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE;
+    }
+  else if (dtype_ == FP16)
+    {
+      groupx = (groupx + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
+    }
 
   VKLLAMA_STATUS_OK (up_gate_pipeline_->set_group (groupx, groupy, groupz));
 
