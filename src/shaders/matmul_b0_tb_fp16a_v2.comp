@@ -38,7 +38,7 @@ layout (push_constant) uniform constants
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x;
+  uint gid_x = gl_WorkGroupID.x * FP16_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
