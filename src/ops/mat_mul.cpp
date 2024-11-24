@@ -5,6 +5,7 @@
 #include "src/core/tensor.h"
 #include "src/shaders/matmul_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
+#include <cstdio>
 
 namespace vkllama
 {
@@ -41,11 +42,6 @@ MatMul::init () noexcept
       = { 4, 3, 3 * sizeof (ShapeConstant), (uint32_t)dev_->subgroup_size (),
           1, 1 };
 
-  if (a_dtype_ == FP16 && b_dtype_ == Q8_0)
-    {
-      // info.local_x = 2 * dev_->subgroup_size ();
-    }
-
   if (weight_.size () > 0 && weight_.dtype () != b_dtype_)
     {
       return absl::InvalidArgumentError (absl::StrFormat (
@@ -71,8 +67,8 @@ MatMul::init () noexcept
       else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_              \
                && dev_->support_fp16_arithmetic () && broadcast_type_ == 0)      \
         {                                                                        \
-          pcode = __get_matmul_b0_tb_fp16a_v2_comp_spv_code ();                  \
-          code_size = __get_matmul_b0_tb_fp16a_v2_comp_spv_size ();              \
+          pcode = __get_matmul_b0_tb_fp16_v2_comp_spv_code ();                   \
+          code_size = __get_matmul_b0_tb_fp16_v2_comp_spv_size ();               \
         }                                                                        \
       else if (a_dtype_ == FP16 && b_dtype_ == FP16 && transpose_b_              \
                && broadcast_type_ == 0)                                          \
@@ -261,6 +257,8 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
            && broadcast_type_ == 0)
     {
       groupx = (out_w + FP16_TILE_X_SIZE - 1) / FP16_TILE_X_SIZE;
+      fprintf (stderr, "set group size = %u, %u, %u\n", groupx, groupy,
+               groupz);
     }
 
   auto s = pipeline_->set_group (groupx, groupy, groupz);
