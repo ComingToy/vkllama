@@ -88,6 +88,8 @@ main ()
 
       for (uint r = 0; r < FP16_TILE_X_SIZE; ++r)
         {
+          if (gid_x + r >= N)
+            break;
           uint bb = offset_b + (gid_x + r) * hs1;
 
           float sum_b = .0;
