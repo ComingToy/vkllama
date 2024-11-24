@@ -47,7 +47,12 @@ FeedForward::init () noexcept
     }
 
   const auto *code = __get_ffn_up_and_gate_q8_0_comp_spv_code ();
-  const auto size = __get_ffn_up_and_gate_q8_0_comp_spv_size ();
+  auto size = __get_ffn_up_and_gate_q8_0_comp_spv_size ();
+  if (dtype_ == FP16)
+    {
+      code = __get_ffn_up_and_gate_fp16_comp_spv_code ();
+      size = __get_ffn_up_and_gate_fp16_comp_spv_size ();
+    }
 
   Pipeline::ShaderInfo info
       = { 0, 4, sizeof (ShapeConstant) * 4, (uint32_t)dev_->subgroup_size (),
