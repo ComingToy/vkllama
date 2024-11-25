@@ -52,9 +52,10 @@ MultiHeadAttentionV2::init () noexcept
     }
 
   {
-    Pipeline::ShaderInfo info
-        = { 0, 7, sizeof (ShapeConstant) * 3, (uint32_t)dev_->subgroup_size (),
-            1, 1 };
+    Pipeline::ShaderInfo info = {
+      0, 7, sizeof (ShapeConstant) * 3, 3 * (uint32_t)dev_->subgroup_size (),
+      1, 1
+    };
 
     const auto *kqv_code = __get_kqv_fp16_x_q8_0_comp_spv_code ();
     const auto kqv_size = __get_kqv_fp16_x_q8_0_comp_spv_size ();
@@ -180,8 +181,9 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
     VKLLAMA_STATUS_OK (q.create ());
     VKLLAMA_STATUS_OK (v.create ());
 
-    uint32_t groupx = (k.width () + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE,
-             groupy = k.height (), groupz = k.channels ();
+    uint32_t groupx
+        = (k.width () + Q8_0_KQV_TILE_X_SIZE - 1) / Q8_0_KQV_TILE_X_SIZE,
+        groupy = k.height (), groupz = k.channels ();
 
     VKLLAMA_STATUS_OK (kqv_pipeline_->set_group (groupx, groupy, groupz));
 
