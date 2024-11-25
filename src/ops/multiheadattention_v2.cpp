@@ -52,10 +52,9 @@ MultiHeadAttentionV2::init () noexcept
     }
 
   {
-    Pipeline::ShaderInfo info = {
-      0, 7, sizeof (ShapeConstant) * 3, 3 * (uint32_t)dev_->subgroup_size (),
-      1, 1
-    };
+    Pipeline::ShaderInfo info
+        = { 0, 7, sizeof (ShapeConstant) * 3, (uint32_t)dev_->subgroup_size (),
+            1, 1 };
 
     const auto *kqv_code = __get_kqv_fp16_x_q8_0_comp_spv_code ();
     const auto kqv_size = __get_kqv_fp16_x_q8_0_comp_spv_size ();
