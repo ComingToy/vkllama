@@ -42,7 +42,7 @@ Tensor::Tensor (const Tensor &rhs)
 {
   if (status_)
     {
-      status_->ref_.fetch_add (1);
+      status_->ref_ += 1;
     }
 }
 
@@ -60,7 +60,7 @@ Tensor::operator= (Tensor const &rhs)
 {
   if (rhs.status_)
     {
-      rhs.status_->ref_.fetch_add (1);
+      rhs.status_->ref_ += 1;
     }
 
   release_ ();
@@ -148,9 +148,9 @@ Tensor::create ()
   }
 
   status_ = new __TensorStatus ();
-  status_->access_flags_.store (0);
-  status_->pipeline_stage_.store (0);
-  status_->ref_.store (1);
+  status_->access_flags_ = (0);
+  status_->pipeline_stage_ = (0);
+  status_->ref_ = 1;
   return absl::OkStatus ();
 }
 
@@ -170,13 +170,13 @@ Tensor::host ()
 VkAccessFlags
 Tensor::access_flags () const
 {
-  return status_ ? status_->access_flags_.load () : 0;
+  return status_ ? status_->access_flags_ : 0;
 }
 
 VkPipelineStageFlags
 Tensor::pipeline_stage () const
 {
-  return status_ ? status_->pipeline_stage_.load () : 0;
+  return status_ ? status_->pipeline_stage_ : 0;
 }
 
 void
@@ -184,7 +184,7 @@ Tensor::set_access_flags (VkAccessFlags flags)
 {
   if (!status_)
     return;
-  status_->access_flags_.store (flags);
+  status_->access_flags_ = flags;
 }
 
 void
@@ -192,7 +192,7 @@ Tensor::set_pipeline_stage (VkPipelineStageFlags stage)
 {
   if (!status_)
     return;
-  status_->pipeline_stage_.store (stage);
+  status_->pipeline_stage_ = stage;
 }
 
 bool
@@ -347,7 +347,7 @@ Tensor::invalid ()
 void
 Tensor::release_ ()
 {
-  if (status_ && status_->ref_.fetch_sub (1) == 1)
+  if (status_ && (status_->ref_ -= 1) == 1)
     {
       if (data_ != VK_NULL_HANDLE)
         {

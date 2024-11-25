@@ -76,9 +76,10 @@ private:
   VkBuffer data_;
   struct __TensorStatus
   {
-    std::atomic<VkAccessFlags> access_flags_;
-    std::atomic<VkPipelineStageFlags> pipeline_stage_;
-    std::atomic<int> ref_;
+    VkAccessFlags access_flags_;
+    VkPipelineStageFlags pipeline_stage_;
+    // std::atomic<int> ref_;
+    int ref_;
   };
 
   VmaAllocationInfo mem_;
