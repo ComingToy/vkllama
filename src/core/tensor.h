@@ -78,8 +78,7 @@ private:
   {
     VkAccessFlags access_flags_;
     VkPipelineStageFlags pipeline_stage_;
-    // std::atomic<int> ref_;
-    int ref_;
+    std::atomic<int> ref_;
   };
 
   VmaAllocationInfo mem_;

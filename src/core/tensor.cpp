@@ -42,7 +42,7 @@ Tensor::Tensor (const Tensor &rhs)
 {
   if (status_)
     {
-      status_->ref_ += 1;
+      status_->ref_.fetch_add (1);
     }
 }
 
@@ -60,7 +60,7 @@ Tensor::operator= (Tensor const &rhs)
 {
   if (rhs.status_)
     {
-      rhs.status_->ref_ += 1;
+      rhs.status_->ref_.fetch_add (1);
     }
 
   release_ ();
@@ -150,7 +150,7 @@ Tensor::create ()
   status_ = new __TensorStatus ();
   status_->access_flags_ = (0);
   status_->pipeline_stage_ = (0);
-  status_->ref_ = 1;
+  status_->ref_.store (1);
   return absl::OkStatus ();
 }
 
@@ -347,7 +347,7 @@ Tensor::invalid ()
 void
 Tensor::release_ ()
 {
-  if (status_ && (status_->ref_ -= 1) == 1)
+  if (status_ && (status_->ref_.fetch_sub (1)) == 1)
     {
       if (data_ != VK_NULL_HANDLE)
         {
