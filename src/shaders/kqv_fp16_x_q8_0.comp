@@ -45,7 +45,6 @@ main ()
   uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
-  uint warpId = gl_SubgroupID.x;
 
   uint C = shape0.c;
   uint M = shape0.h;
@@ -68,11 +67,11 @@ main ()
 #define Sq 1
 #define Sv 2
 
-  float sums[Q8_0_TILE_X_SIZE];
+  vec3 sums[Q8_0_TILE_X_SIZE];
 
   [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
     {
-      sums[i] = 0;
+      sums[i] = vec3 (.0);
     }
 
   uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
@@ -101,43 +100,24 @@ main ()
           // uint block_offset
           //     = (gid_z * shape1.cs / 2 + (gid_x + r) * block_counts);
 
-          float d = .0;
-          if (warpId == 0)
-            {
-              d = float (Wk[block_offset].d);
-            }
-          else if (warpId == 1)
-            {
-              d = float (Wq[block_offset].d);
-            }
-          else if (warpId == 2)
-            {
-              d = float (Wv[block_offset].d);
-            }
+          vec3 d
+              = vec3 (float (Wk[block_offset].d), float (Wq[block_offset].d),
+                      float (Wv[block_offset].d));
+          vec3 local_sum = vec3 (.0);
 
-          float sum = .0;
           uint d_offset = il * 8;
           for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
             {
               uint di = d_offset + i;
 
               float a = tmp[i];
-              float b = 0;
-              if (warpId == 0)
-                {
-                  b = float (int8_t (Wk[block_offset].items[di]));
-                }
-              if (warpId == 1)
-                {
-                  b = float (int8_t (Wq[block_offset].items[di]));
-                }
-              if (warpId == 2)
-                {
-                  b = float (int8_t (Wv[block_offset].items[di]));
-                }
-              sum += (a * b);
+              vec3 b = a
+                       * vec3 (float (int8_t (Wk[block_offset].items[di])),
+                               float (int8_t (Wq[block_offset].items[di])),
+                               float (int8_t (Wv[block_offset].items[di])));
+              local_sum += b;
             }
-          sums[r] += sum * d;
+          sums[r] += local_sum * d;
           block_offset += block_counts;
         }
 
@@ -151,16 +131,13 @@ main ()
       if (gid_x + r >= N)
         break;
 
-      float v = subgroupAdd (sums[r]);
+      vec3 v = subgroupAdd (sums[r]);
 
       if (subgroupElect ())
         {
-          if (warpId == 0)
-            OutputK[output_offset + r] = float16_t (v);
-          if (warpId == 1)
-            OutputQ[output_offset + r] = float16_t (v);
-          if (warpId == 2)
-            OutputV[output_offset + r] = float16_t (v);
+          OutputK[output_offset + r] = float16_t (v.x);
+          OutputQ[output_offset + r] = float16_t (v.y);
+          OutputV[output_offset + r] = float16_t (v.z);
         }
     }
 }
