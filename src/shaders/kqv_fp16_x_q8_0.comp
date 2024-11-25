@@ -42,7 +42,7 @@ layout (push_constant) uniform constants
 void
 main ()
 {
-  uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
+  uint gid_x = gl_WorkGroupID.x * Q8_0_KQV_TILE_X_SIZE;
   uint gid_y = gl_GlobalInvocationID.y;
   uint gid_z = gl_GlobalInvocationID.z;
 
@@ -67,9 +67,9 @@ main ()
 #define Sq 1
 #define Sv 2
 
-  vec3 sums[Q8_0_TILE_X_SIZE];
+  vec3 sums[Q8_0_KQV_TILE_X_SIZE];
 
-  [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
+  [[unroll]] for (uint i = 0; i < Q8_0_KQV_TILE_X_SIZE; ++i)
     {
       sums[i] = vec3 (.0);
     }
@@ -95,7 +95,7 @@ main ()
 
       uint offset_b = gid_z * cs1 + gid_x * block_counts + bi;
       uint block_offset = offset_b;
-      for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+      for (uint r = 0; r < Q8_0_KQV_TILE_X_SIZE; ++r)
         {
           // uint block_offset
           //     = (gid_z * shape1.cs / 2 + (gid_x + r) * block_counts);
@@ -126,7 +126,7 @@ main ()
     }
 
   uint output_offset = gid_z * cs2 + gid_y * hs2 + gid_x;
-  [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+  [[unroll]] for (uint r = 0; r < Q8_0_KQV_TILE_X_SIZE; ++r)
     {
       if (gid_x + r >= N)
         break;

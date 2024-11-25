@@ -181,8 +181,9 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
     VKLLAMA_STATUS_OK (q.create ());
     VKLLAMA_STATUS_OK (v.create ());
 
-    uint32_t groupx = (k.width () + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE,
-             groupy = k.height (), groupz = k.channels ();
+    uint32_t groupx
+        = (k.width () + Q8_0_KQV_TILE_X_SIZE - 1) / Q8_0_KQV_TILE_X_SIZE,
+        groupy = k.height (), groupz = k.channels ();
 
     VKLLAMA_STATUS_OK (kqv_pipeline_->set_group (groupx, groupy, groupz));
 
