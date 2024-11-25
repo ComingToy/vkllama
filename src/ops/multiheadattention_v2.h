@@ -48,9 +48,6 @@ private:
   const bool use_kvcache_;
   const bool clip_output_;
 
-  std::unique_ptr<MatMul> matmul_k_;
-  std::unique_ptr<MatMul> matmul_q_;
-  std::unique_ptr<MatMul> matmul_v_;
   std::unique_ptr<MatMul> matmul_o_;
   std::unique_ptr<MatMul> matmul_qk_;
   std::unique_ptr<MatMul> matmul_weighted_;
@@ -66,6 +63,7 @@ private:
   std::unique_ptr<UpdateKVCache> update_kcache_op_;
   std::unique_ptr<UpdateKVCache> update_vcache_op_;
   std::unique_ptr<Slice> clip_output_op_;
+  std::unique_ptr<Pipeline> kqv_pipeline_;
 
   std::vector<Tensor> tmp_tensors_;
 };

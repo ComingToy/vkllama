@@ -6,6 +6,7 @@
 #include "src/ops/elementwise.h"
 #include "src/ops/mat_mul.h"
 #include "src/ops/rope.h"
+#include "src/shaders/matmul_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 #include <algorithm>
 #include <array>
@@ -50,16 +51,17 @@ MultiHeadAttentionV2::init () noexcept
           wv_.width (), wo_.channels (), wo_.height (), wo_.width ()));
     }
 
+  {
+    Pipeline::ShaderInfo info
+        = { 0, 7, sizeof (ShapeConstant) * 3, (uint32_t)dev_->subgroup_size (),
+            1, 1 };
+
+    const auto *kqv_code = __get_kqv_fp16_x_q8_0_comp_spv_code ();
+    const auto kqv_size = __get_kqv_fp16_x_q8_0_comp_spv_size ();
+    kqv_pipeline_.reset (new Pipeline (dev_, kqv_code, kqv_size, {}, info));
+  }
+
   absl::Status ret;
-  matmul_k_
-      = std::make_unique<MatMul> (dev_, command_, wk_, 1.0, .0, 0, 0,
-                                  transposed_weight_, FP16, wk_.dtype ());
-  matmul_q_
-      = std::make_unique<MatMul> (dev_, command_, wq_, 1.0, .0, 0, 0,
-                                  transposed_weight_, FP16, wq_.dtype ());
-  matmul_v_
-      = std::make_unique<MatMul> (dev_, command_, wv_, 1.0, .0, 0, 0,
-                                  transposed_weight_, FP16, wv_.dtype ());
   matmul_o_
       = std::make_unique<MatMul> (dev_, command_, wo_, 1.0, 0, 0, 0,
                                   transposed_weight_, FP16, wo_.dtype ());
@@ -82,8 +84,8 @@ MultiHeadAttentionV2::init () noexcept
   transpose_v_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
   transpose_heads_ = std::make_unique<Transpose> (dev_, command_, 0, dtype_);
 
-  if (!(ret = matmul_k_->init ()).ok () || !(ret = matmul_q_->init ()).ok ()
-      || !(ret = matmul_v_->init ()).ok () || !(ret = matmul_o_->init ()).ok ()
+  if (!(ret = kqv_pipeline_->init ()).ok ()
+      || !(ret = matmul_o_->init ()).ok ()
       || !(ret = matmul_qk_->init ()).ok ()
       || !(ret = matmul_weighted_->init ()).ok ()
       || !(ret = rope_q_->init ()).ok () || !(ret = rope_k_->init ()).ok ()
@@ -167,46 +169,52 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
     }
 
   tmp_tensors_.clear ();
+  Tensor k = Tensor (X.channels (), X.height (),
+                     transposed_weight_ ? wk_.height () : wk_.width (), dev_,
+                     X.dtype (), false);
+  auto q = Tensor::like (k);
+  auto v = Tensor::like (k);
 
-  auto k = (*matmul_k_) (X);
-  auto q = (*matmul_q_) (X);
-  auto v = (*matmul_v_) (X);
+  {
+    VKLLAMA_STATUS_OK (k.create ());
+    VKLLAMA_STATUS_OK (q.create ());
+    VKLLAMA_STATUS_OK (v.create ());
 
-  VKLLAMA_STATUS_OK (print_fn ("multiheadattention k mean: ", *k));
-  VKLLAMA_STATUS_OK (print_fn ("multiheadattention q mean: ", *q));
-  VKLLAMA_STATUS_OK (print_fn ("multiheadattention v mean: ", *v));
+    uint32_t groupx = (k.width () + Q8_0_TILE_X_SIZE - 1) / Q8_0_TILE_X_SIZE,
+             groupy = k.height (), groupz = k.channels ();
 
-  VKLLAMA_STATUS_OK (k);
-  VKLLAMA_STATUS_OK (q);
-  VKLLAMA_STATUS_OK (v);
+    VKLLAMA_STATUS_OK (kqv_pipeline_->set_group (groupx, groupy, groupz));
 
-  tmp_tensors_.push_back (*k);
-  tmp_tensors_.push_back (*q);
-  tmp_tensors_.push_back (*v);
+    auto constants
+        = X.shape_constant () + wk_.shape_constant () + k.shape_constant ();
+    VKLLAMA_STATUS_OK (command_->record_pipeline (
+        *kqv_pipeline_, { X, wk_, wq_, wv_, k, q, v }, constants));
+
+    tmp_tensors_.push_back (k);
+    tmp_tensors_.push_back (q);
+    tmp_tensors_.push_back (v);
+  }
 
   // [seqlen, heads, dim]
-  if (auto ret = k->reshape (k->height (), k->width () / dim_, dim_);
-      !ret.ok ())
+  if (auto ret = k.reshape (k.height (), k.width () / dim_, dim_); !ret.ok ())
     {
       return ret;
     }
 
-  if (auto ret = q->reshape (q->height (), q->width () / dim_, dim_);
-      !ret.ok ())
+  if (auto ret = q.reshape (q.height (), q.width () / dim_, dim_); !ret.ok ())
     {
       return ret;
     }
 
-  if (auto ret = v->reshape (v->height (), v->width () / dim_, dim_);
-      !ret.ok ())
+  if (auto ret = v.reshape (v.height (), v.width () / dim_, dim_); !ret.ok ())
     {
       return ret;
     }
 
   //[heads, seqlen, dim]
-  auto transposed_k = (*transpose_k_) (*k);
-  auto transposed_q = (*transpose_q_) (*q);
-  auto transposed_v = (*transpose_v_) (*v);
+  auto transposed_k = (*transpose_k_) (k);
+  auto transposed_q = (*transpose_q_) (q);
+  auto transposed_v = (*transpose_v_) (v);
 
   VKLLAMA_STATUS_OK (transposed_k);
   VKLLAMA_STATUS_OK (transposed_q);
@@ -328,8 +336,7 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 uint64_t
 MultiHeadAttentionV2::time () noexcept
 {
-  auto kqv_cost = std::max (
-      { matmul_k_->time (), matmul_q_->time (), matmul_v_->time () });
+  auto kqv_cost = kqv_pipeline_->time ();
   auto transposed_cost = std::max (
       { transpose_k_->time (), transpose_q_->time (), transpose_v_->time () });
   uint64_t kvcache_cost = 0;

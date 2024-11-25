@@ -1,0 +1,152 @@
+#version 450 core
+
+#include "common.h"
+#include "header.h"
+#include "matmul_conf.h"
+
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : enable
+
+struct Q8_0_Block
+{
+  float16_t d;
+  uint8_t items[Q8_0_ITEMS_PER_BLOCK];
+};
+
+layout (binding = 0) readonly buffer InputTensor0
+{
+  float16_t input_tensor0[];
+};
+
+layout (binding = 1) readonly buffer InputTensor1 { Q8_0_Block Wk[]; };
+layout (binding = 2) readonly buffer InputTensor2 { Q8_0_Block Wq[]; };
+layout (binding = 3) readonly buffer InputTensor3 { Q8_0_Block Wv[]; };
+layout (binding = 4) writeonly buffer OutputTensor0 { float16_t OutputK[]; };
+layout (binding = 5) writeonly buffer OutputTensor1 { float16_t OutputQ[]; };
+layout (binding = 6) writeonly buffer OutputTensor2 { float16_t OutputV[]; };
+
+// [M, K] x [K, N] = [M, N]
+// C = channels, M = a.height, N = b.height, K = a.width
+layout (push_constant) uniform constants
+{
+  ShapeConstant shape0; // shape of input
+  ShapeConstant shape1; // shape of weight
+  ShapeConstant shape2; // shape of output
+};
+
+void
+main ()
+{
+  uint gid_x = gl_WorkGroupID.x * Q8_0_TILE_X_SIZE;
+  uint gid_y = gl_GlobalInvocationID.y;
+  uint gid_z = gl_GlobalInvocationID.z;
+
+  uint C = shape0.c;
+  uint M = shape0.h;
+  uint N = shape1.h;
+  uint K = shape0.w;
+
+  uint cs0 = shape0.cs / 2;
+  uint hs0 = shape0.hs / 2;
+  uint cs1 = shape1.cs / 2;
+  uint hs1 = shape1.hs / 2;
+  uint cs2 = shape2.cs / 2;
+  uint hs2 = shape2.hs / 2;
+
+  if (gid_x >= N || gid_y >= M || gid_z >= C)
+    {
+      return;
+    }
+
+#define Sk 0
+#define Sq 1
+#define Sv 2
+
+  float sums[3][Q8_0_TILE_X_SIZE];
+
+  [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
+    {
+      sums[Sk][i] = 0;
+      sums[Sq][i] = 0;
+      sums[Sv][i] = 0;
+    }
+
+  uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
+
+  uint offset_a = gid_z * cs0 + gid_y * hs0;
+
+  // subgroup shape = [8, 4]
+  uint ix = gl_SubgroupInvocationID.x / 4; // ix: block
+  uint il = gl_SubgroupInvocationID.x % 4; // il: items in block
+
+  uint ba = offset_a + ix * Q8_0_ITEMS_PER_BLOCK + il * 8;
+  // parallel for 8 blocks
+  [[unroll]] for (uint bi = ix; bi < block_counts; bi += gl_SubgroupSize / 4)
+    {
+
+      float tmp[Q8_0_TILE_K_SIZE];
+      for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+        {
+          tmp[i] = float (input_tensor0[ba + i]);
+        }
+
+      uint offset_b = gid_z * cs1 + gid_x * block_counts + bi;
+      uint block_offset = offset_b;
+      for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+        {
+          // uint block_offset
+          //     = (gid_z * shape1.cs / 2 + (gid_x + r) * block_counts);
+
+          float dk = float (Wk[block_offset].d);
+          float dq = float (Wq[block_offset].d);
+          float dv = float (Wv[block_offset].d);
+          float sum_k = .0;
+          float sum_q = .0;
+          float sum_v = .0;
+
+          uint d_offset = il * 8;
+          for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
+            {
+              uint di = d_offset + i;
+
+              float a = tmp[i];
+              float bk = float (int8_t (Wk[block_offset].items[di]));
+              float bq = float (int8_t (Wq[block_offset].items[di]));
+              float bv = float (int8_t (Wv[block_offset].items[di]));
+              sum_k += (a * bk);
+              sum_q += (a * bq);
+              sum_v += (a * bv);
+            }
+          sums[Sk][r] += sum_k * dk;
+          sums[Sq][r] += sum_q * dq;
+          sums[Sv][r] += sum_v * dv;
+          block_offset += block_counts;
+        }
+
+      // next 8 blocks
+      ba += 8 * Q8_0_ITEMS_PER_BLOCK;
+    }
+
+  uint output_offset = gid_z * cs2 + gid_y * hs2 + gid_x;
+  [[unroll]] for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
+    {
+      if (gid_x + r >= N)
+        break;
+
+      float k = subgroupAdd (sums[Sk][r]);
+      float q = subgroupAdd (sums[Sq][r]);
+      float v = subgroupAdd (sums[Sv][r]);
+
+      if (subgroupElect ())
+        {
+          OutputK[output_offset + r] = float16_t (k);
+          OutputQ[output_offset + r] = float16_t (q);
+          OutputV[output_offset + r] = float16_t (v);
+        }
+    }
+}
