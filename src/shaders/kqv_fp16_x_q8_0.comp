@@ -67,13 +67,11 @@ main ()
 #define Sq 1
 #define Sv 2
 
-  float sums[3][Q8_0_TILE_X_SIZE];
+  vec3 sums[Q8_0_TILE_X_SIZE];
 
   [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
     {
-      sums[Sk][i] = 0;
-      sums[Sq][i] = 0;
-      sums[Sv][i] = 0;
+      sums[i] = vec3 (.0);
     }
 
   uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
@@ -102,12 +100,10 @@ main ()
           // uint block_offset
           //     = (gid_z * shape1.cs / 2 + (gid_x + r) * block_counts);
 
-          float dk = float (Wk[block_offset].d);
-          float dq = float (Wq[block_offset].d);
-          float dv = float (Wv[block_offset].d);
-          float sum_k = .0;
-          float sum_q = .0;
-          float sum_v = .0;
+          vec3 d
+              = vec3 (float (Wk[block_offset].d), float (Wq[block_offset].d),
+                      float (Wv[block_offset].d));
+          vec3 local_sum = vec3 (.0);
 
           uint d_offset = il * 8;
           for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
@@ -115,16 +111,13 @@ main ()
               uint di = d_offset + i;
 
               float a = tmp[i];
-              float bk = float (int8_t (Wk[block_offset].items[di]));
-              float bq = float (int8_t (Wq[block_offset].items[di]));
-              float bv = float (int8_t (Wv[block_offset].items[di]));
-              sum_k += (a * bk);
-              sum_q += (a * bq);
-              sum_v += (a * bv);
+              vec3 b = a
+                       * vec3 (float (int8_t (Wk[block_offset].items[di])),
+                               float (int8_t (Wq[block_offset].items[di])),
+                               float (int8_t (Wv[block_offset].items[di])));
+              local_sum += b;
             }
-          sums[Sk][r] += sum_k * dk;
-          sums[Sq][r] += sum_q * dq;
-          sums[Sv][r] += sum_v * dv;
+          sums[r] += local_sum * d;
           block_offset += block_counts;
         }
 
@@ -138,15 +131,13 @@ main ()
       if (gid_x + r >= N)
         break;
 
-      float k = subgroupAdd (sums[Sk][r]);
-      float q = subgroupAdd (sums[Sq][r]);
-      float v = subgroupAdd (sums[Sv][r]);
+      vec3 v = subgroupAdd (sums[r]);
 
       if (subgroupElect ())
         {
-          OutputK[output_offset + r] = float16_t (k);
-          OutputQ[output_offset + r] = float16_t (q);
-          OutputV[output_offset + r] = float16_t (v);
+          OutputK[output_offset + r] = float16_t (v.x);
+          OutputQ[output_offset + r] = float16_t (v.y);
+          OutputV[output_offset + r] = float16_t (v.z);
         }
     }
 }
