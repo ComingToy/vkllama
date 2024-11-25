@@ -63,10 +63,6 @@ main ()
       return;
     }
 
-#define Sk 0
-#define Sq 1
-#define Sv 2
-
   vec3 sums[Q8_0_KQV_TILE_X_SIZE];
 
   [[unroll]] for (uint i = 0; i < Q8_0_KQV_TILE_X_SIZE; ++i)

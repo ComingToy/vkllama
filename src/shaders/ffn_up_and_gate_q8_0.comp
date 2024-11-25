@@ -63,12 +63,11 @@ main ()
       return;
     }
 
-  float sums[2][Q8_0_TILE_X_SIZE];
+  vec2 sums[Q8_0_TILE_X_SIZE];
 
   [[unroll]] for (uint i = 0; i < Q8_0_TILE_X_SIZE; ++i)
     {
-      sums[0][i] = 0;
-      sums[1][i] = 0;
+      sums[i] = vec2 (0);
     }
 
   uint block_counts = (K + Q8_0_ITEMS_PER_BLOCK - 1) / Q8_0_ITEMS_PER_BLOCK;
@@ -94,10 +93,10 @@ main ()
       uint block_offset = offset_b;
       for (uint r = 0; r < Q8_0_TILE_X_SIZE; ++r)
         {
-          float d0 = float (up_weight[block_offset].d);
-          float d1 = float (gate_weight[block_offset].d);
-          float sum_b0 = .0;
-          float sum_b1 = .0;
+          vec2 d = vec2 (float (up_weight[block_offset].d),
+                         float (gate_weight[block_offset].d));
+
+          vec2 sum_b = vec2 (0);
 
           uint d_offset = il * 8;
           for (uint i = 0; i < Q8_0_TILE_K_SIZE; ++i)
@@ -105,13 +104,13 @@ main ()
               uint di = d_offset + i;
 
               float a = tmp[i];
-              float b0 = float (int8_t (up_weight[block_offset].items[di]));
-              float b1 = float (int8_t (gate_weight[block_offset].items[di]));
-              sum_b0 += (a * b0);
-              sum_b1 += (a * b1);
+              vec2 b
+                  = vec2 (float (int8_t (up_weight[block_offset].items[di])),
+                          float (int8_t (gate_weight[block_offset].items[di])))
+                    * a;
+              sum_b += b;
             }
-          sums[0][r] += sum_b0 * d0;
-          sums[1][r] += sum_b1 * d1;
+          sums[r] += sum_b * d;
           block_offset += block_counts;
         }
 
@@ -125,9 +124,8 @@ main ()
       if (gid_x + r >= N)
         break;
 
-      float v0 = subgroupAdd (sums[0][r]);
-      float v1 = subgroupAdd (sums[1][r]);
-      float v = v1 / (1.0 + exp (-v1)) * v0;
+      vec2 v0 = subgroupAdd (sums[r]);
+      float v = v0.y / (1.0 + exp (-v0.y)) * v0.x;
 
       if (subgroupElect ())
         {
