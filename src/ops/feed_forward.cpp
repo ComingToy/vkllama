@@ -72,16 +72,16 @@ uint64_t
 FeedForward::time () noexcept
 {
   auto down_time = down_op_->time ();
-  auto elem_time = up_gate_pipeline_->time ();
+  auto up_and_gate_time = up_gate_pipeline_->time ();
 
 #if __VKLLAMA_LOG_COST
   fprintf (stderr,
-           "FeedForward: up time cost: %llu, gate time cost: %llu, down time "
-           "cost: %llu, elemwise time cost: %llu\n",
-           up_time, gate_time, down_time, elem_time);
+           "FeedForward: up and gate time cost: %llu, "
+           "down time cost: %llu\n",
+           up_and_gate_time, down_time);
 #endif
 
-  return down_time + elem_time;
+  return down_time + up_and_gate_time;
 }
 
 absl::StatusOr<Tensor>
