@@ -186,8 +186,8 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       }
   }
 
+  Tensor q = q_;
   {
-
     uint32_t groupx
         = (k_.width () + Q8_0_KQV_TILE_X_SIZE - 1) / Q8_0_KQV_TILE_X_SIZE,
         groupy = k_.height (), groupz = k_.channels ();
@@ -198,7 +198,7 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
         = X.shape_constant () + wk_.shape_constant () + k_.shape_constant ();
 
     VKLLAMA_STATUS_OK (command_->record_pipeline (
-        *kqv_pipeline_, { X, wk_, wq_, wv_, k_, q_, v_ }, constants));
+        *kqv_pipeline_, { X, wk_, wq_, wv_, k_, q, v_ }, constants));
   }
 
   // [seqlen, heads, dim]
@@ -208,8 +208,7 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       return ret;
     }
 
-  if (auto ret = q_.reshape (q_.height (), q_.width () / dim_, dim_);
-      !ret.ok ())
+  if (auto ret = q.reshape (q.height (), q.width () / dim_, dim_); !ret.ok ())
     {
       return ret;
     }
@@ -220,9 +219,22 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
       return ret;
     }
 
+  // clip to last token
+  if (clip_output_)
+    {
+      std::array<uint32_t, 3> starts
+          = { uint32_t (q.channels () - 1), uint32_t (0), uint32_t (0) };
+      std::array<uint32_t, 3> sizes
+          = { uint32_t (1), uint32_t (q.height ()), uint32_t (q.width ()) };
+
+      auto ret = (*clip_output_op_) (q, starts, sizes);
+      VKLLAMA_STATUS_OK (ret);
+      q = *ret;
+    }
+
   //[heads, seqlen, dim]
   auto transposed_k = (*transpose_k_) (k_);
-  auto transposed_q = (*transpose_q_) (q_);
+  auto transposed_q = (*transpose_q_) (q);
   auto transposed_v = (*transpose_v_) (v_);
 
   VKLLAMA_STATUS_OK (transposed_k);
@@ -293,22 +305,8 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   VKLLAMA_STATUS_OK (heads);
   VKLLAMA_STATUS_OK (print_fn ("multiheadattention heads mean: ", *heads));
 
-  Tensor cliped_heads;
-  if (clip_output_)
-    {
-      std::array<uint32_t, 3> starts
-          = { uint32_t (0), uint32_t (heads->height () - 1), uint32_t (0) };
-      std::array<uint32_t, 3> sizes
-          = { uint32_t (heads->channels ()), uint32_t (1),
-              uint32_t (heads->width ()) };
-
-      auto ret = (*clip_output_op_) (*heads, starts, sizes);
-      VKLLAMA_STATUS_OK (ret);
-      cliped_heads = *ret;
-    }
-
   //[seqlen, heads, dim]
-  auto concated = (*transpose_heads_) (clip_output_ ? cliped_heads : *heads);
+  auto concated = (*transpose_heads_) (*heads);
   VKLLAMA_STATUS_OK (concated);
   VKLLAMA_STATUS_OK (
       print_fn ("multiheadattention concated heads mean: ", *concated));
