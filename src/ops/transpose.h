@@ -22,6 +22,7 @@ private:
   std::unique_ptr<Pipeline> pipeline_;
   const int dtype_;
   const int trans_type_;
+  Tensor out_;
 };
 }
 #endif

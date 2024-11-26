@@ -71,7 +71,8 @@ Cast::operator() (Tensor from) noexcept
   to.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
   to.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return to;
+  out_ = to;
+  return out_;
 }
 }
 

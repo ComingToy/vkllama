@@ -168,62 +168,66 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
                            X.channels (), X.height (), X.width ()));
     }
 
-  tmp_tensors_.clear ();
-  Tensor k = Tensor (X.channels (), X.height (),
+  {
+    size_t c = X.channels (), h = X.height (),
+           w = transposed_weight_ ? wk_.height () : wk_.width ();
+    if (!(k_.channels () == c && k_.height () == h && k_.width () == w))
+      {
+        k_ = Tensor (X.channels (), X.height (),
                      transposed_weight_ ? wk_.height () : wk_.width (), dev_,
                      X.dtype (), false);
-  auto q = Tensor::like (k);
-  auto v = Tensor::like (k);
+
+        q_ = Tensor::like (k_);
+        v_ = Tensor::like (k_);
+
+        VKLLAMA_STATUS_OK (k_.create ());
+        VKLLAMA_STATUS_OK (q_.create ());
+        VKLLAMA_STATUS_OK (v_.create ());
+      }
+  }
 
   {
-    VKLLAMA_STATUS_OK (k.create ());
-    VKLLAMA_STATUS_OK (q.create ());
-    VKLLAMA_STATUS_OK (v.create ());
 
     uint32_t groupx
-        = (k.width () + Q8_0_KQV_TILE_X_SIZE - 1) / Q8_0_KQV_TILE_X_SIZE,
-        groupy = k.height (), groupz = k.channels ();
+        = (k_.width () + Q8_0_KQV_TILE_X_SIZE - 1) / Q8_0_KQV_TILE_X_SIZE,
+        groupy = k_.height (), groupz = k_.channels ();
 
     VKLLAMA_STATUS_OK (kqv_pipeline_->set_group (groupx, groupy, groupz));
 
     auto constants
-        = X.shape_constant () + wk_.shape_constant () + k.shape_constant ();
-    VKLLAMA_STATUS_OK (command_->record_pipeline (
-        *kqv_pipeline_, { X, wk_, wq_, wv_, k, q, v }, constants));
+        = X.shape_constant () + wk_.shape_constant () + k_.shape_constant ();
 
-    tmp_tensors_.push_back (k);
-    tmp_tensors_.push_back (q);
-    tmp_tensors_.push_back (v);
+    VKLLAMA_STATUS_OK (command_->record_pipeline (
+        *kqv_pipeline_, { X, wk_, wq_, wv_, k_, q_, v_ }, constants));
   }
 
   // [seqlen, heads, dim]
-  if (auto ret = k.reshape (k.height (), k.width () / dim_, dim_); !ret.ok ())
+  if (auto ret = k_.reshape (k_.height (), k_.width () / dim_, dim_);
+      !ret.ok ())
     {
       return ret;
     }
 
-  if (auto ret = q.reshape (q.height (), q.width () / dim_, dim_); !ret.ok ())
+  if (auto ret = q_.reshape (q_.height (), q_.width () / dim_, dim_);
+      !ret.ok ())
     {
       return ret;
     }
 
-  if (auto ret = v.reshape (v.height (), v.width () / dim_, dim_); !ret.ok ())
+  if (auto ret = v_.reshape (v_.height (), v_.width () / dim_, dim_);
+      !ret.ok ())
     {
       return ret;
     }
 
   //[heads, seqlen, dim]
-  auto transposed_k = (*transpose_k_) (k);
-  auto transposed_q = (*transpose_q_) (q);
-  auto transposed_v = (*transpose_v_) (v);
+  auto transposed_k = (*transpose_k_) (k_);
+  auto transposed_q = (*transpose_q_) (q_);
+  auto transposed_v = (*transpose_v_) (v_);
 
   VKLLAMA_STATUS_OK (transposed_k);
   VKLLAMA_STATUS_OK (transposed_q);
   VKLLAMA_STATUS_OK (transposed_v);
-
-  tmp_tensors_.push_back (*transposed_k);
-  tmp_tensors_.push_back (*transposed_q);
-  tmp_tensors_.push_back (*transposed_v);
 
   VKLLAMA_STATUS_OK (
       print_fn ("multiheadattention transposed k mean: ", *transposed_k));
@@ -241,9 +245,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 
   VKLLAMA_STATUS_OK (print_fn ("multiheadattention roped q mean: ", *roped_q));
   VKLLAMA_STATUS_OK (print_fn ("multiheadattention roped k mean: ", *roped_k));
-
-  tmp_tensors_.push_back (*roped_k);
-  tmp_tensors_.push_back (*roped_q);
 
   if (use_kvcache_)
     {
@@ -279,8 +280,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   VKLLAMA_STATUS_OK (
       print_fn ("multiheadattention attn_scores mean: ", *attn_scores));
 
-  tmp_tensors_.push_back (*attn_scores);
-
   // TODO: could be funsed
   auto softmax_offset = attn_scores->width () - attn_scores->height ();
   auto softmax_attn_scores = (*softmax_) (*attn_scores, softmax_offset);
@@ -289,14 +288,10 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   VKLLAMA_STATUS_OK (print_fn ("multiheadattention softmax_attn_scores mean: ",
                                *softmax_attn_scores));
 
-  tmp_tensors_.push_back (*softmax_attn_scores);
-
   // [heads, seqlen, dim]
   auto heads = (*matmul_weighted_) (*softmax_attn_scores, *transposed_v);
   VKLLAMA_STATUS_OK (heads);
   VKLLAMA_STATUS_OK (print_fn ("multiheadattention heads mean: ", *heads));
-
-  tmp_tensors_.push_back (*heads);
 
   Tensor cliped_heads;
   if (clip_output_)
@@ -309,7 +304,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
 
       auto ret = (*clip_output_op_) (*heads, starts, sizes);
       VKLLAMA_STATUS_OK (ret);
-      tmp_tensors_.push_back (*ret);
       cliped_heads = *ret;
     }
 
@@ -323,8 +317,6 @@ MultiHeadAttentionV2::operator() (Tensor X, const size_t offset) noexcept
   ret = concated->reshape (1, concated->channels (),
                            concated->height () * concated->width ());
   VKLLAMA_STATUS_OK (ret);
-
-  tmp_tensors_.push_back (*concated);
 
   auto out = (*matmul_o_) (*concated);
   VKLLAMA_STATUS_OK (out);

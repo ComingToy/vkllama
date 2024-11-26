@@ -60,19 +60,25 @@ Embedding::operator() (Tensor indices) noexcept
 {
   if (vocab_.channels () != 1 || indices.channels () != 1)
     {
+      return absl::InvalidArgumentError (absl::StrFormat (
+          "only channels = 1 is supported. vocab channels = %zu, indices "
+          "channels = %zu\n",
+          vocab_.channels (), indices.channels ()));
     }
 
   if (indices.dtype () != UINT32 || vocab_.dtype () != dtype_)
     {
+      return absl::InvalidArgumentError (
+          "only indices.dtype = UINT32 is supported");
     }
 
-  auto out = Tensor (indices.height (), indices.width (), vocab_.width (),
-                     dev_, FP16);
-  auto ret = out.create ();
-
-  if (!ret.ok ())
+  if (out_.channels () != indices.height ()
+      || out_.height () != indices.width ()
+      || out_.width () != vocab_.width ())
     {
-      return ret;
+      out_ = Tensor (indices.height (), indices.width (), vocab_.width (),
+                     dev_, FP16);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   auto constants = vocab_.shape_constant () + indices.shape_constant ();
@@ -80,30 +86,31 @@ Embedding::operator() (Tensor indices) noexcept
   uint32_t group_x = (indices.width () + 15) / 16,
            group_y = (indices.height () + 1) / 2;
 
+  absl::Status ret;
   if (!(ret = pipeline_->set_group (group_x, group_y, 1)).ok ())
     {
       return ret;
     }
 
-  ret = command_->record_pipeline (*pipeline_, { indices, out }, { 1, 2 },
+  ret = command_->record_pipeline (*pipeline_, { indices, out_ }, { 1, 2 },
                                    constants);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
   static bool __enable_debug_log = false;
   if (__enable_debug_log)
     {
       VKLLAMA_STATUS_OK (
-          command_->print_tensor_mean ("embedding outut mean: ", out));
+          command_->print_tensor_mean ("embedding outut mean: ", out_));
       __enable_debug_log = false;
     }
 
-  return out;
+  return out_;
 }
 
 uint64_t

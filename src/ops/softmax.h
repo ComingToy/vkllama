@@ -24,6 +24,7 @@ private:
   Tensor::DType dtype_;
 
   float temp_;
+  Tensor out_;
 };
 
 }

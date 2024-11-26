@@ -95,9 +95,13 @@ FeedForward::operator() (Tensor X) noexcept
     }
 
   absl::StatusOr<Tensor> ret;
-  t0_ = Tensor (X.channels (), X.height (), w1_.height (), dev_, FP16, false);
-
-  VKLLAMA_STATUS_OK (t0_.create ());
+  if (t0_.channels () != X.channels () || t0_.height () != X.height ()
+      || t0_.width () != w1_.height ())
+    {
+      t0_ = Tensor (X.channels (), X.height (), w1_.height (), dev_, FP16,
+                    false);
+      VKLLAMA_STATUS_OK (t0_.create ());
+    }
 
   size_t groupx = t0_.width (), groupy = t0_.height (),
          groupz = t0_.channels ();

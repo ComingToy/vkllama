@@ -22,6 +22,7 @@ private:
   std::vector<std::unique_ptr<Pipeline> > pipelines_;
   int axis_;
   Tensor::DType dtype_;
+  Tensor out_;
 };
 
 }

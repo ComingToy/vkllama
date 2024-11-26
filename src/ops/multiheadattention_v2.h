@@ -11,6 +11,7 @@
 #include "src/ops/transpose.h"
 #include "src/ops/update_kv_cache.h"
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace vkllama
@@ -65,7 +66,9 @@ private:
   std::unique_ptr<Slice> clip_output_op_;
   std::unique_ptr<Pipeline> kqv_pipeline_;
 
+  // temp tensors
   std::vector<Tensor> tmp_tensors_;
+  Tensor k_, q_, v_;
 };
 }
 

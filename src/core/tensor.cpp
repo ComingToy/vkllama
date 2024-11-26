@@ -3,6 +3,7 @@
 #include "gpu_device.h"
 #include "src/core/quants.h"
 #include "vk_mem_alloc.h"
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <vulkan/vulkan.h>
@@ -235,6 +236,12 @@ size_t
 Tensor::ws () const
 {
   return ws_;
+}
+
+std::array<size_t, 3>
+Tensor::shape () const
+{
+  return { channels (), height (), width () };
 }
 
 void

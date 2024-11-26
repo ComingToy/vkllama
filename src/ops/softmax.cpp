@@ -1,5 +1,6 @@
 #include "src/ops/softmax.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
@@ -58,10 +59,11 @@ Softmax::operator() (Tensor a, size_t offset) noexcept
           int (dtype_), int (a.dtype ())));
     }
 
-  auto b = Tensor::like (a);
-  if (auto ret = b.create (); !ret.ok ())
+  if (out_.channels () != a.channels () || out_.height () != a.height ()
+      || out_.width () != a.width ())
     {
-      return ret;
+      out_ = Tensor::like (a);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   uint32_t group_x = 1, group_y = (a.height () + 1) / 2,
@@ -76,17 +78,17 @@ Softmax::operator() (Tensor a, size_t offset) noexcept
   auto constants = a.shape_constant ();
   constants.push_back ((uint32_t)offset);
 
-  ret = command_->record_pipeline (*softmax0_, { a, b }, constants);
+  ret = command_->record_pipeline (*softmax0_, { a, out_ }, constants);
 
   if (!ret.ok ())
     {
       return ret;
     }
 
-  b.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  b.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-  return b;
+  return out_;
 }
 }
 

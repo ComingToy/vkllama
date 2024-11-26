@@ -22,6 +22,7 @@ public:
 private:
   Tensor::DType from_;
   Tensor::DType to_;
+  Tensor out_;
   std::unique_ptr<Pipeline> pipeline_;
 };
 

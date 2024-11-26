@@ -20,6 +20,7 @@ public:
 private:
   Tensor::DType dtype_;
   std::unique_ptr<Pipeline> pipeline_;
+  Tensor out_;
 };
 }
 #endif
