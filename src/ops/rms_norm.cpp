@@ -6,13 +6,13 @@
 
 namespace vkllama
 {
+#define __RMS_NORM_BLOCK_X 256
 RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
                   const float eps_, const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
-  Pipeline::ShaderInfo info = {
-    2, 3, sizeof (ShapeConstant), (uint32_t)dev_->subgroup_size (), 4, 1
-  };
+  Pipeline::ShaderInfo info
+      = { 2, 3, sizeof (ShapeConstant), __RMS_NORM_BLOCK_X, 1, 1 };
 
   const auto *spv_code = __get_rms_norm_fp16_comp_spv_code ();
   const auto spv_size = __get_rms_norm_fp16_comp_spv_size ();
@@ -75,7 +75,7 @@ RMSNorm::operator() (Tensor x) noexcept
       VKLLAMA_STATUS_OK (out_.create ());
     }
 
-  auto ret = pipeline_->set_group (1, (x.height () + 3) / 4, x.channels ());
+  auto ret = pipeline_->set_group (1, x.height (), x.channels ());
   VKLLAMA_STATUS_OK (ret);
 
   ret = command_->record_pipeline (*pipeline_, { x, out_ }, { 0, 2 },
