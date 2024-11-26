@@ -8,6 +8,7 @@ glsl_shader(
         "common.h",
         "header.h",
         "matmul_conf.h",
+        "rms_norm_conf.h",
     ],
     extra_args = [
         "--target-env=vulkan1.2",

@@ -2,17 +2,17 @@
 #include "src/core/command.h"
 #include "src/core/common.h"
 #include "src/core/pipeline.h"
+#include "src/shaders/rms_norm_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
 namespace vkllama
 {
-#define __RMS_NORM_BLOCK_X 256
 RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
                   const float eps_, const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
   Pipeline::ShaderInfo info
-      = { 2, 3, sizeof (ShapeConstant), __RMS_NORM_BLOCK_X, 1, 1 };
+      = { 2, 3, sizeof (ShapeConstant), _RMS_NORM_BLOCK_X, 1, 1 };
 
   const auto *spv_code = __get_rms_norm_fp16_comp_spv_code ();
   const auto spv_size = __get_rms_norm_fp16_comp_spv_size ();

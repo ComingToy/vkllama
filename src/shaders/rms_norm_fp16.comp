@@ -1,6 +1,7 @@
 #version 450 core
 #include "common.h"
 #include "header.h"
+#include "rms_norm_conf.h"
 
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
@@ -28,7 +29,7 @@ layout (set = 0, binding = 2) writeonly buffer OutTensor
   float16_t output_tensor[];
 };
 
-shared float sum[gl_WorkGroupSize.x];
+shared float sum[_RMS_NORM_BLOCK_X];
 void
 main (void)
 {
