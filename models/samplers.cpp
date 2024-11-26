@@ -37,28 +37,26 @@ TopkSampler::TopkSampler (size_t topk) : topk_ (topk) {}
 int
 TopkSampler::sample (const float *logits, size_t n)
 {
-  std::vector<std::pair<float, int> > tmp;
+  std::vector<std::pair<float, int> > tmp (n);
   for (size_t i = 0; i < n; ++i)
     {
-      tmp.push_back (std::make_pair (logits[i], (int)i));
+      tmp[i] = std::make_pair (logits[i], (int)i);
     }
 
   std::sort (tmp.begin (), tmp.end (), [] (auto const &lhs, auto const &rhs) {
     return lhs.first > rhs.first;
   });
 
-  std::vector<std::pair<float, int> > topk;
-  for (size_t i = 0; i < topk_; ++i)
-    {
-      topk.push_back (tmp[i]);
-    }
+  tmp.resize (topk_);
 
-  softmax (topk);
+  softmax (tmp);
 
   std::vector<float> probs;
-  std::transform (
-      topk.cbegin (), topk.cbegin () + std::min (topk_, topk.size ()),
-      std::back_inserter (probs), [] (auto const &v) { return v.first; });
+  probs.reserve (topk_);
+
+  std::transform (tmp.cbegin (), tmp.cbegin () + std::min (topk_, tmp.size ()),
+                  std::back_inserter (probs),
+                  [] (auto const &v) { return v.first; });
 
   auto i = sample_from_prob (probs.data (), probs.size ());
 
