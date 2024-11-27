@@ -1,6 +1,7 @@
 #version 450 core
 #include "common.h"
 #include "header.h"
+#include "rms_norm_conf.h"
 
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
@@ -28,6 +29,7 @@ layout (set = 0, binding = 2) writeonly buffer OutTensor
   float16_t output_tensor[];
 };
 
+shared float sum[_RMS_NORM_BLOCK_X];
 void
 main (void)
 {
@@ -37,27 +39,41 @@ main (void)
   uint C = shape.c;
   uint H = shape.h;
   uint W = shape.w;
+  uint cs = shape.cs / 2;
+  uint hs = shape.hs / 2;
 
-  if (c >= C || h >= H)
-    return;
+  uint row_offset = c * H * W + h * W;
 
-  float r = .0;
-  [[unroll]] for (uint w = gl_SubgroupInvocationID.x; w < W;
-                  w += gl_SubgroupSize)
+  sum[gl_LocalInvocationID.x] = .0;
+  for (uint w = gl_LocalInvocationID.x; w < W; w += gl_WorkGroupSize.x)
     {
-      float v = float (input_tensor[c * H * W + h * W + w]);
-      v = pow (v, power);
-      r += v;
+      float v = float (input_tensor[row_offset + w]);
+      sum[gl_LocalInvocationID.x] += (v * v);
     }
 
-  float alpha = 1.0 / (sqrt (subgroupAdd (r) / float (W) + eps));
+  barrier ();
+  memoryBarrierShared ();
 
-  [[unroll]] for (uint ow = gl_SubgroupInvocationID.x; ow < W;
-                  ow += gl_SubgroupSize)
+  for (uint i = gl_WorkGroupSize.x / 2; i > 0; i /= 2)
     {
-      float v = float (input_tensor[c * H * W + h * W + ow]);
+      if (gl_LocalInvocationID.x < i)
+        {
+          sum[gl_LocalInvocationID.x] += sum[gl_LocalInvocationID.x + i];
+        }
+      barrier ();
+      memoryBarrierShared ();
+    }
+
+  barrier ();
+  memoryBarrierShared ();
+
+  float alpha = 1.0 / (sqrt (sum[0] / float (W) + eps));
+
+  for (uint ow = gl_LocalInvocationID.x; ow < W; ow += gl_WorkGroupSize.x)
+    {
+      float v = float (input_tensor[row_offset + ow]);
       float w = float (input_weights[ow]);
-      output_tensor[c * H * W + h * W + ow] = float16_t (v * w * alpha);
+      output_tensor[row_offset + ow] = float16_t (v * w * alpha);
     }
 }
 

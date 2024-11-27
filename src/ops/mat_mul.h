@@ -37,6 +37,8 @@ private:
   const float scale_;
   const float bias_;
   Pipeline::ShaderInfo shader_info_;
+
+  Tensor out_;
 };
 }
 

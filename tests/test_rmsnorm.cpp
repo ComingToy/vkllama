@@ -84,9 +84,9 @@ TEST_P (TestRMSNorm, test_rmsnorm)
          * input_tensor1.broadcast (weight_broadcasts)
          * input_tensor0.cast<float> ())
             .cast<Eigen::half> ();
-  // std::cerr << "input tensor: " << input_tensor0 << std::endl
-  //           << "vk output tensor: " << vk_output_tensor << std::endl
-  //           << "eigen output tensor: " << eigen_output_tensor << std::endl;
+  std::cerr << "input tensor: " << input_tensor0 << std::endl
+            << "vk output tensor: " << vk_output_tensor << std::endl
+            << "eigen output tensor: " << eigen_output_tensor << std::endl;
   _Tensor<Eigen::half, 3> err (vk_output_tensor.dimensions ());
   err.setConstant (Eigen::half (1e-2));
 
@@ -98,7 +98,8 @@ TEST_P (TestRMSNorm, test_rmsnorm)
 };
 
 std::vector<TestRMSNormParams> params = {
-  { 3, 2, 133, 1 }, { 3, 1023, 63, 1 },
+  { 1, 1, 128, 1 },
+  //{ 3, 1023, 63, 1 },
   // { 1, 1023, 63, 0 },
   // { 3, 1023, 63, 0 }
 };

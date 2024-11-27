@@ -5,6 +5,7 @@
 #include "gpu_device.h"
 #include "src/core/common.h"
 #include "src/core/shader_constants.h"
+#include <array>
 #include <atomic>
 #include <set>
 #include <type_traits>
@@ -38,6 +39,7 @@ public:
   size_t cs () const;
   size_t hs () const;
   size_t ws () const;
+  std::array<size_t, 3> shape () const;
   ShaderConstants shape_constant () const;
 
   size_t size () const;
@@ -76,8 +78,8 @@ private:
   VkBuffer data_;
   struct __TensorStatus
   {
-    std::atomic<VkAccessFlags> access_flags_;
-    std::atomic<VkPipelineStageFlags> pipeline_stage_;
+    VkAccessFlags access_flags_;
+    VkPipelineStageFlags pipeline_stage_;
     std::atomic<int> ref_;
   };
 

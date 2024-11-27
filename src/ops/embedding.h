@@ -22,6 +22,7 @@ private:
   Tensor vocab_;
   const uint32_t UNK_;
   const Tensor::DType dtype_;
+  Tensor out_;
 };
 
 }

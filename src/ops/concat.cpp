@@ -129,11 +129,10 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
         }
     }
 
-  auto output = Tensor (c, h, w, dev_, dtype_);
-  auto ret = output.create ();
-  if (!ret.ok ())
+  if (out_.channels () != c || out_.height () != h || out_.width () != w)
     {
-      return ret;
+      out_ = Tensor (c, h, w, dev_, dtype_);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   std::vector<uint32_t> offsets;
@@ -163,7 +162,7 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
   for (int i = 0; i < num_; ++i)
     {
       const auto &inp = inputs[i];
-      ShaderConstants shape = inp.shape_constant () + output.shape_constant ();
+      ShaderConstants shape = inp.shape_constant () + out_.shape_constant ();
       shape.push_back (offsets[i]);
 
       uint32_t group_x = (inp.width () + 1) / 2,
@@ -173,16 +172,16 @@ Concat::operator() (const std::vector<Tensor> &inputs) noexcept
         {
           return ret;
         }
-      ret = command_->record_pipeline (*pipelines_[i], { inp, output }, shape);
+      ret = command_->record_pipeline (*pipelines_[i], { inp, out_ }, shape);
       if (!ret.ok ())
         {
           return ret;
         }
     }
 
-  output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return output;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 }
 
 uint64_t

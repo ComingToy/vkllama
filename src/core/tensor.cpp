@@ -3,6 +3,7 @@
 #include "gpu_device.h"
 #include "src/core/quants.h"
 #include "vk_mem_alloc.h"
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <vulkan/vulkan.h>
@@ -148,8 +149,8 @@ Tensor::create ()
   }
 
   status_ = new __TensorStatus ();
-  status_->access_flags_.store (0);
-  status_->pipeline_stage_.store (0);
+  status_->access_flags_ = (0);
+  status_->pipeline_stage_ = (0);
   status_->ref_.store (1);
   return absl::OkStatus ();
 }
@@ -170,13 +171,13 @@ Tensor::host ()
 VkAccessFlags
 Tensor::access_flags () const
 {
-  return status_ ? status_->access_flags_.load () : 0;
+  return status_ ? status_->access_flags_ : 0;
 }
 
 VkPipelineStageFlags
 Tensor::pipeline_stage () const
 {
-  return status_ ? status_->pipeline_stage_.load () : 0;
+  return status_ ? status_->pipeline_stage_ : 0;
 }
 
 void
@@ -184,7 +185,7 @@ Tensor::set_access_flags (VkAccessFlags flags)
 {
   if (!status_)
     return;
-  status_->access_flags_.store (flags);
+  status_->access_flags_ = flags;
 }
 
 void
@@ -192,7 +193,7 @@ Tensor::set_pipeline_stage (VkPipelineStageFlags stage)
 {
   if (!status_)
     return;
-  status_->pipeline_stage_.store (stage);
+  status_->pipeline_stage_ = stage;
 }
 
 bool
@@ -235,6 +236,12 @@ size_t
 Tensor::ws () const
 {
   return ws_;
+}
+
+std::array<size_t, 3>
+Tensor::shape () const
+{
+  return { channels (), height (), width () };
 }
 
 void
@@ -347,7 +354,7 @@ Tensor::invalid ()
 void
 Tensor::release_ ()
 {
-  if (status_ && status_->ref_.fetch_sub (1) == 1)
+  if (status_ && (status_->ref_.fetch_sub (1)) == 1)
     {
       if (data_ != VK_NULL_HANDLE)
         {

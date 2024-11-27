@@ -1,5 +1,6 @@
 #include "src/ops/transpose.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/ops/op.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
@@ -45,35 +46,36 @@ Transpose::operator() (Tensor in) noexcept
           "only transpose type 0 is supported now.");
     }
 
-  auto out
-      = Tensor (in.height (), in.channels (), in.width (), dev_, in.dtype ());
-
-  auto ret = out.create ();
-  if (!ret.ok ())
+  if (out_.channels () != in.height () || out_.height () != in.channels ()
+      || out_.width () != in.width ())
     {
-      return ret;
+
+      out_ = Tensor (in.height (), in.channels (), in.width (), dev_,
+                     in.dtype ());
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
-  uint32_t group_x = (out.width () + 7) / 8, group_y = (out.height () + 1) / 2,
-           group_z = (out.channels () + 1) / 2;
+  uint32_t group_x = (out_.width () + 7) / 8,
+           group_y = (out_.height () + 1) / 2,
+           group_z = (out_.channels () + 1) / 2;
 
+  absl::Status ret;
   if (!(ret = pipeline_->set_group (group_x, group_y, group_z)).ok ())
     {
       return ret;
     }
 
-  auto shape = in.shape_constant ();
-  shape += out.shape_constant ();
+  auto shape = in.shape_constant () + out_.shape_constant ();
 
-  ret = command_->record_pipeline (*pipeline_, { in, out }, shape);
+  ret = command_->record_pipeline (*pipeline_, { in, out_ }, shape);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return out;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 };
 
 uint64_t

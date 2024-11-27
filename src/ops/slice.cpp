@@ -1,5 +1,6 @@
 #include "src/ops/slice.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
 namespace vkllama
@@ -47,31 +48,31 @@ Slice::operator() (Tensor in, const std::array<uint32_t, 3> &starts,
   constants += { starts[0],  starts[1],  starts[2],
                  extents[0], extents[1], extents[2] };
 
-  auto out = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
-  auto ret = out.create ();
-  if (!ret.ok ())
+  if (out_.channels () != extents[0] || out_.height () != extents[1]
+      || out_.width () != extents[2])
     {
-      return ret;
+      out_ = Tensor (extents[0], extents[1], extents[2], dev_, dtype_);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   uint32_t groupz = (extents[0] + 3) / 4, groupy = (extents[1] + 7) / 8,
            groupx = (extents[2] + 7) / 8;
 
-  ret = pipeline_->set_group (groupx, groupy, groupz);
+  auto ret = pipeline_->set_group (groupx, groupy, groupz);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  ret = command_->record_pipeline (*pipeline_, { in, out }, constants);
+  ret = command_->record_pipeline (*pipeline_, { in, out_ }, constants);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  out.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  out.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return out;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 }
 
 uint64_t

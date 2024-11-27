@@ -8,9 +8,11 @@ glsl_shader(
         "common.h",
         "header.h",
         "matmul_conf.h",
+        "rms_norm_conf.h",
     ],
     extra_args = [
-        "--target-spv=spv1.3",
+        "--target-env=vulkan1.2",
+        "--target-spv=spv1.5",
     ],
     tool = "//tools:binary_to_array",
     visibility = ["//visibility:public"]

@@ -1,6 +1,8 @@
 #include "rms_norm.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/pipeline.h"
+#include "src/shaders/rms_norm_conf.h"
 #include "src/shaders/vkllama_comp_shaders.h"
 
 namespace vkllama
@@ -9,9 +11,8 @@ RMSNorm::RMSNorm (GPUDevice *dev, Command *command, Tensor weight,
                   const float eps_, const Tensor::DType dtype)
     : Op (dev, command), weight_ (weight), dtype_ (dtype)
 {
-  Pipeline::ShaderInfo info = {
-    2, 3, sizeof (ShapeConstant), (uint32_t)dev_->subgroup_size (), 4, 1
-  };
+  Pipeline::ShaderInfo info
+      = { 2, 3, sizeof (ShapeConstant), _RMS_NORM_BLOCK_X, 1, 1 };
 
   const auto *spv_code = __get_rms_norm_fp16_comp_spv_code ();
   const auto spv_size = __get_rms_norm_fp16_comp_spv_size ();
@@ -66,30 +67,27 @@ RMSNorm::operator() (Tensor x) noexcept
           int (dtype_), int (x.dtype ())));
     }
 
-  auto output
-      = Tensor (x.channels (), x.height (), x.width (), dev_, dtype_, false);
-  auto ret = output.create ();
-  if (!ret.ok ())
+  if (out_.channels () != x.channels () || out_.height () != x.height ()
+      || out_.width () != x.width ())
     {
-      return ret;
+      out_ = Tensor (x.channels (), x.height (), x.width (), dev_, dtype_,
+                     false);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
-  ret = pipeline_->set_group (1, (x.height () + 3) / 4, x.channels ());
-  if (!ret.ok ())
-    {
-      return ret;
-    }
+  auto ret = pipeline_->set_group (1, x.height (), x.channels ());
+  VKLLAMA_STATUS_OK (ret);
 
-  ret = command_->record_pipeline (*pipeline_, { x, output }, { 0, 2 },
+  ret = command_->record_pipeline (*pipeline_, { x, out_ }, { 0, 2 },
                                    x.shape_constant ());
   if (!ret.ok ())
     {
       return ret;
     }
 
-  output.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  output.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return output;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 }
 }
 

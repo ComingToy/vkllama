@@ -72,16 +72,16 @@ uint64_t
 FeedForward::time () noexcept
 {
   auto down_time = down_op_->time ();
-  auto elem_time = up_gate_pipeline_->time ();
+  auto up_and_gate_time = up_gate_pipeline_->time ();
 
 #if __VKLLAMA_LOG_COST
   fprintf (stderr,
-           "FeedForward: up time cost: %llu, gate time cost: %llu, down time "
-           "cost: %llu, elemwise time cost: %llu\n",
-           up_time, gate_time, down_time, elem_time);
+           "FeedForward: up and gate time cost: %llu, "
+           "down time cost: %llu\n",
+           up_and_gate_time, down_time);
 #endif
 
-  return down_time + elem_time;
+  return down_time + up_and_gate_time;
 }
 
 absl::StatusOr<Tensor>
@@ -95,9 +95,13 @@ FeedForward::operator() (Tensor X) noexcept
     }
 
   absl::StatusOr<Tensor> ret;
-  t0_ = Tensor (X.channels (), X.height (), w1_.height (), dev_, FP16, false);
-
-  VKLLAMA_STATUS_OK (t0_.create ());
+  if (t0_.channels () != X.channels () || t0_.height () != X.height ()
+      || t0_.width () != w1_.height ())
+    {
+      t0_ = Tensor (X.channels (), X.height (), w1_.height (), dev_, FP16,
+                    false);
+      VKLLAMA_STATUS_OK (t0_.create ());
+    }
 
   size_t groupx = t0_.width (), groupy = t0_.height (),
          groupz = t0_.channels ();

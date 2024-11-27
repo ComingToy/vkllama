@@ -19,6 +19,7 @@ private:
   std::unique_ptr<Pipeline> pipeline_;
   Tensor weight_;
   Tensor::DType dtype_;
+  Tensor out_;
 };
 
 }

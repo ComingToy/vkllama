@@ -1,5 +1,6 @@
 #include "mat_mul.h"
 #include "src/core/command.h"
+#include "src/core/common.h"
 #include "src/core/gpu_device.h"
 #include "src/core/pipeline.h"
 #include "src/core/tensor.h"
@@ -181,15 +182,15 @@ MatMul::operator() (Tensor a) noexcept
                            broadcast_type_, weight_.channels ()));
     }
 
-  size_t out_h = a.height (),
+  size_t out_c = std::max (a.channels (), weight_.channels ()),
+         out_h = a.height (),
          out_w = transpose_b_ ? weight_.height () : weight_.width ();
-  auto c = Tensor (std::max (a.channels (), weight_.channels ()), out_h, out_w,
-                   dev_, FP16, false);
 
-  auto ret = c.create ();
-  if (!ret.ok ())
+  if (out_.channels () != out_c || out_.height () != out_h
+      || out_.width () != out_w)
     {
-      return ret;
+      out_ = Tensor (out_c, out_h, out_w, dev_, FP16, false);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   int channels = std::max (a.channels (), weight_.channels ());
@@ -211,18 +212,19 @@ MatMul::operator() (Tensor a) noexcept
       return ret;
     }
 
-  ShaderConstants constants
-      = a.shape_constant () + weight_.shape_constant () + c.shape_constant ();
+  ShaderConstants constants = a.shape_constant () + weight_.shape_constant ()
+                              + out_.shape_constant ();
 
-  ret = command_->record_pipeline (*pipeline_, { a, c }, { 0, 2 }, constants);
+  auto ret = command_->record_pipeline (*pipeline_, { a, out_ }, { 0, 2 },
+                                        constants);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return c;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 }
 
 absl::StatusOr<Tensor>
@@ -246,13 +248,13 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
     }
 
   size_t out_h = a.height (), out_w = transpose_b_ ? b.height () : b.width ();
-  auto c = Tensor (std::max (a.channels (), b.channels ()), out_h, out_w, dev_,
-                   FP16, false);
+  size_t out_c = std::max (a.channels (), b.channels ());
 
-  auto ret = c.create ();
-  if (!ret.ok ())
+  if (out_.channels () != out_c || out_.height () != out_h
+      || out_.width () != out_w)
     {
-      return ret;
+      out_ = Tensor (out_c, out_h, out_w, dev_, FP16, false);
+      VKLLAMA_STATUS_OK (out_.create ());
     }
 
   int channels = std::max (a.channels (), b.channels ());
@@ -274,19 +276,18 @@ MatMul::operator() (Tensor a, Tensor b) noexcept
   if (!s.ok ())
     return s;
 
-  auto constants = a.shape_constant ();
-  constants += b.shape_constant ();
-  constants += c.shape_constant ();
+  auto constants
+      = a.shape_constant () + b.shape_constant () + out_.shape_constant ();
 
-  ret = command_->record_pipeline (*pipeline_, { a, b, c }, constants);
+  auto ret = command_->record_pipeline (*pipeline_, { a, b, out_ }, constants);
   if (!ret.ok ())
     {
       return ret;
     }
 
-  c.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
-  c.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-  return c;
+  out_.set_access_flags (VK_ACCESS_SHADER_WRITE_BIT);
+  out_.set_pipeline_stage (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+  return out_;
 }
 }
 
