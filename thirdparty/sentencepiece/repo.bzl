@@ -4,6 +4,6 @@ def repo():
     git_repository(
         name = "sentencepiece",
         remote = "https://github.com/google/sentencepiece.git",
-        branch = "master",
+        tag = "v0.2.0",
         build_file = "//thirdparty/sentencepiece:sentencepiece.BUILD"
     )
